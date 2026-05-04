@@ -1,4 +1,4 @@
-import { state, exportJSON, importJSON } from './state.js';
+import { state, exportJSON, importJSON, loadState, scheduleAutoSave } from './state.js';
 import { renderConfig } from './config.js';
 import { renderCases } from './cases.js';
 import { renderGrids } from './grids.js';
@@ -47,6 +47,7 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   reader.onload = (ev) => {
     if (importJSON(ev.target.result)) {
       document.getElementById('app-title').textContent = state.title;
+      scheduleAutoSave();
       renderers[currentTab]();
       showToast('Import réussi !');
     } else {
@@ -56,5 +57,11 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   };
   reader.readAsText(file);
 });
+
+if (loadState()) {
+  document.getElementById('app-title').textContent = state.title;
+}
+
+document.addEventListener('input', scheduleAutoSave);
 
 renderConfig();

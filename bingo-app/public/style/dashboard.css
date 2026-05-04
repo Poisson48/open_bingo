@@ -76,12 +76,14 @@
   margin-bottom: 14px;
 }
 
-#cases-table {
+#cases-table,
+#gages-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-#cases-table thead th {
+#cases-table thead th,
+#gages-table thead th {
   background: var(--bg-card);
   color: var(--text-muted);
   padding: 9px 12px;
@@ -93,17 +95,23 @@
   border-bottom: 1px solid var(--border);
 }
 
-#cases-table tbody tr { transition: background .1s; }
-#cases-table tbody tr:hover { background: var(--bg-hover); }
+#cases-table tbody tr,
+#gages-table tbody tr { transition: background .1s; }
+#cases-table tbody tr:hover,
+#gages-table tbody tr:hover { background: var(--bg-hover); }
 
-#cases-table tbody td {
+#cases-table tbody td,
+#gages-table tbody td {
   padding: 3px 6px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
-#cases-table tbody tr:last-child td { border-bottom: none; }
+#cases-table tbody tr:last-child td,
+#gages-table tbody tr:last-child td { border-bottom: none; }
 
-#cases-table td input[type="text"] {
+
+#cases-table td input[type="text"],
+#gages-table td input[type="text"] {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
@@ -115,7 +123,8 @@
   transition: border-color .15s, background .15s;
 }
 
-#cases-table td input[type="number"] {
+#cases-table td input[type="number"],
+#gages-table td input[type="number"] {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
@@ -128,7 +137,8 @@
   transition: border-color .15s, background .15s;
 }
 
-#cases-table td input:focus {
+#cases-table td input:focus,
+#gages-table td input:focus {
   outline: none;
   border-color: var(--accent);
   background: var(--bg-card);
@@ -139,6 +149,61 @@
   font-size: 11px;
   text-align: center;
   user-select: none;
+}
+
+/* ─── Rate slider ─── */
+.rate-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.rate-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+input[type="range"].case-rate {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 80px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+}
+
+input[type="range"].case-rate::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  transition: transform .1s;
+}
+
+input[type="range"].case-rate::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"].case-rate::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-sizing: border-box;
 }
 
 /* ─── Grids tab ─── */

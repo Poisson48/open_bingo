@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { state, scheduleAutoSave, markGridsDirty } from './state.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -20,7 +20,7 @@ export function renderCases() {
               <th style="width:32px">#</th>
               <th>Libellé</th>
               <th style="width:64px" title="Points marqués quand la case est cochée">Pts</th>
-              <th style="width:80px" title="Probabilité que cette phrase apparaisse dans la grille de chaque joueur">Taux&nbsp;%</th>
+              <th style="width:150px" title="Probabilité que cette phrase apparaisse dans la grille de chaque joueur">Taux&nbsp;%</th>
               <th style="width:36px"></th>
             </tr>
           </thead>
@@ -71,6 +71,8 @@ export function renderCases() {
     tbody.appendChild(tr);
     tr.querySelector('.case-label')?.focus();
     updateStats();
+    markGridsDirty();
+    scheduleAutoSave();
     bindCaseRowEvents(tr);
   });
 
@@ -85,6 +87,7 @@ export function renderCases() {
     tr.innerHTML = renderGageRowInner(state.gages[i], i);
     tbody.appendChild(tr);
     tr.querySelector('.gage-desc')?.focus();
+    scheduleAutoSave();
     bindGageRowEvents(tr);
   });
 }
@@ -100,7 +103,7 @@ function renderCaseRowInner(c, i) {
     <td class="row-num">${i + 1}</td>
     <td><input type="text"   class="case-label"  value="${esc(c.label)}" placeholder="Ce qui se passe dans le film…"></td>
     <td><input type="number" class="case-points" value="${c.points}" min="1" max="99"></td>
-    <td><input type="number" class="case-rate"   value="${c.rate ?? 50}" min="0" max="100"></td>
+    <td class="rate-cell"><input type="range" class="case-rate" value="${c.rate ?? 50}" min="0" max="100" step="10"><span class="rate-val">${c.rate ?? 50}%</span></td>
     <td><button class="btn-icon remove-case" data-idx="${i}" title="Supprimer">✕</button></td>
   `;
 }
@@ -112,19 +115,28 @@ function bindCaseTableEvents() {
 function bindCaseRowEvents(tr) {
   tr.querySelector('.remove-case')?.addEventListener('click', () => {
     state.cases.splice(parseInt(tr.dataset.idx), 1);
+    markGridsDirty();
+    scheduleAutoSave();
     renderCases();
   });
 
   const sync = (sel, field, parse) => {
     tr.querySelector(sel)?.addEventListener('input', (e) => {
       const idx = parseInt(tr.dataset.idx);
-      if (state.cases[idx]) { state.cases[idx][field] = parse(e.target.value); updateStats(); }
+      if (state.cases[idx]) { state.cases[idx][field] = parse(e.target.value); updateStats(); markGridsDirty(); }
     });
   };
 
   sync('.case-label',  'label',  v => v);
   sync('.case-points', 'points', v => Math.max(1, parseInt(v) || 1));
-  sync('.case-rate',   'rate',   v => Math.min(100, Math.max(0, parseInt(v) || 0)));
+
+  tr.querySelector('.case-rate')?.addEventListener('input', (e) => {
+    const idx = parseInt(tr.dataset.idx);
+    const val = parseInt(e.target.value) || 0;
+    if (state.cases[idx]) { state.cases[idx].rate = val; updateStats(); markGridsDirty(); }
+    const span = tr.querySelector('.rate-val');
+    if (span) span.textContent = val + '%';
+  });
 }
 
 // ── Gages ──
@@ -149,6 +161,7 @@ function bindGageTableEvents() {
 function bindGageRowEvents(tr) {
   tr.querySelector('.remove-gage')?.addEventListener('click', () => {
     state.gages.splice(parseInt(tr.dataset.idx), 1);
+    scheduleAutoSave();
     renderCases();
   });
 

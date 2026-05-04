@@ -16,16 +16,21 @@ export function renderPrint() {
   }
 
   const hasGages = state.gages?.length > 0;
-  const sheetsCount = state.grids.length + (hasGages ? 1 : 0);
+  const playerSheets = state.grids.map(grid => renderSheet(grid, hasGages));
+  const playerPages = [];
+  for (let i = 0; i < playerSheets.length; i += 2) {
+    playerPages.push(`<div class="print-page">${playerSheets.slice(i, i + 2).join('')}</div>`);
+  }
+  const gagePage = hasGages ? `<div class="print-page gage-page">${renderGageSheet()}</div>` : '';
+  const pagesCount = playerPages.length + (hasGages ? 1 : 0);
 
   container.innerHTML = `
     <div class="print-controls no-print">
-      <button id="btn-print" class="btn-primary">🖨 Imprimer (${sheetsCount} feuille${sheetsCount > 1 ? 's' : ''})</button>
-      <span class="print-info">${state.grids.length} grille${state.grids.length > 1 ? 's' : ''} joueur${state.grids.length > 1 ? 's' : ''}${hasGages ? ' + 1 tableau de gages' : ''}</span>
+      <button id="btn-print" class="btn-primary">🖨 Imprimer (${pagesCount} page${pagesCount > 1 ? 's' : ''} A4)</button>
+      <span class="print-info">${state.grids.length} grille${state.grids.length > 1 ? 's' : ''} joueur${state.grids.length > 1 ? 's' : ''}${hasGages ? ' + 1 page gages' : ''} — 2 grilles par feuille</span>
     </div>
     <div id="print-content">
-      ${state.grids.map((grid, i) => renderSheet(grid, hasGages)).join('')}
-      ${hasGages ? renderGageSheet() : ''}
+      ${playerPages.join('')}${gagePage}
     </div>
   `;
 
@@ -36,12 +41,12 @@ function renderSheet(grid, hasGages) {
   const N = state.gridSize;
 
   let fontSize, cellPad;
-  if (N <= 3)      { fontSize = '18px'; cellPad = '10px 6px'; }
-  else if (N <= 5) { fontSize = '13px'; cellPad = '6px 4px'; }
-  else if (N <= 7) { fontSize = '10px'; cellPad = '4px 3px'; }
-  else             { fontSize = '8px';  cellPad = '2px'; }
+  if (N <= 3)      { fontSize = '16px'; cellPad = '8px 5px'; }
+  else if (N <= 5) { fontSize = '12px'; cellPad = '5px 3px'; }
+  else if (N <= 7) { fontSize = '9px';  cellPad = '3px 2px'; }
+  else             { fontSize = '7px';  cellPad = '2px 1px'; }
 
-  const cellHeightMm = Math.max(8, Math.floor(155 / N));
+  const cellHeightMm = Math.max(6, Math.floor(70 / N));
 
   let gridRows = '';
   for (const row of grid.cells) {

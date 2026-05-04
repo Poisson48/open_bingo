@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { state, clearGridsDirty } from './state.js';
 
 function shuffle(arr) {
   const a = [...arr];
@@ -41,10 +41,11 @@ function buildGrid(playerName, cellData, N, hasCenter) {
 
 function generatePlayerGrid(playerName, N, hasCenter, available) {
   const included = [];
-  const excluded = [];
+  const excluded = []; // rate > 0 but failed roll — eligible for padding
 
   for (const c of state.cases) {
     const rate = c.rate ?? 50;
+    if (rate === 0) continue; // rate=0 means never include, not even as padding
     if (Math.random() * 100 < rate) {
       included.push({ ...c });
     } else {
@@ -52,7 +53,6 @@ function generatePlayerGrid(playerName, N, hasCenter, available) {
     }
   }
 
-  // Fill to exactly `available` slots: prefer included, pad with excluded, then cycle if needed
   const shuffledIncluded = shuffle(included);
   const shuffledExcluded = shuffle(excluded);
 
@@ -63,12 +63,13 @@ function generatePlayerGrid(playerName, N, hasCenter, available) {
     cells = [...shuffledIncluded, ...shuffledExcluded.slice(0, available - shuffledIncluded.length)];
   }
 
-  // If still not enough (fewer phrases than cells), cycle through all phrases
+  // If still not enough, cycle through all non-disabled phrases
   if (cells.length < available) {
-    const pool = shuffle([...state.cases]);
-    let i = cells.length;
+    const pool = shuffle([...included, ...excluded]);
+    const fallback = pool.length > 0 ? pool : shuffle(state.cases.map(c => ({ ...c })));
+    let i = 0;
     while (cells.length < available) {
-      cells.push({ ...pool[i % pool.length] });
+      cells.push({ ...fallback[i % fallback.length] });
       i++;
     }
   }
@@ -91,6 +92,7 @@ export function generateAll() {
     generatePlayerGrid(player.name, N, hasCenter, available)
   );
 
+  clearGridsDirty();
   const repeats = state.cases.length < available;
   return { error: false, repeats };
 }

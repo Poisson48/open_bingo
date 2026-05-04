@@ -1,10 +1,11 @@
-import { state } from './state.js';
+import { state, scheduleAutoSave } from './state.js';
 import { showToast } from './ui.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function renderConfig() {
   const container = document.getElementById('config-form');
+  const isEvenGrid = state.gridSize % 2 === 0;
   container.innerHTML = `
     <div class="config-section">
       <h2>Paramètres globaux</h2>
@@ -27,10 +28,10 @@ export function renderConfig() {
 
       <div class="form-group">
         <label class="label-checkbox">
-          <input type="checkbox" id="cfg-free-center" ${state.freeCenter ? 'checked' : ''}>
+          <input type="checkbox" id="cfg-free-center" ${state.freeCenter ? 'checked' : ''} ${isEvenGrid ? 'disabled' : ''}>
           Case centrale FREE (uniquement si N est impair)
         </label>
-        <span class="hint">Chaque case a son propre taux de réapparition, configurable dans l'onglet Cases.</span>
+        <span class="hint">Chaque case a son propre taux de réapparition, configurable dans l'onglet Phrases &amp; Gages.</span>
       </div>
 
       <h2>Multiplicateurs de points</h2>
@@ -61,16 +62,33 @@ export function renderConfig() {
 
       <div class="form-actions">
         <button id="save-config" class="btn-primary">Enregistrer la configuration</button>
+        <button id="reset-state" class="btn-danger" style="margin-left:auto">Réinitialiser…</button>
       </div>
     </div>
   `;
 
-  document.getElementById('cfg-common-rate').addEventListener('input', (e) => {
-    document.getElementById('common-rate-val').textContent = e.target.value + '%';
+  // Live sync player names to state
+  document.querySelectorAll('.player-name').forEach(input => {
+    input.addEventListener('input', () => {
+      const idx = parseInt(input.dataset.idx);
+      if (state.players[idx] !== undefined) {
+        state.players[idx].name = input.value;
+        scheduleAutoSave();
+      }
+    });
+  });
+
+  // Toggle freeCenter when grid size changes
+  document.getElementById('cfg-grid-size').addEventListener('input', (e) => {
+    const n = parseInt(e.target.value) || 5;
+    const cb = document.getElementById('cfg-free-center');
+    cb.disabled = (n % 2 === 0);
+    if (n % 2 === 0) cb.checked = false;
   });
 
   document.getElementById('add-player').addEventListener('click', () => {
     state.players.push({ name: '' });
+    scheduleAutoSave();
     renderConfig();
     const inputs = document.querySelectorAll('.player-name');
     inputs[inputs.length - 1]?.focus();
@@ -79,11 +97,19 @@ export function renderConfig() {
   document.querySelectorAll('.remove-player').forEach(btn => {
     btn.addEventListener('click', () => {
       state.players.splice(parseInt(btn.dataset.idx), 1);
+      scheduleAutoSave();
       renderConfig();
     });
   });
 
   document.getElementById('save-config').addEventListener('click', saveConfig);
+
+  document.getElementById('reset-state').addEventListener('click', () => {
+    if (confirm('Effacer toutes les données sauvegardées et revenir aux valeurs par défaut ?')) {
+      localStorage.removeItem('bingo_state');
+      location.reload();
+    }
+  });
 }
 
 function renderPlayerRow(p, i) {
@@ -114,6 +140,7 @@ function saveConfig() {
 
   document.getElementById('app-title').textContent = state.title;
   state.grids = [];
+  scheduleAutoSave();
   showToast('Configuration enregistrée — les grilles ont été réinitialisées.');
   renderConfig();
 }

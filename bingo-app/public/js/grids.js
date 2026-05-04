@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { state, scheduleAutoSave, gridsDirty } from './state.js';
 import { generateAll, reshuffleGrid } from './generator.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -13,6 +13,7 @@ export function renderGrids() {
         <button id="btn-generate-all" class="btn-primary">⟳ Générer toutes les grilles</button>
       </div>
       <div id="grids-error"></div>
+      ${gridsDirty && state.grids.length > 0 ? `<div class="warn-banner">⚠ Les phrases ont été modifiées depuis la dernière génération — les grilles affichées peuvent être obsolètes.</div>` : ''}
   `;
 
   if (state.grids.length === 0) {
@@ -49,6 +50,7 @@ export function renderGrids() {
       errEl.innerHTML = result.repeats
         ? `<div class="warn-banner">⚠ Moins de phrases que de cellules — certaines cases apparaissent en double dans les grilles.</div>`
         : '';
+      scheduleAutoSave();
       renderGrids();
     }
   });
@@ -58,6 +60,7 @@ export function renderGrids() {
       const i = parseInt(btn.dataset.idx);
       if (i > 0) {
         [state.grids[i - 1], state.grids[i]] = [state.grids[i], state.grids[i - 1]];
+        scheduleAutoSave();
         renderGrids();
       }
     });
@@ -68,6 +71,7 @@ export function renderGrids() {
       const i = parseInt(btn.dataset.idx);
       if (i < state.grids.length - 1) {
         [state.grids[i], state.grids[i + 1]] = [state.grids[i + 1], state.grids[i]];
+        scheduleAutoSave();
         renderGrids();
       }
     });
@@ -76,6 +80,7 @@ export function renderGrids() {
   container.querySelectorAll('.reshuffle').forEach(btn => {
     btn.addEventListener('click', () => {
       reshuffleGrid(parseInt(btn.dataset.idx));
+      scheduleAutoSave();
       renderGrids();
     });
   });
