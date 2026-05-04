@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Générateur de Bingo</title>
   <link rel="stylesheet" href="style/main.css">
   <link rel="stylesheet" href="style/dashboard.css">
@@ -12,8 +12,15 @@
 <body>
   <div id="app">
     <header>
-      <div class="header-left">
-        <span id="app-title">Générateur de Bingo</span>
+      <div class="header-top-row">
+        <div class="header-left">
+          <span id="app-title">Générateur de Bingo</span>
+        </div>
+        <div class="header-actions">
+          <button id="btn-export">Exporter JSON</button>
+          <label class="btn-import" for="import-file">Importer JSON</label>
+          <input type="file" id="import-file" accept=".json">
+        </div>
       </div>
       <nav class="tabs">
         <button class="tab-btn active" data-tab="config">Configuration</button>
@@ -21,11 +28,6 @@
         <button class="tab-btn" data-tab="grids">Grilles</button>
         <button class="tab-btn" data-tab="print">Aperçu impression</button>
       </nav>
-      <div class="header-actions">
-        <button id="btn-export">Exporter JSON</button>
-        <label class="btn-import" for="import-file">Importer JSON</label>
-        <input type="file" id="import-file" accept=".json">
-      </div>
     </header>
 
     <main>
