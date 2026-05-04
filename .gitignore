@@ -1,1 +1,23 @@
+# Node
 node_modules/
+bingo-app/node_modules/
+npm-debug.log*
+
+# Rust / Cargo
+src-tauri/target/
+src-tauri/gen/
+
+# Tauri artefacts
+*.AppImage
+*.deb
+*.rpm
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db
