@@ -361,17 +361,33 @@ h2:first-child { margin-top: 0; }
   }
 
   .header-left {
-    min-width: unset;
+    min-width: 0;        /* permet la troncature dans un flex */
     font-size: 14px;
     padding: 0;
     flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #app-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
   }
 
   .header-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     flex-shrink: 0;
+  }
+
+  .header-actions button,
+  .header-actions .btn-import {
+    font-size: 11px;
+    padding: 5px 8px;
   }
 
   /* Ligne 2 : tabs scrollables */
