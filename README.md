@@ -1,6 +1,21 @@
-# open_bingo
+# Open Bingo
 
 Générateur de grilles de bingo personnalisables pour soirées jeux. Chaque joueur obtient une grille unique tirée aléatoirement depuis un pool de cases thématiques.
+
+## Jouer en ligne (sans installation)
+
+**[Ouvrir Open Bingo dans le navigateur →](https://poisson48.github.io/open_bingo/)**
+
+Fonctionne directement dans Chrome, Firefox, Safari — aucune installation requise.
+
+## Télécharger l'application
+
+| Plateforme | Fichier | Notes |
+|-----------|---------|-------|
+| Linux | [`.AppImage`](https://github.com/Poisson48/open_bingo/releases/latest) | Toutes distros — `chmod +x` puis double-clic |
+| Linux (Ubuntu/Debian) | [`.deb`](https://github.com/Poisson48/open_bingo/releases/latest) | `sudo dpkg -i` |
+| Android | [`.apk`](https://github.com/Poisson48/open_bingo/releases/latest) | Activer "Sources inconnues" |
+| Windows | — | Build via GitHub Actions (à venir) |
 
 ## Aperçu
 
@@ -22,13 +37,14 @@ Générateur de grilles de bingo personnalisables pour soirées jeux. Chaque jou
 - **Case FREE centrale** — activable uniquement si la grille est de taille impaire
 - **Système de points & multiplicateurs** — ligne, colonne, diagonale, grille complète
 - **Joueurs configurables** — ajout/suppression de joueurs depuis l'interface
-- **Gages** — liste de gages avec PV récupérés, imprimés sur une page dédiée (non tronquée)
-- **Autosave localStorage** — toutes les modifications sont sauvegardées automatiquement ; l'état est restauré au rechargement
+- **Gages** — liste de gages avec PV récupérés, imprimés sur une page dédiée
+- **Autosave localStorage** — toutes les modifications sont sauvegardées automatiquement
 - **Export / Import JSON** — sauvegarde et restauration complète de la configuration
 - **Aperçu impression A4** — 2 grilles joueurs par feuille + 1 page dédiée au tableau des gages
 - **Détection de grilles obsolètes** — bannière d'avertissement si des phrases ont été modifiées depuis la dernière génération
+- **App desktop native** — via Tauri v2 (Linux, Android ; Windows à venir)
 
-## Lancer l'application
+## Lancer en local (mode serveur)
 
 ```bash
 cd bingo-app
@@ -38,12 +54,23 @@ npm start
 
 Ouvrir [http://localhost:3000](http://localhost:3000).
 
+## Build desktop (Tauri)
+
+```bash
+npm install          # installe @tauri-apps/cli
+npm run build        # → .deb + .AppImage dans src-tauri/target/release/bundle/
+npm run android      # → .apk dans src-tauri/gen/android/app/build/outputs/
+npm run dev          # fenêtre native locale (hot-reload)
+```
+
+Prérequis : Rust, `libwebkit2gtk-4.1-dev`, `patchelf`, Android SDK + NDK 28.
+
 ## Structure du projet
 
 ```
 bingo-app/
   server.js           # Serveur Express (fichiers statiques uniquement)
-  public/
+  public/             # ← aussi servi via GitHub Pages
     index.html
     js/
       state.js        # État global, autosave localStorage, export/import JSON
@@ -59,6 +86,9 @@ bingo-app/
       dashboard.css
       grid.css
       print.css
+src-tauri/            # Tauri v2 — binaires natifs
+.github/workflows/
+  pages.yml           # Déploiement automatique sur GitHub Pages
 ```
 
 ## Utilisation
@@ -77,3 +107,4 @@ Le projet inclut un thème **Bingo Complotiste — Da Vinci Code** avec 30 phras
 - Node.js + Express (serveur statique)
 - Vanilla JS ES modules (aucun bundler, aucun framework)
 - CSS natif
+- Tauri v2 (desktop Linux/Windows + Android)
