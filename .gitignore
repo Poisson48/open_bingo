@@ -21,6 +21,10 @@ src-tauri/gen/ios/
 *.apk
 *.aab
 
+# Signing keys
+*.keystore
+*.jks
+
 # OS
 .DS_Store
 Thumbs.db
