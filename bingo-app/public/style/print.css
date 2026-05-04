@@ -1,0 +1,233 @@
+/* ─── Print preview (on-screen) ─── */
+#print-content {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  align-items: center;
+}
+
+.print-sheet {
+  background: #fff;
+  color: #000;
+  width: 210mm;
+  padding: 14mm 15mm 12mm;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ─── Sheet header ─── */
+.sheet-header {
+  text-align: center;
+  border-bottom: 2px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
+.sheet-player {
+  font-size: 22px;
+  font-weight: 900;
+  margin-top: 3px;
+  letter-spacing: .5px;
+}
+
+/* ─── Print grid ─── */
+.print-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.print-grid td {
+  border: 2px solid #000;
+  text-align: center;
+  vertical-align: middle;
+  position: relative;
+  overflow: hidden;
+}
+
+.print-grid .free-cell {
+  background: #e8e8e8;
+  font-weight: 900;
+  font-size: inherit;
+  letter-spacing: 1px;
+}
+
+.print-grid .cell-label {
+  display: block;
+  line-height: 1.25;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.print-grid .cell-points {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  font-size: .65em;
+  color: #555;
+  font-weight: 700;
+  background: rgba(255,255,255,.8);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+/* ─── HP gauge ─── */
+.hp-section {
+  border-top: 1px solid #bbb;
+  padding-top: 8px;
+}
+
+.hp-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 5px;
+}
+
+.hp-gauge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hp-box {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #000;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ─── Rules section ─── */
+.rules-section {
+  border-top: 1px solid #bbb;
+  padding-top: 8px;
+}
+
+.rules-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 6px;
+}
+
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.rules-table td {
+  padding: 2px 12px 2px 0;
+  vertical-align: top;
+}
+
+.rules-note {
+  font-size: 10px;
+  color: #444;
+  line-height: 1.5;
+}
+
+/* ─── Gage sheet ─── */
+.gage-intro {
+  font-size: 12px;
+  margin-bottom: 12px;
+  color: #333;
+  font-style: italic;
+}
+
+.gage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.gage-table th {
+  background: #f0f0f0;
+  border: 1.5px solid #000;
+  padding: 7px 10px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.gage-table td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.gage-table .gage-num {
+  text-align: center;
+  color: #666;
+  font-size: 11px;
+}
+
+.gage-table .gage-hp-val {
+  text-align: center;
+  font-weight: 700;
+  color: #000;
+  font-size: 14px;
+}
+
+.gage-table tbody tr:nth-child(even) td { background: #f8f8f8; }
+
+/* ─── @media print ─── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  header,
+  .print-controls,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .tab-panel              { display: none !important; }
+  #tab-print              { display: block !important; }
+
+  #print-content {
+    gap: 0;
+    align-items: stretch;
+  }
+
+  .print-sheet {
+    width: 100%;
+    padding: 14mm 15mm 12mm;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+    min-height: 100vh;
+  }
+
+  .print-sheet:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}

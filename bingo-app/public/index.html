@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Générateur de Bingo</title>
+  <link rel="stylesheet" href="style/main.css">
+  <link rel="stylesheet" href="style/dashboard.css">
+  <link rel="stylesheet" href="style/grid.css">
+  <link rel="stylesheet" href="style/print.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-left">
+        <span id="app-title">Générateur de Bingo</span>
+      </div>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="config">Configuration</button>
+        <button class="tab-btn" data-tab="cases">Cases</button>
+        <button class="tab-btn" data-tab="grids">Grilles</button>
+        <button class="tab-btn" data-tab="print">Aperçu impression</button>
+      </nav>
+      <div class="header-actions">
+        <button id="btn-export">Exporter JSON</button>
+        <label class="btn-import" for="import-file">Importer JSON</label>
+        <input type="file" id="import-file" accept=".json">
+      </div>
+    </header>
+
+    <main>
+      <section id="tab-config" class="tab-panel active">
+        <div id="config-form"></div>
+      </section>
+
+      <section id="tab-cases" class="tab-panel">
+        <div id="cases-panel"></div>
+      </section>
+
+      <section id="tab-grids" class="tab-panel">
+        <div id="grids-panel"></div>
+      </section>
+
+      <section id="tab-print" class="tab-panel">
+        <div id="print-panel"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
