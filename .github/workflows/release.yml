@@ -138,12 +138,9 @@ jobs:
           java-version: '17'
           distribution: temurin
 
-      - name: Android SDK + NDK
+      - name: Installer NDK
         run: |
-          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "ndk;28.0.12433566"
+          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;28.0.12433566"
 
       - uses: actions/setup-node@v4
         with:
@@ -174,10 +171,9 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build APK
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.0.12433566
-        run: npm run android -- --apk
+        run: |
+          export NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.12433566"
+          npm run android -- --apk
 
       - uses: softprops/action-gh-release@v2
         with:
