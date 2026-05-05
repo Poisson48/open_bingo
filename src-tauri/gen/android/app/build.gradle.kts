@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -32,7 +33,7 @@ android {
     if (keystoreB64 != null && keystoreB64.isNotEmpty()) {
         val keystoreFile = layout.buildDirectory.file("release.keystore").get().asFile
         keystoreFile.parentFile.mkdirs()
-        keystoreFile.writeBytes(java.util.Base64.getMimeDecoder().decode(keystoreB64))
+        keystoreFile.writeBytes(Base64.getMimeDecoder().decode(keystoreB64))
         signingConfigs {
             create("release") {
                 storeFile = keystoreFile
