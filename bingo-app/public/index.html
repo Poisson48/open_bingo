@@ -11,42 +11,64 @@
 </head>
 <body>
   <div id="app">
-    <header>
-      <div class="header-top-row">
-        <div class="header-left">
-          <span id="app-title">Générateur de Bingo</span>
+
+    <!-- ─── Vue : liste des projets ─── -->
+    <div id="view-projects" class="app-view">
+      <header>
+        <div class="header-top-row">
+          <div class="header-left">
+            <span>Générateur de Bingo</span>
+          </div>
+          <div class="header-actions">
+            <button id="btn-export-all">Exporter tout</button>
+            <label class="btn-import" for="import-all-file">Importer</label>
+            <input type="file" id="import-all-file" accept=".json">
+          </div>
         </div>
-        <div class="header-actions">
-          <button id="btn-export">Exporter JSON</button>
-          <label class="btn-import" for="import-file">Importer JSON</label>
-          <input type="file" id="import-file" accept=".json">
+      </header>
+      <main>
+        <div id="projects-panel"></div>
+      </main>
+    </div>
+
+    <!-- ─── Vue : éditeur ─── -->
+    <div id="view-editor" class="app-view">
+      <header>
+        <div class="header-top-row">
+          <div class="header-left">
+            <button id="btn-back-projects" class="btn-back">← Projets</button>
+            <span id="app-title">Générateur de Bingo</span>
+          </div>
+          <div class="header-actions">
+            <button id="btn-export">Exporter</button>
+            <label class="btn-import" for="import-file">Importer</label>
+            <input type="file" id="import-file" accept=".json">
+          </div>
         </div>
-      </div>
-      <nav class="tabs">
-        <button class="tab-btn active" data-tab="config">Configuration</button>
-        <button class="tab-btn" data-tab="cases">Phrases &amp; Gages</button>
-        <button class="tab-btn" data-tab="grids">Grilles</button>
-        <button class="tab-btn" data-tab="print">Aperçu impression</button>
-      </nav>
-    </header>
+        <nav class="tabs">
+          <button class="tab-btn active" data-tab="config">Configuration</button>
+          <button class="tab-btn" data-tab="cases">Phrases &amp; Gages</button>
+          <button class="tab-btn" data-tab="grids">Grilles</button>
+          <button class="tab-btn" data-tab="print">Aperçu impression</button>
+        </nav>
+      </header>
 
-    <main>
-      <section id="tab-config" class="tab-panel active">
-        <div id="config-form"></div>
-      </section>
+      <main>
+        <section id="tab-config" class="tab-panel active">
+          <div id="config-form"></div>
+        </section>
+        <section id="tab-cases" class="tab-panel">
+          <div id="cases-panel"></div>
+        </section>
+        <section id="tab-grids" class="tab-panel">
+          <div id="grids-panel"></div>
+        </section>
+        <section id="tab-print" class="tab-panel">
+          <div id="print-panel"></div>
+        </section>
+      </main>
+    </div>
 
-      <section id="tab-cases" class="tab-panel">
-        <div id="cases-panel"></div>
-      </section>
-
-      <section id="tab-grids" class="tab-panel">
-        <div id="grids-panel"></div>
-      </section>
-
-      <section id="tab-print" class="tab-panel">
-        <div id="print-panel"></div>
-      </section>
-    </main>
   </div>
 
   <script type="module" src="js/main.js"></script>

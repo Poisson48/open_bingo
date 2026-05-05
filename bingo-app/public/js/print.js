@@ -8,8 +8,9 @@ export function renderPrint() {
   if (state.grids.length === 0) {
     container.innerHTML = `
       <div class="print-empty">
-        <p>Aucune grille à afficher.</p>
-        <p>Allez dans l'onglet <strong>Grilles</strong> pour générer les grilles d'abord.</p>
+        <span class="empty-icon">🖨</span>
+        <p>Aucune grille à imprimer.</p>
+        <p>Allez dans l'onglet <strong>Grilles</strong> pour en générer d'abord.</p>
       </div>
     `;
     return;

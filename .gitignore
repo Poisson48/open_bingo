@@ -10,6 +10,9 @@ src-tauri/gen/android/app/build/
 src-tauri/gen/android/build/
 src-tauri/gen/ios/
 
+# Builds locaux (artefacts dans releases/ — télécharger depuis GitHub Releases)
+releases/
+
 # Tauri artefacts
 *.AppImage
 *.deb
