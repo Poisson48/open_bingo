@@ -30,9 +30,9 @@ android {
     val keyPass = System.getenv("ANDROID_KEY_PASSWORD") ?: keystorePass
 
     if (keystoreB64 != null && keystoreB64.isNotEmpty()) {
-        val keystoreFile = file("${buildDir}/release.keystore")
+        val keystoreFile = layout.buildDirectory.file("release.keystore").get().asFile
         keystoreFile.parentFile.mkdirs()
-        keystoreFile.writeBytes(java.util.Base64.getDecoder().decode(keystoreB64))
+        keystoreFile.writeBytes(java.util.Base64.getMimeDecoder().decode(keystoreB64))
         signingConfigs {
             create("release") {
                 storeFile = keystoreFile
