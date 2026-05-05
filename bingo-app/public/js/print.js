@@ -36,6 +36,21 @@ export function renderPrint() {
   `;
 
   document.getElementById('btn-print').addEventListener('click', () => window.print());
+
+  requestAnimationFrame(() => scalePreviewToFit());
+}
+
+function scalePreviewToFit() {
+  const content = document.getElementById('print-content');
+  if (!content) return;
+  const page = content.querySelector('.print-page');
+  if (!page) return;
+  const available = document.documentElement.clientWidth;
+  const pageW = page.scrollWidth;
+  if (pageW > available) {
+    const scale = available / pageW;
+    content.querySelectorAll('.print-page').forEach(p => { p.style.zoom = scale; });
+  }
 }
 
 function renderSheet(grid, hasGages) {

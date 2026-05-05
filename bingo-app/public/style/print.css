@@ -1,4 +1,10 @@
 /* ─── Print preview (on-screen) ─── */
+@media screen {
+  #tab-print {
+    overflow-x: hidden;
+  }
+}
+
 #print-content {
   display: flex;
   flex-direction: column;
@@ -218,6 +224,10 @@
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .print-page {
+    zoom: 1 !important;
   }
 
   header,
