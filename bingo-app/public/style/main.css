@@ -66,13 +66,20 @@ header {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 8px;
   white-space: nowrap;
   font-size: 15px;
   font-weight: 700;
   color: var(--accent);
   padding: 12px 0;
   min-width: 0;
+}
+
+.header-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 #app-title {
@@ -528,6 +535,11 @@ h2:first-child { margin-top: 0; }
   display: flex;
   gap: 3px;
   flex-shrink: 0;
+}
+.project-card-actions .proj-delete {
+  margin-left: 8px;
+  color: var(--red);
+  border-color: rgba(239,68,68,.3);
 }
 
 .project-card-desc {
