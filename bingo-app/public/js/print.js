@@ -35,7 +35,13 @@ export function renderPrint() {
     </div>
   `;
 
-  document.getElementById('btn-print').addEventListener('click', () => window.print());
+  document.getElementById('btn-print').addEventListener('click', () => {
+    if (window.AndroidPrint) {
+      window.AndroidPrint.print();
+    } else {
+      window.print();
+    }
+  });
 
   requestAnimationFrame(() => scalePreviewToFit());
 }
