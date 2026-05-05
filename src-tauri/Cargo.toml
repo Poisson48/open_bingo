@@ -1,6 +1,6 @@
 [package]
 name        = "open-bingo"
-version     = "1.0.3"
+version     = "1.0.10"
 edition     = "2021"
 description = "Générateur de grilles de bingo"
 authors     = []
