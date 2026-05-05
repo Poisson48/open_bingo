@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
 
   # ── Linux : AppImage + .deb ────────────────────────────────────────────────
@@ -28,20 +31,20 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
 
       - run: npm ci
 
       - name: Patch version + targets
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           node -e "
             const fs = require('fs'), p = 'src-tauri/tauri.conf.json';
             const c = JSON.parse(fs.readFileSync(p));
-            c.version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            c.version = '$VERSION';
             c.bundle.targets = ['deb', 'appimage'];
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
           "
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - run: npm run build
 
@@ -67,8 +70,6 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
 
       - run: npm ci
 
@@ -80,6 +81,7 @@ jobs:
           $conf.version = $version
           $conf.bundle.targets = @('nsis')
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
+          echo "VERSION=$version" >> $env:GITHUB_ENV
 
       - run: npm run build
 
@@ -102,20 +104,20 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
 
       - run: npm ci
 
       - name: Patch version + targets
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           node -e "
             const fs = require('fs'), p = 'src-tauri/tauri.conf.json';
             const c = JSON.parse(fs.readFileSync(p));
-            c.version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            c.version = '$VERSION';
             c.bundle.targets = ['dmg'];
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
           "
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - run: npm run build
 
@@ -157,25 +159,25 @@ jobs:
             x86_64-linux-android
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
 
       - run: npm ci
 
       - name: Patch version
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           node -e "
             const fs = require('fs'), p = 'src-tauri/tauri.conf.json';
             const c = JSON.parse(fs.readFileSync(p));
-            c.version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            c.version = '$VERSION';
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
           "
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build APK
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/28.0.12433566
-        run: npm run android -- build --apk
+        run: npm run android -- --apk
 
       - uses: softprops/action-gh-release@v2
         with:
