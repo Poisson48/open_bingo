@@ -98,9 +98,8 @@ export function renderCases() {
     markGridsDirty();
     scheduleAutoSave();
     renderCases();
-    // Focus sur le dernier input
     const rows = document.querySelectorAll('#cases-tbody tr');
-    rows[rows.length - 1]?.querySelector('.case-label')?.focus();
+    rows[rows.length - 1]?.querySelector('.case-label')?.focus({ preventScroll: true });
   });
 
   document.getElementById('add-gage').addEventListener('click', () => {
@@ -108,7 +107,7 @@ export function renderCases() {
     scheduleAutoSave();
     renderCases();
     const rows = document.querySelectorAll('#gages-tbody tr');
-    rows[rows.length - 1]?.querySelector('.gage-desc')?.focus();
+    rows[rows.length - 1]?.querySelector('.gage-desc')?.focus({ preventScroll: true });
   });
 }
 

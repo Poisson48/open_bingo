@@ -61,7 +61,7 @@ export function renderGrids() {
               <button class="btn-sm btn-secondary reshuffle" data-idx="${i}" title="Re-mélanger">⟳</button>
             </div>
           </div>
-          <div class="grid-preview">${renderMiniGrid(grid)}</div>
+          <div class="grid-preview">${renderMiniGrid(grid, i)}</div>
         </div>
       `;
     });
@@ -124,20 +124,156 @@ export function renderGrids() {
       renderGrids();
     });
   });
+
+  attachGridInteractions(container);
 }
 
-function renderMiniGrid(grid) {
-  let html = `<table class="bingo-grid">`;
-  for (const row of grid.cells) {
-    html += `<tr>`;
-    for (const cell of row) {
-      html += `<td class="${cell.isFree ? 'free-cell' : ''}">
-        <span class="cell-label">${esc(cell.label)}</span>
-        ${!cell.isFree ? `<span class="cell-pts">${cell.points}</span>` : ''}
-      </td>`;
+// ── Drag & drop + click-to-replace ───────────────────────────────────────────
+
+let _dragSrc = null;
+let _interactionController = null;
+
+function attachGridInteractions(container) {
+  if (_interactionController) _interactionController.abort();
+  _interactionController = new AbortController();
+  const signal = _interactionController.signal;
+
+  container.addEventListener('dragstart', e => {
+    const td = e.target.closest('td[draggable="true"]');
+    if (!td) return;
+    _dragSrc = {
+      grid: +td.dataset.grid,
+      row:  +td.dataset.row,
+      col:  +td.dataset.col,
+    };
+    td.classList.add('cell-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }, { signal });
+
+  container.addEventListener('dragend', () => {
+    container.querySelectorAll('.cell-dragging, .cell-drag-over').forEach(el => {
+      el.classList.remove('cell-dragging', 'cell-drag-over');
+    });
+    _dragSrc = null;
+  }, { signal });
+
+  container.addEventListener('dragover', e => {
+    const td = e.target.closest('td[draggable="true"]');
+    if (!td || !_dragSrc) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    container.querySelectorAll('.cell-drag-over').forEach(el => el.classList.remove('cell-drag-over'));
+    td.classList.add('cell-drag-over');
+  }, { signal });
+
+  container.addEventListener('dragleave', e => {
+    const td = e.target.closest('td[draggable="true"]');
+    if (td) td.classList.remove('cell-drag-over');
+  }, { signal });
+
+  container.addEventListener('drop', e => {
+    e.preventDefault();
+    const td = e.target.closest('td[draggable="true"]');
+    if (!td || !_dragSrc) return;
+    const dst = { grid: +td.dataset.grid, row: +td.dataset.row, col: +td.dataset.col };
+    if (dst.grid === _dragSrc.grid &&
+        (dst.row !== _dragSrc.row || dst.col !== _dragSrc.col)) {
+      const cells = state.grids[dst.grid].cells;
+      const tmp = cells[_dragSrc.row][_dragSrc.col];
+      cells[_dragSrc.row][_dragSrc.col] = cells[dst.row][dst.col];
+      cells[dst.row][dst.col] = tmp;
+      scheduleAutoSave();
+      renderGrids();
     }
+    _dragSrc = null;
+  }, { signal });
+
+  container.addEventListener('click', e => {
+    if (_dragSrc) return;
+    const td = e.target.closest('td[data-grid]');
+    if (!td || td.classList.contains('free-cell')) return;
+    showCellPicker(+td.dataset.grid, +td.dataset.row, +td.dataset.col);
+  }, { signal });
+}
+
+function showCellPicker(gridIdx, row, col) {
+  const currentCell = state.grids[gridIdx].cells[row][col];
+  const cases = state.cases;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'cell-picker-overlay';
+
+  overlay.innerHTML = `
+    <div class="cell-picker-modal" role="dialog" aria-modal="true">
+      <div class="cell-picker-header">
+        <span class="cell-picker-title">Remplacer la case</span>
+        <button class="cell-picker-close" aria-label="Fermer">✕</button>
+      </div>
+      <div class="cell-picker-current">
+        <span class="cpc-label">Actuelle :</span>
+        <span class="cpc-value">${esc(currentCell.label)}</span>
+      </div>
+      <div class="cell-picker-search">
+        <input class="cell-picker-filter" type="text" placeholder="Filtrer les phrases…" autocomplete="off">
+      </div>
+      <ul class="cell-picker-list">
+        ${cases.map((c, i) => `
+          <li class="cell-picker-item${c.label === currentCell.label ? ' current' : ''}" data-idx="${i}">
+            <span class="cpi-label">${esc(c.label)}</span>
+            <span class="cpi-pts">${c.points > 0 ? c.points + ' pts' : ''}</span>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const filterInput = overlay.querySelector('.cell-picker-filter');
+  filterInput.focus();
+
+  overlay.querySelector('.cell-picker-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  });
+
+  filterInput.addEventListener('input', () => {
+    const q = filterInput.value.toLowerCase();
+    overlay.querySelectorAll('.cell-picker-item').forEach(li => {
+      const matches = li.querySelector('.cpi-label').textContent.toLowerCase().includes(q);
+      li.style.display = matches ? '' : 'none';
+    });
+  });
+
+  overlay.querySelectorAll('.cell-picker-item').forEach(li => {
+    li.addEventListener('click', () => {
+      const chosen = cases[+li.dataset.idx];
+      state.grids[gridIdx].cells[row][col] = { ...chosen };
+      scheduleAutoSave();
+      overlay.remove();
+      renderGrids();
+    });
+  });
+}
+
+function renderMiniGrid(grid, gridIdx) {
+  let html = `<table class="bingo-grid">`;
+  grid.cells.forEach((rowCells, r) => {
+    html += `<tr>`;
+    rowCells.forEach((cell, c) => {
+      const isFree = cell.isFree;
+      html += `<td
+        class="${isFree ? 'free-cell' : 'editable-cell'}"
+        data-grid="${gridIdx}" data-row="${r}" data-col="${c}"
+        ${!isFree ? 'draggable="true" title="Glisser pour déplacer · Cliquer pour remplacer"' : ''}
+      >
+        <span class="cell-label">${esc(cell.label)}</span>
+        ${!isFree ? `<span class="cell-pts">${cell.points}</span>` : ''}
+      </td>`;
+    });
     html += `</tr>`;
-  }
+  });
   html += `</table>`;
   return html;
 }
