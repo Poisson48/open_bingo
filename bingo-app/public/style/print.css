@@ -56,10 +56,23 @@
 }
 
 /* ─── Print grid ─── */
+.print-grid-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .print-grid {
+  flex: 1;
   width: 100%;
+  height: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+}
+
+.print-grid tbody {
+  height: 100%;
 }
 
 .print-grid td {
@@ -94,6 +107,10 @@
   background: rgba(255,255,255,.8);
   padding: 0 2px;
   line-height: 1;
+}
+
+.print-grid .cell-points.cell-gage-ref {
+  color: #4f46e5;
 }
 
 /* ─── HP gauge ─── */
@@ -201,6 +218,41 @@
 }
 
 .gage-table tbody tr:nth-child(even) td { background: #f8f8f8; }
+
+/* ─── Combo gages (mode gage) ─── */
+.combo-gages-print {
+  margin-top: 18px;
+  border-top: 2px solid #000;
+  padding-top: 10px;
+}
+
+.combo-gages-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 8px;
+}
+
+.combo-gages-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.combo-gages-table td {
+  border: 1px solid #ccc;
+  padding: 7px 10px;
+}
+
+.combo-gages-table .combo-type {
+  width: 130px;
+  font-weight: 700;
+  background: #f0f0f0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
 
 /* ─── Gage page: full A4, no crop ─── */
 .gage-page {

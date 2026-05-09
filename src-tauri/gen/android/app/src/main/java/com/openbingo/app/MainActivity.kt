@@ -1,12 +1,16 @@
 package com.openbingo.app
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 
 private class PrintBridge(private val activity: MainActivity, private val webView: WebView) {
   @JavascriptInterface
@@ -19,13 +23,46 @@ private class PrintBridge(private val activity: MainActivity, private val webVie
   }
 }
 
+private class SaveBridge(private val activity: MainActivity) {
+  @JavascriptInterface
+  fun saveFile(content: String, filename: String) {
+    activity.runOnUiThread {
+      activity.pendingSaveContent = content
+      val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = "application/json"
+        putExtra(Intent.EXTRA_TITLE, filename)
+      }
+      activity.saveFileLauncher.launch(intent)
+    }
+  }
+}
+
 class MainActivity : TauriActivity() {
+  var pendingSaveContent: String? = null
+  lateinit var saveFileLauncher: ActivityResultLauncher<Intent>
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    saveFileLauncher = registerForActivityResult(
+      ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+      if (result.resultCode == Activity.RESULT_OK) {
+        result.data?.data?.let { uri ->
+          pendingSaveContent?.let { content ->
+            contentResolver.openOutputStream(uri)?.use { stream ->
+              stream.write(content.toByteArray(Charsets.UTF_8))
+            }
+            pendingSaveContent = null
+          }
+        }
+      }
+    }
     super.onCreate(savedInstanceState)
   }
 
   override fun onWebViewCreate(webView: WebView) {
     webView.addJavascriptInterface(PrintBridge(this, webView), "AndroidPrint")
+    webView.addJavascriptInterface(SaveBridge(this), "AndroidSave")
   }
 }

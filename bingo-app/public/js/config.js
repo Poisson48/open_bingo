@@ -24,7 +24,7 @@ export function renderConfig() {
             <label for="cfg-grid-size">Taille de grille (N×N)</label>
             <input type="number" id="cfg-grid-size" value="${state.gridSize}" min="2" max="12">
           </div>
-          <div class="form-group">
+          <div class="form-group" id="hp-group" ${state.gageMode ? 'style="display:none"' : ''}>
             <label for="cfg-hp">Points de vie de départ</label>
             <input type="number" id="cfg-hp" value="${state.startHP}" min="1" max="100">
           </div>
@@ -35,10 +35,19 @@ export function renderConfig() {
             Case centrale FREE <span class="hint" style="margin:0;display:inline">(grilles impaires uniquement)</span>
           </label>
         </div>
+        <div class="form-group" style="margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+          <label class="label-checkbox">
+            <input type="checkbox" id="cfg-gage-mode" ${state.gageMode ? 'checked' : ''}>
+            Mode Gage
+          </label>
+          <p class="hint" style="margin:4px 0 0 22px">
+            Désactive les points de vie — le numéro affiché sur chaque case correspond au numéro du gage à effectuer.
+          </p>
+        </div>
       </div>
 
-      <h2>Multiplicateurs de points</h2>
-      <div class="section-card">
+      <h2 id="multipliers-title" ${state.gageMode ? 'style="display:none"' : ''}>Multiplicateurs de points</h2>
+      <div class="section-card" id="multipliers-card" ${state.gageMode ? 'style="display:none"' : ''}>
         <div class="form-row">
           <div class="form-group">
             <label for="cfg-mult-line">Ligne complète</label>
@@ -91,6 +100,13 @@ export function renderConfig() {
     if (n % 2 === 0) cb.checked = false;
   });
 
+  document.getElementById('cfg-gage-mode').addEventListener('change', (e) => {
+    const on = e.target.checked;
+    document.getElementById('hp-group').style.display          = on ? 'none' : '';
+    document.getElementById('multipliers-title').style.display = on ? 'none' : '';
+    document.getElementById('multipliers-card').style.display  = on ? 'none' : '';
+  });
+
   document.getElementById('add-player').addEventListener('click', () => {
     state.players.push({ name: '' });
     scheduleAutoSave();
@@ -114,6 +130,7 @@ export function renderConfig() {
       state.gridSize    = 5;
       state.startHP     = 20;
       state.freeCenter  = true;
+      state.gageMode    = false;
       state.multipliers = { line: 2, column: 2, diagonal: 3, full: 10 };
       state.players     = [{ name: 'Joueur 1' }, { name: 'Joueur 2' }];
       state.cases       = [];
@@ -139,7 +156,8 @@ function renderPlayerRow(p, i) {
 function saveConfig() {
   state.title    = document.getElementById('cfg-title').value.trim() || 'Bingo';
   state.gridSize = Math.max(2, Math.min(12, parseInt(document.getElementById('cfg-grid-size').value) || 5));
-  state.startHP  = Math.max(1, Math.min(100, parseInt(document.getElementById('cfg-hp').value) || 20));
+  state.gageMode = document.getElementById('cfg-gage-mode').checked;
+  state.startHP  = state.gageMode ? state.startHP : Math.max(1, Math.min(100, parseInt(document.getElementById('cfg-hp').value) || 20));
   state.freeCenter = document.getElementById('cfg-free-center').checked;
   state.multipliers.line     = Math.max(1, parseInt(document.getElementById('cfg-mult-line').value)  || 1);
   state.multipliers.column   = Math.max(1, parseInt(document.getElementById('cfg-mult-col').value)   || 1);

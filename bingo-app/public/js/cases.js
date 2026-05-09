@@ -19,7 +19,7 @@ export function renderCases() {
 
       <!-- ── Cases ── -->
       <div class="cases-header">
-        <h2>Phrases <span class="badge">${state.cases.length}</span></h2>
+        <h2>Phrases <span class="badge" id="cases-badge">${state.cases.length}</span></h2>
         <button id="add-case" class="btn-secondary">+ Ajouter</button>
       </div>
       <div class="cases-stats" id="cases-stats"></div>
@@ -29,7 +29,7 @@ export function renderCases() {
             <tr>
               <th style="width:32px">#</th>
               <th>Libellé</th>
-              <th style="width:64px" title="Points quand la case est cochée">Pts</th>
+              <th style="width:64px" title="${state.gageMode ? 'Numéro du gage associé à cette case' : 'Points quand la case est cochée'}">${state.gageMode ? 'Gage #' : 'Pts'}</th>
               <th style="width:160px" title="Probabilité d'apparition dans la grille">Taux</th>
               <th style="width:36px"></th>
             </tr>
@@ -51,11 +51,13 @@ export function renderCases() {
 
       <!-- ── Gages ── -->
       <div class="cases-header" style="margin-top:40px">
-        <h2>Gages <span class="badge">${state.gages.length}</span> <span class="badge-hint">récupèrent des PV</span></h2>
+        <h2>Gages <span class="badge" id="gages-badge">${state.gages.length}</span> <span class="badge-hint">${state.gageMode ? 'numérotés sur la grille' : 'récupèrent des PV'}</span></h2>
         <button id="add-gage" class="btn-secondary">+ Ajouter</button>
       </div>
       <p class="hint" style="margin-bottom:14px">
-        Indépendants des phrases — un joueur accomplit un gage pour récupérer des PV.
+        ${state.gageMode
+          ? 'Le numéro sur chaque case correspond au gage de cette liste.'
+          : 'Indépendants des phrases — un joueur accomplit un gage pour récupérer des PV.'}
       </p>
       <div class="table-wrapper">
         <table id="gages-table">
@@ -63,18 +65,18 @@ export function renderCases() {
             <tr>
               <th style="width:32px">#</th>
               <th>Description du gage</th>
-              <th style="width:80px" title="PV récupérés">+PV</th>
+              ${state.gageMode ? '' : '<th style="width:80px" title="PV récupérés">+PV</th>'}
               <th style="width:36px"></th>
             </tr>
           </thead>
           <tbody id="gages-tbody">
             ${state.gages.length
               ? state.gages.map((g, i) => renderGageRow(g, i)).join('')
-              : `<tr><td colspan="4" style="padding:0;border:none">
+              : `<tr><td colspan="${state.gageMode ? 3 : 4}" style="padding:0;border:none">
                   <div class="empty-state" style="border:none;border-radius:0;margin:0">
                     <span class="empty-icon">⚡</span>
                     <strong>Aucun gage</strong>
-                    Optionnel — ajoutez des défis pour récupérer des PV.
+                    ${state.gageMode ? 'Ajoutez les gages référencés par numéro sur les grilles.' : 'Optionnel — ajoutez des défis pour récupérer des PV.'}
                   </div>
                 </td></tr>`
             }
@@ -82,32 +84,82 @@ export function renderCases() {
         </table>
       </div>
 
+      ${state.gageMode ? `
+      <!-- ── Gages Combos (mode gage uniquement) ── -->
+      <div class="cases-header" style="margin-top:40px">
+        <h2>Gages de Combinaison <span class="badge-hint">mode gage</span></h2>
+      </div>
+      <p class="hint" style="margin-bottom:14px">
+        S'appliquent en bonus quand un joueur complète une ligne, une colonne ou une diagonale entière.
+      </p>
+      <div class="combo-gages-card">
+        <div class="combo-gage-row">
+          <span class="combo-gage-label">Ligne complète</span>
+          <input type="text" id="combo-line" class="combo-gage-input" value="${esc(state.comboGages?.line || '')}" placeholder="Gage à effectuer…">
+        </div>
+        <div class="combo-gage-row">
+          <span class="combo-gage-label">Colonne complète</span>
+          <input type="text" id="combo-column" class="combo-gage-input" value="${esc(state.comboGages?.column || '')}" placeholder="Gage à effectuer…">
+        </div>
+        <div class="combo-gage-row">
+          <span class="combo-gage-label">Diagonale complète</span>
+          <input type="text" id="combo-diagonal" class="combo-gage-input" value="${esc(state.comboGages?.diagonal || '')}" placeholder="Gage à effectuer…">
+        </div>
+      </div>
+      ` : ''}
+
     </div>
   `;
 
   updateStats();
   bindCaseTableEvents();
   bindGageTableEvents();
+  if (state.gageMode) bindComboGageEvents();
   // Initialiser le gradient des sliders
   document.querySelectorAll('.case-rate').forEach(el => {
     el.style.setProperty('--rate', el.value + '%');
   });
 
   document.getElementById('add-case').addEventListener('click', () => {
-    state.cases.push({ label: '', points: 1, rate: 50 });
+    const newCase = { label: '', points: 1, rate: 50 };
+    state.cases.push(newCase);
+    const idx = state.cases.length - 1;
     markGridsDirty();
     scheduleAutoSave();
-    renderCases();
-    const rows = document.querySelectorAll('#cases-tbody tr');
-    rows[rows.length - 1]?.querySelector('.case-label')?.focus({ preventScroll: true });
+
+    document.querySelector('[data-tab="cases"]')?.setAttribute('data-count', state.cases.length);
+    const cBadge = document.getElementById('cases-badge');
+    if (cBadge) cBadge.textContent = state.cases.length;
+
+    const tbody = document.getElementById('cases-tbody');
+    if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    tr.dataset.idx = idx;
+    tr.innerHTML = renderCaseRowInner(newCase, idx);
+    tbody.appendChild(tr);
+    tr.querySelector('.case-rate')?.style.setProperty('--rate', '50%');
+    bindCaseRowEvents(tr);
+    updateStats();
+    tr.querySelector('.case-label')?.focus({ preventScroll: true });
   });
 
   document.getElementById('add-gage').addEventListener('click', () => {
-    state.gages.push({ description: '', hp: 2 });
+    const newGage = { description: '', hp: 2 };
+    state.gages.push(newGage);
+    const idx = state.gages.length - 1;
     scheduleAutoSave();
-    renderCases();
-    const rows = document.querySelectorAll('#gages-tbody tr');
-    rows[rows.length - 1]?.querySelector('.gage-desc')?.focus({ preventScroll: true });
+
+    const gBadge = document.getElementById('gages-badge');
+    if (gBadge) gBadge.textContent = state.gages.length;
+
+    const tbody = document.getElementById('gages-tbody');
+    if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    tr.dataset.idx = idx;
+    tr.innerHTML = renderGageRowInner(newGage, idx);
+    tbody.appendChild(tr);
+    bindGageRowEvents(tr);
+    tr.querySelector('.gage-desc')?.focus({ preventScroll: true });
   });
 }
 
@@ -176,10 +228,20 @@ function renderGageRow(g, i) {
 function renderGageRowInner(g, i) {
   return `
     <td class="row-num">${i + 1}</td>
-    <td><input type="text"   class="gage-desc" value="${esc(g.description)}" placeholder="Ce que le joueur doit faire…"></td>
-    <td><input type="number" class="gage-hp"   value="${g.hp ?? 2}" min="0" max="99"></td>
+    <td><input type="text" class="gage-desc" value="${esc(g.description)}" placeholder="Ce que le joueur doit faire…"></td>
+    ${state.gageMode ? '' : `<td><input type="number" class="gage-hp" value="${g.hp ?? 2}" min="0" max="99"></td>`}
     <td><button class="btn-icon remove-gage" data-idx="${i}" title="Supprimer">✕</button></td>
   `;
+}
+
+function bindComboGageEvents() {
+  if (!state.comboGages) state.comboGages = { line: '', column: '', diagonal: '' };
+  for (const key of ['line', 'column', 'diagonal']) {
+    document.getElementById(`combo-${key}`)?.addEventListener('input', e => {
+      state.comboGages[key] = e.target.value;
+      scheduleAutoSave();
+    });
+  }
 }
 
 function bindGageTableEvents() {
@@ -198,10 +260,12 @@ function bindGageRowEvents(tr) {
     if (state.gages[idx]) state.gages[idx].description = e.target.value;
   });
 
-  tr.querySelector('.gage-hp')?.addEventListener('input', (e) => {
-    const idx = parseInt(tr.dataset.idx);
-    if (state.gages[idx]) state.gages[idx].hp = Math.max(0, parseInt(e.target.value) || 0);
-  });
+  if (!state.gageMode) {
+    tr.querySelector('.gage-hp')?.addEventListener('input', (e) => {
+      const idx = parseInt(tr.dataset.idx);
+      if (state.gages[idx]) state.gages[idx].hp = Math.max(0, parseInt(e.target.value) || 0);
+    });
+  }
 }
 
 // ── Stats ──

@@ -21,6 +21,10 @@ tauri      = { version = "2", features = [] }
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Dialogue natif de sauvegarde (desktop uniquement — ne compile pas sur Android/iOS)
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+rfd = "0.15"
+
 [profile.release]
 opt-level     = "z"
 lto           = true

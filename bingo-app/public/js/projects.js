@@ -1,4 +1,4 @@
-import { getAllProjects, createProject, cloneProject, deleteProject, updateProjectMeta } from './state.js';
+import { getAllProjects, createProject, cloneProject, deleteProject, updateProjectMeta, exportProjectById } from './state.js';
 import { showToast } from './ui.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -129,15 +129,7 @@ function _bindCardEvents() {
   });
 
   container.querySelectorAll('.proj-export').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const p = getAllProjects().find(x => x.id === btn.dataset.id);
-      if (!p) return;
-      const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement('a'), { href: url, download: `bingo-${p.title.replace(/[^a-z0-9]/gi,'_').toLowerCase()}.json` });
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    btn.addEventListener('click', () => exportProjectById(btn.dataset.id));
   });
 
   container.querySelectorAll('.proj-delete').forEach(btn => {

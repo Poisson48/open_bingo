@@ -128,9 +128,17 @@ export function renderGrids() {
   attachGridInteractions(container);
 }
 
-// ── Drag & drop + click-to-replace ───────────────────────────────────────────
+// ── Drag & drop (pointer events) + click-to-replace ──────────────────────────
+// Utilise pointer events au lieu de l'API drag & drop HTML5 pour compatibilité
+// avec Tauri/WebKitGTK sur Linux.
 
-let _dragSrc = null;
+let _dragSrc     = null;
+let _dragOverEl  = null;
+let _dragMoved   = false;
+let _wasJustDrag = false;
+let _startX = 0, _startY = 0;
+const DRAG_THRESHOLD = 5;
+
 let _interactionController = null;
 
 function attachGridInteractions(container) {
@@ -138,58 +146,81 @@ function attachGridInteractions(container) {
   _interactionController = new AbortController();
   const signal = _interactionController.signal;
 
-  container.addEventListener('dragstart', e => {
-    const td = e.target.closest('td[draggable="true"]');
-    if (!td) return;
-    _dragSrc = {
-      grid: +td.dataset.grid,
-      row:  +td.dataset.row,
-      col:  +td.dataset.col,
-    };
-    td.classList.add('cell-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-  }, { signal });
-
-  container.addEventListener('dragend', () => {
+  function cleanupDrag() {
     container.querySelectorAll('.cell-dragging, .cell-drag-over').forEach(el => {
       el.classList.remove('cell-dragging', 'cell-drag-over');
     });
-    _dragSrc = null;
-  }, { signal });
+  }
 
-  container.addEventListener('dragover', e => {
+  container.addEventListener('pointerdown', e => {
     const td = e.target.closest('td[draggable="true"]');
-    if (!td || !_dragSrc) return;
+    if (!td) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    container.querySelectorAll('.cell-drag-over').forEach(el => el.classList.remove('cell-drag-over'));
-    td.classList.add('cell-drag-over');
+    td.setPointerCapture(e.pointerId);
+    _dragSrc   = { el: td, grid: +td.dataset.grid, row: +td.dataset.row, col: +td.dataset.col };
+    _dragMoved = false;
+    _startX    = e.clientX;
+    _startY    = e.clientY;
   }, { signal });
 
-  container.addEventListener('dragleave', e => {
-    const td = e.target.closest('td[draggable="true"]');
-    if (td) td.classList.remove('cell-drag-over');
-  }, { signal });
-
-  container.addEventListener('drop', e => {
-    e.preventDefault();
-    const td = e.target.closest('td[draggable="true"]');
-    if (!td || !_dragSrc) return;
-    const dst = { grid: +td.dataset.grid, row: +td.dataset.row, col: +td.dataset.col };
-    if (dst.grid === _dragSrc.grid &&
-        (dst.row !== _dragSrc.row || dst.col !== _dragSrc.col)) {
-      const cells = state.grids[dst.grid].cells;
-      const tmp = cells[_dragSrc.row][_dragSrc.col];
-      cells[_dragSrc.row][_dragSrc.col] = cells[dst.row][dst.col];
-      cells[dst.row][dst.col] = tmp;
-      scheduleAutoSave();
-      renderGrids();
+  // pointermove/pointerup écoutés sur container — avec setPointerCapture les événements
+  // remontent depuis l'élément capturant même si le pointeur est sorti de la cellule.
+  container.addEventListener('pointermove', e => {
+    if (!_dragSrc) return;
+    if (!_dragMoved && Math.hypot(e.clientX - _startX, e.clientY - _startY) > DRAG_THRESHOLD) {
+      _dragMoved = true;
+      _dragSrc.el.classList.add('cell-dragging');
     }
-    _dragSrc = null;
+    if (!_dragMoved) return;
+
+    // Masquer la source pour que elementFromPoint trouve la cellule en dessous
+    _dragSrc.el.style.visibility = 'hidden';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    _dragSrc.el.style.visibility = '';
+
+    const td = under?.closest('td[draggable="true"]');
+    if (_dragOverEl && _dragOverEl !== td) _dragOverEl.classList.remove('cell-drag-over');
+    if (td && td !== _dragSrc.el) {
+      td.classList.add('cell-drag-over');
+      _dragOverEl = td;
+    } else {
+      _dragOverEl = null;
+    }
+  }, { signal });
+
+  container.addEventListener('pointerup', e => {
+    if (!_dragSrc) return;
+    const wasDrag  = _dragMoved;
+    const destTd   = _dragOverEl;
+    cleanupDrag();
+
+    if (wasDrag && destTd && destTd !== _dragSrc.el) {
+      const dst = { grid: +destTd.dataset.grid, row: +destTd.dataset.row, col: +destTd.dataset.col };
+      if (dst.grid === _dragSrc.grid) {
+        const cells = state.grids[dst.grid].cells;
+        const tmp = cells[_dragSrc.row][_dragSrc.col];
+        cells[_dragSrc.row][_dragSrc.col] = cells[dst.row][dst.col];
+        cells[dst.row][dst.col] = tmp;
+        scheduleAutoSave();
+        renderGrids();
+      }
+    }
+
+    _wasJustDrag = wasDrag;
+    _dragSrc     = null;
+    _dragOverEl  = null;
+    _dragMoved   = false;
+  }, { signal });
+
+  container.addEventListener('pointercancel', () => {
+    cleanupDrag();
+    _dragSrc    = null;
+    _dragOverEl = null;
+    _dragMoved  = false;
   }, { signal });
 
   container.addEventListener('click', e => {
-    if (_dragSrc) return;
+    if (_wasJustDrag) { _wasJustDrag = false; return; }
     const td = e.target.closest('td[data-grid]');
     if (!td || td.classList.contains('free-cell')) return;
     showCellPicker(+td.dataset.grid, +td.dataset.row, +td.dataset.col);
@@ -269,7 +300,7 @@ function renderMiniGrid(grid, gridIdx) {
         ${!isFree ? 'draggable="true" title="Glisser pour déplacer · Cliquer pour remplacer"' : ''}
       >
         <span class="cell-label">${esc(cell.label)}</span>
-        ${!isFree ? `<span class="cell-pts">${cell.points}</span>` : ''}
+        ${!isFree ? `<span class="cell-pts${state.gageMode ? ' cell-gage-ref' : ''}">${state.gageMode ? '#' + cell.points : cell.points}</span>` : ''}
       </td>`;
     });
     html += `</tr>`;

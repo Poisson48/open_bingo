@@ -44,6 +44,12 @@
   opacity: .7;
 }
 
+.bingo-grid .cell-pts.cell-gage-ref {
+  color: var(--accent);
+  opacity: 1;
+  font-weight: 600;
+}
+
 /* ─── Cellules éditables ─── */
 .bingo-grid .editable-cell {
   cursor: grab;

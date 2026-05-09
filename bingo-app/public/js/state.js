@@ -16,6 +16,8 @@ function defaultProject(overrides = {}) {
     players: [{ name: 'Joueur 1' }, { name: 'Joueur 2' }],
     startHP: 20,
     freeCenter: true,
+    gageMode: false,
+    comboGages: { line: '', column: '', diagonal: '' },
     multipliers: { line: 2, column: 2, diagonal: 3, full: 10 },
     cases: [],
     gages: [],
@@ -162,14 +164,52 @@ export function scheduleAutoSave() {
 }
 
 // ── Export / Import ───────────────────────────────────────────────────────────
-export function exportJSON() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+
+async function saveFileAs(filename, content) {
+  // Tauri desktop : dialog native via commande Rust
+  if (window.__TAURI__?.core?.invoke) {
+    try {
+      await window.__TAURI__.core.invoke('save_file_dialog', { filename, content });
+      return;
+    } catch (e) {
+      console.warn('[save] Tauri invoke failed, fallback:', e);
+    }
+  }
+  // Android : JavascriptInterface ACTION_CREATE_DOCUMENT
+  if (window.AndroidSave) {
+    window.AndroidSave.saveFile(content, filename);
+    return;
+  }
+  // Navigateur moderne : File System Access API
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return;
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('[save] showSaveFilePicker failed:', e);
+      return;
+    }
+  }
+  // Fallback : téléchargement automatique
+  const blob = new Blob([content], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `bingo-${state.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${Date.now()}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function exportJSON() {
+  const content  = JSON.stringify(state, null, 2);
+  const filename = `bingo-${state.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${Date.now()}.json`;
+  await saveFileAs(filename, content);
 }
 
 export function importJSON(json) {
@@ -187,15 +227,18 @@ export function importJSON(json) {
   } catch { return false; }
 }
 
-export function exportAllProjects() {
+export async function exportProjectById(id) {
+  const p = getAllProjects().find(x => x.id === id);
+  if (!p) return;
+  const content  = JSON.stringify(p, null, 2);
+  const filename = `bingo-${p.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+  await saveFileAs(filename, content);
+}
+
+export async function exportAllProjects() {
   const projects = getAllProjects();
-  const blob = new Blob([JSON.stringify({ version: 1, projects }, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `bingo-tous-projets-${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const content  = JSON.stringify({ version: 1, projects }, null, 2);
+  await saveFileAs(`bingo-tous-projets-${Date.now()}.json`, content);
 }
 
 export function importAllProjects(json) {

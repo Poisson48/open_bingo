@@ -1,3 +1,40 @@
+/* ─── Combo gages (mode gage) ─── */
+.combo-gages-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.combo-gage-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.combo-gage-label {
+  min-width: 150px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.combo-gage-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-l);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.combo-gage-input:focus { border-color: var(--accent); }
+
 /* ─── Section card ─── */
 .section-card {
   background: var(--bg-card);
