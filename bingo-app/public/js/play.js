@@ -116,6 +116,10 @@ export function renderPlay() {
 
       ${state.gageMode ? renderGageActionCard(grid, checks) : ''}
 
+      <div class="play-rotate-hint">
+        ↻ Tourne ton téléphone en paysage pour mieux voir la grille
+      </div>
+
       <div class="play-grid-wrap">
         <table class="play-grid" style="--grid-size:${size}">
           <tbody>${rows}</tbody>
@@ -208,21 +212,13 @@ function renderRulesSection(completedLines) {
     <div class="play-rules">
       <div class="play-rules-title">Règles des combinaisons</div>
       <table class="play-rules-table">
-        <tr>
-          <td>Ligne complète</td>
-          <td>valeur <span class="play-rules-mult">× ${m.line ?? 2}</span></td>
-          <td>Colonne complète</td>
-          <td>valeur <span class="play-rules-mult">× ${m.column ?? 2}</span></td>
-        </tr>
-        <tr>
-          <td>Diagonale complète</td>
-          <td>valeur <span class="play-rules-mult">× ${m.diagonal ?? 3}</span></td>
-          <td>Grille complète (BINGO)</td>
-          <td>valeur <span class="play-rules-mult">× ${m.full ?? 10}</span></td>
-        </tr>
+        <tr><td>Ligne complète</td><td>valeur <span class="play-rules-mult">× ${m.line ?? 2}</span></td></tr>
+        <tr><td>Colonne complète</td><td>valeur <span class="play-rules-mult">× ${m.column ?? 2}</span></td></tr>
+        <tr><td>Diagonale complète</td><td>valeur <span class="play-rules-mult">× ${m.diagonal ?? 3}</span></td></tr>
+        <tr><td>Grille complète (BINGO)</td><td>valeur <span class="play-rules-mult">× ${m.full ?? 10}</span></td></tr>
       </table>
       <p class="play-rules-note">
-        Cochez une case quand l'événement se produit. Le score dans chaque case (bas-droite) représente sa valeur en points.
+        Cochez une case quand l'événement se produit. La valeur en points est dans le coin bas-droit de chaque case.
       </p>
     </div>`;
 }
