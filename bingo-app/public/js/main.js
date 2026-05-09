@@ -9,7 +9,7 @@ import { renderConfig } from './config.js';
 import { renderCases }  from './cases.js';
 import { renderGrids }  from './grids.js';
 import { renderPrint }  from './print.js';
-import { renderPlay }  from './play.js';
+import { renderPlay, activatePlay, deactivatePlay } from './play.js';
 import { renderProjects } from './projects.js';
 import { showToast } from './ui.js';
 
@@ -53,10 +53,12 @@ const renderers = {
 
 function switchTab(name) {
   if (!tabPanels[name]) return;
+  if (currentTab === 'play' && name !== 'play') deactivatePlay();
   Object.entries(tabPanels).forEach(([k, el]) => el.classList.toggle('active', k === name));
   tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
   currentTab = name;
   renderers[name]();
+  if (name === 'play') activatePlay();
 }
 
 tabBtns.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));

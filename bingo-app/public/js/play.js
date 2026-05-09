@@ -1,5 +1,29 @@
 import { state } from './state.js';
 
+// ── Wake Lock ─────────────────────────────────────────────────────────────────
+let _wakeLock  = null;
+let _playActive = false;
+
+async function _acquireWakeLock() {
+  if (!('wakeLock' in navigator) || _wakeLock) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+  } catch {}
+}
+
+async function _releaseWakeLock() {
+  if (_wakeLock) { await _wakeLock.release(); _wakeLock = null; }
+}
+
+// Re-acquire when the page comes back to the foreground (e.g. after phone unlock)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _playActive) _acquireWakeLock();
+});
+
+export async function activatePlay()   { _playActive = true;  await _acquireWakeLock(); }
+export async function deactivatePlay() { _playActive = false; await _releaseWakeLock(); }
+
 const PLAY_NS = 'bingo_play';
 
 function playKey(projectId, playerName) {
