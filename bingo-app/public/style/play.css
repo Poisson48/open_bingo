@@ -1,0 +1,418 @@
+/* ─── Sans Papier (onglet Play) ─── */
+
+.play-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.play-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ─── Player selector ─── */
+.play-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.play-player-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.play-player-select {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-l);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.play-player-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* ─── Score bar ─── */
+.play-score-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+}
+
+.play-score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.play-score-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.play-score-cases {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.play-score-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.play-bingo-badge {
+  margin-left: auto;
+  background: rgba(34, 197, 94, .15);
+  border: 1px solid var(--green);
+  color: var(--green);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: pulseBingo 1s ease-in-out infinite alternate;
+}
+
+@keyframes pulseBingo {
+  from { box-shadow: 0 0 0 0 rgba(34, 197, 94, .4); }
+  to   { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+}
+
+/* ─── Gage action card ─── */
+.play-gage-card {
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  animation: fadeUp .15s ease both;
+}
+
+.play-gage-card-hint {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-l);
+  color: var(--text-muted);
+  align-items: center;
+}
+.play-gage-icon { font-size: 16px; flex-shrink: 0; }
+
+.play-gage-card-active {
+  background: rgba(99, 102, 241, .1);
+  border: 1px solid var(--accent);
+  flex-direction: column;
+  gap: 6px;
+}
+
+.play-gage-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.play-gage-num {
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.play-gage-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.play-gage-desc {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* ─── Grid ─── */
+.play-grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+
+.play-grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: 2px solid var(--border-l);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.play-cell {
+  border: 1px solid var(--border);
+  vertical-align: middle;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  height: clamp(48px, calc(72vmin / var(--grid-size, 5)), 90px);
+  transition: background .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.play-cell:not(.play-free):active { opacity: .7; }
+
+.play-cell-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 3px;
+  height: 100%;
+  position: relative;
+}
+
+.play-cell-label {
+  font-size: calc(13px - (var(--grid-size, 5) - 5) * 0.7px);
+  line-height: 1.25;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.play-cell-pts {
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: .8;
+}
+
+.play-gage-ref {
+  color: var(--accent);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.play-check-mark {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+/* ─── Cell states ─── */
+.play-free {
+  background: var(--accent-dim);
+  cursor: default;
+}
+.play-free .play-cell-label {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.play-cell:not(.play-free):not(.play-checked):hover {
+  background: var(--bg-hover);
+}
+
+.play-checked {
+  background: rgba(99, 102, 241, .18);
+}
+.play-checked:not(.play-bingo) .play-cell-label {
+  text-decoration: line-through;
+  opacity: .65;
+}
+.play-checked:not(.play-free):not(.play-bingo):hover {
+  background: rgba(99, 102, 241, .28);
+}
+
+.play-bingo {
+  background: rgba(34, 197, 94, .18) !important;
+}
+.play-bingo .play-cell-label {
+  color: var(--green) !important;
+  text-decoration: line-through;
+  opacity: 1;
+}
+.play-bingo .play-check-mark {
+  color: var(--green);
+}
+
+.play-cell-active {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ─── Rules section (mode normal) ─── */
+.play-rules {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.play-rules-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.play-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.play-rules-table td {
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  line-height: 1.3;
+}
+
+.play-rules-table td:nth-child(even) {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.play-rules-mult {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.play-rules-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+/* ─── Combo gages section (mode gage) ─── */
+.play-combos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.play-combos .play-rules-title {
+  margin-bottom: 4px;
+}
+
+.play-combo-item {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-l);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  transition: border-color .15s, background .15s;
+}
+
+.play-combo-done {
+  border-left-color: var(--green);
+  background: rgba(34, 197, 94, .07);
+}
+
+.play-combo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.play-combo-icon {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.play-combo-done .play-combo-icon { color: var(--green); }
+
+.play-combo-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.play-combo-done .play-combo-label { color: var(--green); }
+
+.play-combo-check {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.play-combo-desc {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.play-combo-done .play-combo-desc {
+  text-decoration: line-through;
+  opacity: .65;
+}
+
+/* ─── Footer ─── */
+.play-footer {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 640px) {
+  .play-score-num { font-size: 20px; }
+  .play-bingo-badge { font-size: 12px; padding: 5px 10px; }
+
+  .play-rules-table {
+    font-size: 11px;
+  }
+  .play-rules-table td {
+    padding: 4px 5px;
+  }
+}

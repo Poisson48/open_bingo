@@ -9,6 +9,7 @@ import { renderConfig } from './config.js';
 import { renderCases }  from './cases.js';
 import { renderGrids }  from './grids.js';
 import { renderPrint }  from './print.js';
+import { renderPlay }  from './play.js';
 import { renderProjects } from './projects.js';
 import { showToast } from './ui.js';
 
@@ -36,7 +37,8 @@ const tabPanels = {
   config: document.getElementById('tab-config'),
   cases:  document.getElementById('tab-cases'),
   grids:  document.getElementById('tab-grids'),
-  print:  document.getElementById('tab-print')
+  print:  document.getElementById('tab-print'),
+  play:   document.getElementById('tab-play')
 };
 const tabBtns = document.querySelectorAll('.tab-btn');
 let currentTab = 'config';
@@ -45,7 +47,8 @@ const renderers = {
   config: renderConfig,
   cases:  renderCases,
   grids:  renderGrids,
-  print:  renderPrint
+  print:  renderPrint,
+  play:   renderPlay
 };
 
 function switchTab(name) {
