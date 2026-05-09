@@ -104,6 +104,14 @@ document.getElementById('import-all-file').addEventListener('change', (e) => {
 // ── Auto-save ──────────────────────────────────────────────────────────────────
 document.addEventListener('input', scheduleAutoSave);
 
+// ── Version ────────────────────────────────────────────────────────────────────
+fetch('/version.json')
+  .then(r => r.json())
+  .then(({ version }) => {
+    document.querySelectorAll('.app-version').forEach(el => { el.textContent = `v${version}`; });
+  })
+  .catch(() => {});
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 loadLastProject();
 viewProjects.classList.add('active');

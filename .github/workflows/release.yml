@@ -43,6 +43,7 @@ jobs:
             c.version = '$VERSION';
             c.bundle.targets = ['deb', 'appimage'];
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+            fs.writeFileSync('bingo-app/public/version.json', JSON.stringify({version:'$VERSION'}) + '\n');
           "
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
@@ -81,6 +82,7 @@ jobs:
           $conf.version = $version
           $conf.bundle.targets = @('nsis')
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
+          "{`"version`":`"$version`"}" | Set-Content bingo-app/public/version.json
           echo "VERSION=$version" >> $env:GITHUB_ENV
 
       - run: npm run build
@@ -116,6 +118,7 @@ jobs:
             c.version = '$VERSION';
             c.bundle.targets = ['dmg'];
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+            fs.writeFileSync('bingo-app/public/version.json', JSON.stringify({version:'$VERSION'}) + '\n');
           "
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
@@ -167,6 +170,7 @@ jobs:
             const c = JSON.parse(fs.readFileSync(p));
             c.version = '$VERSION';
             fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
+            fs.writeFileSync('bingo-app/public/version.json', JSON.stringify({version:'$VERSION'}) + '\n');
           "
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 

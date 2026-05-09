@@ -82,6 +82,18 @@ header {
   flex-shrink: 0;
 }
 
+.app-version {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+}
+
 #app-title {
   overflow: hidden;
   text-overflow: ellipsis;
