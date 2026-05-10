@@ -113,7 +113,7 @@ document.getElementById('import-all-file').addEventListener('change', (e) => {
 document.addEventListener('input', scheduleAutoSave);
 
 // ── Version ────────────────────────────────────────────────────────────────────
-fetch('/version.json')
+fetch('version.json')
   .then(r => r.json())
   .then(({ version }) => {
     document.querySelectorAll('.app-version').forEach(el => { el.textContent = `v${version}`; });
