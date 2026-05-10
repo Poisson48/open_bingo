@@ -25,7 +25,10 @@
   padding: 0;
 }
 
-html { font-size: 14px; }
+html {
+  font-size: 14px;
+  overscroll-behavior: none;
+}
 
 body {
   background: var(--bg);
@@ -33,6 +36,7 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
+  overscroll-behavior: none;
 }
 
 #app { display: contents; }
@@ -823,6 +827,12 @@ h2:first-child { margin-top: 0; }
   .modal-actions button { width: 100%; min-height: 44px; font-size: 14px; justify-content: center; }
 
   .btn-back { font-size: 11px; padding: 4px 8px 4px 0; margin-right: 8px; }
+
+  /* Version badge inutile sur mobile — le titre a besoin de la place */
+  .app-version { display: none; }
+
+  /* Cacher Exporter/Importer sur mobile pour libérer de la place */
+  #btn-export, label[for="import-file"], #import-file, #import-all-file { display: none; }
 }
 
 /* ─── Share modal ─── */

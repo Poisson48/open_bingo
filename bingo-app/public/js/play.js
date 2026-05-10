@@ -33,21 +33,37 @@ let _fsResizeObs  = null;
 
 function _applyFsGridSize() {
   if (!_fsOverlay || !_fsCtx) return;
-  const body = _fsOverlay.querySelector('.fs-body');
-  const grid = _fsOverlay.querySelector('.fs-grid');
-  if (!body || !grid) return;
+  const header = _fsOverlay.querySelector('.fs-header');
+  const grid   = _fsOverlay.querySelector('.fs-grid');
+  if (!header || !grid) return;
   const { size } = _fsCtx;
-  const cellH = body.clientHeight / size;
-  const cellW = body.clientWidth  / size;
+  // visualViewport donne les vraies dimensions sur mobile (avec/sans barres système)
+  const vw = window.visualViewport?.width  ?? window.innerWidth;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const headerH = header.getBoundingClientRect().height;
+  const cellH = (vh - headerH) / size;
+  const cellW = vw / size;
   const fontSize = Math.max(10, Math.min(Math.min(cellW, cellH) * 0.22, 36));
-  grid.style.setProperty('--fs-cell-h', `${cellH}px`);
+  grid.style.setProperty('--fs-cell-h', `${Math.floor(cellH)}px`);
   grid.style.setProperty('--fs-font-size', `${fontSize.toFixed(1)}px`);
 }
 
-function _onFsFullscreenChange() {
-  if (document.fullscreenElement && screen.orientation?.lock) {
-    screen.orientation.lock('landscape').catch(() => {});
+function _tryLockLandscape() {
+  // Pont natif Tauri Android (plus fiable que l'API web dans une WebView)
+  if (window.AndroidOrientation?.lockLandscape) {
+    window.AndroidOrientation.lockLandscape();
+    return;
   }
+  if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+}
+
+function _tryUnlockOrientation() {
+  if (window.AndroidOrientation?.unlock) { window.AndroidOrientation.unlock(); return; }
+  try { if (screen.orientation?.unlock) screen.orientation.unlock(); } catch {}
+}
+
+function _onFsFullscreenChange() {
+  if (document.fullscreenElement) _tryLockLandscape();
 }
 
 function openFullscreen(grid, checks, size) {
@@ -79,11 +95,14 @@ function openFullscreen(grid, checks, size) {
   );
   overlay.querySelector('.fs-close').addEventListener('click', closeFullscreen);
 
-  // Calcul immédiat puis recalcul si le conteneur change de taille (orientation, barre système...)
+  // Calcul immédiat + recalcul sur tout changement de taille (orientation, barres système...)
   requestAnimationFrame(_applyFsGridSize);
   _fsResizeObs = new ResizeObserver(_applyFsGridSize);
   _fsResizeObs.observe(overlay.querySelector('.fs-body'));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', _applyFsGridSize);
 
+  // Tenter le verrouillage paysage immédiatement (Tauri Android ne déclenche pas fullscreenchange)
+  _tryLockLandscape();
   document.addEventListener('fullscreenchange', _onFsFullscreenChange);
 
   try {
@@ -217,7 +236,8 @@ function closeFullscreen() {
     if (document.fullscreenElement)            document.exitFullscreen();
     else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
   } catch {}
-  try { if (screen.orientation?.unlock) screen.orientation.unlock(); } catch {}
+  if (window.visualViewport) window.visualViewport.removeEventListener('resize', _applyFsGridSize);
+  _tryUnlockOrientation();
   renderPlay();
 }
 

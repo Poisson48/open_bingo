@@ -3,6 +3,7 @@ package com.openbingo.app
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.print.PrintAttributes
 import android.print.PrintManager
@@ -22,6 +23,21 @@ private class PrintBridge(private val activity: MainActivity, private val webVie
       val printManager = activity.getSystemService(Context.PRINT_SERVICE) as PrintManager
       val adapter = webView.createPrintDocumentAdapter("Open Bingo")
       printManager.print("Open Bingo", adapter, PrintAttributes.Builder().build())
+    }
+  }
+}
+
+private class OrientationBridge(private val activity: MainActivity) {
+  @JavascriptInterface
+  fun lockLandscape() {
+    activity.runOnUiThread {
+      activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+  }
+  @JavascriptInterface
+  fun unlock() {
+    activity.runOnUiThread {
+      activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
   }
 }
@@ -80,5 +96,6 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     webView.addJavascriptInterface(PrintBridge(this, webView), "AndroidPrint")
     webView.addJavascriptInterface(SaveBridge(this), "AndroidSave")
+    webView.addJavascriptInterface(OrientationBridge(this), "AndroidOrientation")
   }
 }
