@@ -27,7 +27,8 @@
 
 html {
   font-size: 14px;
-  overscroll-behavior: none;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -35,8 +36,8 @@ body {
   color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
-  min-height: 100vh;
-  overscroll-behavior: none;
+  height: 100%;
+  overflow: hidden;
 }
 
 #app { display: contents; }
@@ -44,7 +45,7 @@ body {
 .app-view {
   display: none;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
 }
 .app-view.active { display: flex; }
 
@@ -222,6 +223,9 @@ header {
 /* ─── Main ─── */
 main {
   flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
   padding: 32px 28px 80px;
   max-width: 1280px;
   width: 100%;
@@ -719,9 +723,7 @@ h2:first-child { margin-top: 0; }
 @media (max-width: 640px) {
   html { font-size: 15px; }
 
-  body {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
+  /* padding-top retiré — body ne scroll plus, le header est toujours en haut */
 
   header {
     display: flex;
