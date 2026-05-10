@@ -770,6 +770,14 @@ h2:first-child { margin-top: 0; }
 .share-qr img,
 .share-qr canvas { display: block; border-radius: 4px; }
 
+.share-qr-msg {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+  display: block;
+}
+
 .share-url-row {
   display: flex;
   gap: 8px;

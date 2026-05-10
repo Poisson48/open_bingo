@@ -57,14 +57,25 @@ async function parseShareHash(hash) {
   } catch { return null; }
 }
 
+// ── URL shortener ─────────────────────────────────────────────────────────────
+
+async function shortenUrl(url) {
+  const resp = await fetch(
+    `https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`,
+    { signal: AbortSignal.timeout(5000) }
+  );
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (data.errorcode) throw new Error(data.errormessage);
+  return data.shorturl;
+}
+
 // ── Clipboard ─────────────────────────────────────────────────────────────────
 
 async function copyText(text, inputEl) {
-  // Méthode 1 : API Clipboard moderne (HTTPS + geste utilisateur)
   if (navigator.clipboard && window.isSecureContext) {
     try { await navigator.clipboard.writeText(text); return; } catch {}
   }
-  // Méthode 2 : sélection sur l'input readonly déjà dans le DOM
   if (inputEl) {
     inputEl.removeAttribute('readonly');
     inputEl.select();
@@ -73,7 +84,6 @@ async function copyText(text, inputEl) {
     inputEl.setAttribute('readonly', '');
     return;
   }
-  // Méthode 3 : textarea temporaire
   const ta = document.createElement('textarea');
   ta.value = text;
   Object.assign(ta.style, { position: 'fixed', opacity: '0', top: '0', left: '0' });
@@ -82,6 +92,28 @@ async function copyText(text, inputEl) {
   ta.select();
   document.execCommand('copy');
   ta.remove();
+}
+
+// ── QR code helper ────────────────────────────────────────────────────────────
+
+function renderQR(container, url) {
+  container.innerHTML = '';
+  if (!window.QRCode) {
+    container.innerHTML = '<span class="share-qr-msg">QR code indisponible</span>';
+    return;
+  }
+  try {
+    new window.QRCode(container, {
+      text: url,
+      width: 220,
+      height: 220,
+      colorDark: '#f1f5f9',
+      colorLight: '#1a2235',
+      correctLevel: window.QRCode.CorrectLevel.M
+    });
+  } catch {
+    container.innerHTML = '<span class="share-qr-msg">URL trop longue pour un QR code — utilisez le lien.</span>';
+  }
 }
 
 // ── Import au chargement ───────────────────────────────────────────────────────
@@ -98,8 +130,8 @@ export async function tryImportFromHash() {
 // ── Modal partage ─────────────────────────────────────────────────────────────
 
 export async function openShareModal(projectData) {
-  let url;
-  try { url = await buildShareUrl(projectData); }
+  let longUrl;
+  try { longUrl = await buildShareUrl(projectData); }
   catch { return; }
 
   const overlay = document.createElement('div');
@@ -107,7 +139,9 @@ export async function openShareModal(projectData) {
   overlay.innerHTML = `
     <div class="modal-box share-modal">
       <h3>Partager la partie</h3>
-      <div class="share-qr" id="share-qr-target"></div>
+      <div class="share-qr" id="share-qr-target">
+        <span class="share-qr-msg">Génération du QR code…</span>
+      </div>
       <div class="share-url-row">
         <input class="share-url-input" type="text" readonly>
         <button class="btn-copy btn-secondary btn-sm" id="btn-copy-link">Copier</button>
@@ -120,37 +154,32 @@ export async function openShareModal(projectData) {
   `;
 
   const urlInput = overlay.querySelector('.share-url-input');
-  urlInput.value = url;
+  urlInput.value = longUrl;
   document.body.appendChild(overlay);
 
-  // ── Listeners attachés en premier, avant tout ce qui peut planter ──────────
+  // ── Listeners en premier ──────────────────────────────────────────────────
   const close = () => overlay.remove();
   overlay.querySelector('#btn-close-share').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
+  // currentUrl est muable : mis à jour si raccourcissement réussit
+  let currentUrl = longUrl;
   const btnCopy = overlay.querySelector('#btn-copy-link');
   btnCopy.addEventListener('click', async () => {
-    try { await copyText(url, urlInput); } catch {}
+    try { await copyText(currentUrl, urlInput); } catch {}
     btnCopy.textContent = 'Copié !';
     setTimeout(() => { btnCopy.textContent = 'Copier'; }, 2000);
   });
 
-  // ── QR code (après les listeners, dans un try/catch) ──────────────────────
+  // ── Raccourcissement + QR (asynchrone, après les listeners) ──────────────
   const qrTarget = overlay.querySelector('#share-qr-target');
-  if (window.QRCode) {
-    try {
-      new window.QRCode(qrTarget, {
-        text: url,
-        width: 220,
-        height: 220,
-        colorDark: '#f1f5f9',
-        colorLight: '#1a2235',
-        correctLevel: window.QRCode.CorrectLevel.L
-      });
-    } catch {
-      qrTarget.innerHTML = '<span class="hint" style="padding:16px;display:block;text-align:center">URL trop longue pour un QR code — utilisez le lien.</span>';
-    }
-  } else {
-    qrTarget.innerHTML = '<span class="hint" style="padding:16px;display:block;text-align:center">QR code indisponible</span>';
+  try {
+    const shortUrl = await shortenUrl(longUrl);
+    currentUrl = shortUrl;
+    urlInput.value = shortUrl;
+    renderQR(qrTarget, shortUrl);
+  } catch {
+    // Pas de réseau ou is.gd indisponible → QR avec l'URL longue en fallback
+    renderQR(qrTarget, longUrl);
   }
 }
