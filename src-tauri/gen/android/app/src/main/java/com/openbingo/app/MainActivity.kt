@@ -94,6 +94,7 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onWebViewCreate(webView: WebView) {
+    webView.overScrollMode = WebView.OVER_SCROLL_NEVER
     webView.addJavascriptInterface(PrintBridge(this, webView), "AndroidPrint")
     webView.addJavascriptInterface(SaveBridge(this), "AndroidSave")
     webView.addJavascriptInterface(OrientationBridge(this), "AndroidOrientation")
