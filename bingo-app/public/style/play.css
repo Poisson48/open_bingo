@@ -524,7 +524,7 @@
 
 .fs-grid .play-cell-label {
   font-size: var(--fs-font-size, 14px);
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: var(--fs-line-clamp, 3);
 }
 
 /* ─── Gage : overlay glissant depuis le bas ─── */

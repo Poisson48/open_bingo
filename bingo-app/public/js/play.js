@@ -44,8 +44,11 @@ function _applyFsGridSize() {
   const cellH = Math.floor((availH - borders) / size);
   const cellW = Math.floor((availW - borders) / size);
   const fontSize = Math.max(10, Math.min(Math.min(cellW, cellH) * 0.22, 36));
+  // Calcul du nombre de lignes qui rentrent vraiment (padding 8px, line-height 1.25)
+  const maxLines = Math.max(1, Math.floor((cellH - 8) / (fontSize * 1.25)));
   grid.style.setProperty('--fs-cell-h', `${cellH}px`);
   grid.style.setProperty('--fs-font-size', `${fontSize.toFixed(1)}px`);
+  grid.style.setProperty('--fs-line-clamp', String(maxLines));
 }
 
 function _tryLockLandscape() {
