@@ -101,6 +101,14 @@ header {
 }
 
 /* ─── Tabs ─── */
+.tabs-wrap {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  min-width: 0;
+}
+
 .tabs {
   display: flex;
   gap: 2px;
@@ -617,6 +625,8 @@ h2:first-child { margin-top: 0; }
   padding: 28px;
   width: 100%;
   max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
   animation: modalIn .18s ease;
 }
@@ -639,7 +649,69 @@ h2:first-child { margin-top: 0; }
   margin-top: 20px;
 }
 
-/* ─── Mobile ─── */
+/* ─── Tablette + mobile paysage (641–1024px) ─── */
+@media (max-width: 1024px) {
+  header {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+    min-height: auto;
+  }
+
+  .header-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px;
+    min-height: 52px;
+  }
+
+  .header-left {
+    padding: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #app-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .tabs-wrap {
+    width: 100%;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Indicateur de scroll à droite */
+  .tabs-wrap::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 48px;
+    background: linear-gradient(to right, transparent, var(--bg-card));
+    pointer-events: none;
+  }
+
+  .tabs {
+    flex: none;
+    width: 100%;
+    gap: 0;
+  }
+
+  main {
+    padding: 24px 20px 80px;
+  }
+}
+
+/* ─── Mobile (≤ 640px) ─── */
 @media (max-width: 640px) {
   html { font-size: 15px; }
 
@@ -697,7 +769,6 @@ h2:first-child { margin-top: 0; }
     flex-direction: row;
     flex: none;
     width: 100%;
-    border-top: 1px solid var(--border);
     gap: 0;
   }
 
@@ -776,6 +847,18 @@ h2:first-child { margin-top: 0; }
   text-align: center;
   padding: 16px;
   display: block;
+}
+
+@media (max-height: 500px) {
+  .share-qr {
+    min-height: auto;
+    padding: 6px;
+  }
+  .share-qr canvas,
+  .share-qr img {
+    width: 140px !important;
+    height: 140px !important;
+  }
 }
 
 .share-url-row {
