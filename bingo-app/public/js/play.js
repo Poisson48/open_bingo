@@ -26,9 +26,29 @@ export async function deactivatePlay() { _playActive = false; await _releaseWake
 
 // ── Mode plein écran ─────────────────────────────────────────────────────────
 
-let _fsGageTimer = null;
-let _fsOverlay   = null;
-let _fsCtx       = null; // { grid, checks, size, mid }
+let _fsGageTimer  = null;
+let _fsOverlay    = null;
+let _fsCtx        = null; // { grid, checks, size, mid }
+let _fsResizeObs  = null;
+
+function _applyFsGridSize() {
+  if (!_fsOverlay || !_fsCtx) return;
+  const body = _fsOverlay.querySelector('.fs-body');
+  const grid = _fsOverlay.querySelector('.fs-grid');
+  if (!body || !grid) return;
+  const { size } = _fsCtx;
+  const cellH = body.clientHeight / size;
+  const cellW = body.clientWidth  / size;
+  const fontSize = Math.max(10, Math.min(Math.min(cellW, cellH) * 0.22, 36));
+  grid.style.setProperty('--fs-cell-h', `${cellH}px`);
+  grid.style.setProperty('--fs-font-size', `${fontSize.toFixed(1)}px`);
+}
+
+function _onFsFullscreenChange() {
+  if (document.fullscreenElement && screen.orientation?.lock) {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+}
 
 function openFullscreen(grid, checks, size) {
   closeFullscreen();
@@ -59,16 +79,17 @@ function openFullscreen(grid, checks, size) {
   );
   overlay.querySelector('.fs-close').addEventListener('click', closeFullscreen);
 
+  // Calcul immédiat puis recalcul si le conteneur change de taille (orientation, barre système...)
+  requestAnimationFrame(_applyFsGridSize);
+  _fsResizeObs = new ResizeObserver(_applyFsGridSize);
+  _fsResizeObs.observe(overlay.querySelector('.fs-body'));
+
+  document.addEventListener('fullscreenchange', _onFsFullscreenChange);
+
   try {
     const el = document.documentElement;
-    if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {}).then(() => {
-        if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
-      });
-    } else if (el.webkitRequestFullscreen) {
-      el.webkitRequestFullscreen();
-      if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
-    }
+    if (el.requestFullscreen)            el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   } catch {}
 }
 
@@ -188,6 +209,8 @@ function _onFsCell(cellEl) {
 
 function closeFullscreen() {
   if (_fsGageTimer)  { clearTimeout(_fsGageTimer); _fsGageTimer = null; }
+  if (_fsResizeObs)  { _fsResizeObs.disconnect(); _fsResizeObs = null; }
+  document.removeEventListener('fullscreenchange', _onFsFullscreenChange);
   if (_fsOverlay)    { _fsOverlay.remove(); _fsOverlay = null; }
   _fsCtx = null;
   try {

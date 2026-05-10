@@ -448,6 +448,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: none;
   animation: fadeIn .15s ease;
 }
 
@@ -499,7 +500,6 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  container-type: size;
 }
 
 .fs-grid {
@@ -508,11 +508,16 @@
 }
 
 .fs-grid .play-cell {
-  height: calc(100cqh / var(--grid-size, 5));
+  height: var(--fs-cell-h);
+  overflow: hidden;
+}
+
+.fs-grid .play-cell-inner {
+  overflow: hidden;
 }
 
 .fs-grid .play-cell-label {
-  font-size: clamp(10px, calc(min(100cqw, 100cqh) / var(--grid-size, 5) * 0.22), 36px);
+  font-size: var(--fs-font-size, 14px);
   -webkit-line-clamp: 5;
 }
 
