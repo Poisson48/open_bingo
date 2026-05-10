@@ -502,13 +502,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  container-type: size;
 }
 
 .fs-grid {
-  --cell: calc(min(100svw, calc(100svh - 44px)) / var(--grid-size, 5));
-  width: min(100svw, calc(100svh - 44px));
-  height: min(100svw, calc(100svh - 44px));
-  border-collapse: collapse;
+  --cell: calc(min(100cqw, 100cqh) / var(--grid-size, 5));
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
   flex-shrink: 0;
 }
 
