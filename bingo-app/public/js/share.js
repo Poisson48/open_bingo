@@ -308,6 +308,7 @@ export async function openShareModal(projectData, { onImport } = {}) {
       </div>
       <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet avec les grilles.</p>
       ${scannerAvailable ? `<button class="btn-secondary btn-scan-qr" id="btn-scan-qr">📷 Scanner un QR code</button>` : ''}
+      ${typeof onImport === 'function' ? `<button class="btn-secondary btn-paste-url" id="btn-paste-url">📋 Importer depuis le presse-papier</button>` : ''}
       <div class="modal-actions">
         <button class="btn-secondary" id="btn-close-share">Fermer</button>
       </div>
@@ -339,6 +340,27 @@ export async function openShareModal(projectData, { onImport } = {}) {
           hint.textContent = 'QR code non reconnu. Assurez-vous qu\'il s\'agit d\'un lien Open Bingo.';
           hint.style.color = 'var(--red, #f87171)';
         }
+      }
+    });
+  }
+
+  // ── Importer depuis le presse-papier ─────────────────────────────────────
+  if (typeof onImport === 'function') {
+    overlay.querySelector('#btn-paste-url').addEventListener('click', async () => {
+      let text = '';
+      try { text = await navigator.clipboard.readText(); } catch { /* non disponible */ }
+      if (!text) {
+        const hint = overlay.querySelector('.hint');
+        if (hint) { hint.textContent = 'Presse-papier vide ou inaccessible.'; hint.style.color = 'var(--red, #f87171)'; }
+        return;
+      }
+      const data = await importFromScannedUrl(text);
+      if (data) {
+        close();
+        onImport(data);
+      } else {
+        const hint = overlay.querySelector('.hint');
+        if (hint) { hint.textContent = 'Lien invalide. Copiez d\'abord un lien Open Bingo.'; hint.style.color = 'var(--red, #f87171)'; }
       }
     });
   }

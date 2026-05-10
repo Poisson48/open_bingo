@@ -874,7 +874,8 @@ h2:first-child { margin-top: 0; }
   }
 }
 
-.btn-scan-qr {
+.btn-scan-qr,
+.btn-paste-url {
   width: 100%;
   justify-content: center;
   margin-bottom: 10px;
