@@ -43,9 +43,7 @@ async function decompress(encoded) {
 // ── Hash encode/decode ─────────────────────────────────────────────────────────
 
 async function buildShareUrl(projectData) {
-  // Exclure les grilles générées : réduites le payload, régénérables côté receveur
-  const payload = { ...projectData, grids: [] };
-  const encoded = await compress(JSON.stringify(payload));
+  const encoded = await compress(JSON.stringify(projectData));
   const base = window.location.href.split('#')[0];
   return base + '#s=' + encoded;
 }
@@ -114,7 +112,7 @@ export async function openShareModal(projectData) {
         <input class="share-url-input" type="text" readonly>
         <button class="btn-copy btn-secondary btn-sm" id="btn-copy-link">Copier</button>
       </div>
-      <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet (sans grilles générées).</p>
+      <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet avec les grilles.</p>
       <div class="modal-actions">
         <button class="btn-secondary" id="btn-close-share">Fermer</button>
       </div>
