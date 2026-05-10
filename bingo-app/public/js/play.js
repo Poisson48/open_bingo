@@ -61,8 +61,14 @@ function openFullscreen(grid, checks, size) {
 
   try {
     const el = document.documentElement;
-    if (el.requestFullscreen)            el.requestFullscreen().catch(() => {});
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {}).then(() => {
+        if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+      });
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+      if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+    }
   } catch {}
 }
 
@@ -188,6 +194,7 @@ function closeFullscreen() {
     if (document.fullscreenElement)            document.exitFullscreen();
     else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
   } catch {}
+  try { if (screen.orientation?.unlock) screen.orientation.unlock(); } catch {}
   renderPlay();
 }
 
