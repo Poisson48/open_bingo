@@ -114,6 +114,15 @@ document.getElementById('import-all-file').addEventListener('change', (e) => {
 // ── Auto-save ──────────────────────────────────────────────────────────────────
 document.addEventListener('input', scheduleAutoSave);
 
+// ── Bloquer l'overscroll Android (révèle le fond au-dessus du header) ──────────
+{
+  let _ty = 0;
+  document.addEventListener('touchstart', e => { _ty = e.touches[0].clientY; }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (window.scrollY === 0 && e.touches[0].clientY > _ty) e.preventDefault();
+  }, { passive: false });
+}
+
 // ── Version ────────────────────────────────────────────────────────────────────
 fetch('version.json')
   .then(r => r.json())
