@@ -11,6 +11,9 @@ import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 private class PrintBridge(private val activity: MainActivity, private val webView: WebView) {
   @JavascriptInterface
@@ -44,6 +47,7 @@ class MainActivity : TauriActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    WindowCompat.setDecorFitsSystemWindows(window, false)
     saveFileLauncher = registerForActivityResult(
       ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -59,6 +63,18 @@ class MainActivity : TauriActivity() {
       }
     }
     super.onCreate(savedInstanceState)
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) hideSystemUI()
+  }
+
+  private fun hideSystemUI() {
+    WindowInsetsControllerCompat(window, window.decorView).let { ctrl ->
+      ctrl.hide(WindowInsetsCompat.Type.systemBars())
+      ctrl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
