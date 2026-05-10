@@ -48,6 +48,11 @@ Fonctionne directement dans Chrome, Firefox, Safari — aucune installation requ
 - **Clic pour remplacer** — cliquez sur une case pour la remplacer par une autre phrase
 - **Autosave** — toutes les modifications sont sauvegardées automatiquement
 - **Aperçu impression A4** — grilles maximisées sur la demi-page + page dédiée au tableau des gages
+- **Onglet Sans papier** — jouez directement sans imprimer : cases cochables, détection automatique des bingos (lignes / colonnes / diagonales), overlay gage affiché 15 s
+- **Mode plein écran interactif** — grille en plein écran adaptatif (remplit l'écran quelle que soit la taille), verrouillage automatique en paysage sur Android
+- **Screen Wake Lock** — l'écran reste allumé pendant la partie sur l'onglet Sans papier
+- **Partage de partie** — génère un lien court (is.gd) + QR code pour partager la configuration avec les joueurs
+- **Mémorisation de l'onglet actif** — l'onglet ouvert est restauré après rechargement
 - **Numéro de version** — affiché en haut à gauche, mis à jour automatiquement à chaque release
 - **App desktop native** — via Tauri v2 (Linux, Windows, macOS, Android)
 
@@ -99,12 +104,15 @@ bingo-app/
       cases.js        # Onglet phrases & gages
       generator.js    # Logique de génération des grilles
       grids.js        # Onglet affichage + drag & drop des grilles
+      play.js         # Onglet Sans papier — jeu interactif + plein écran
+      share.js        # Onglet Partager — lien court + QR code
       print.js        # Onglet aperçu impression
       ui.js           # Utilitaires (toast)
     style/
       main.css
       dashboard.css
       grid.css
+      play.css        # Styles onglet Sans papier + plein écran
       print.css
 src-tauri/            # Tauri v2 — binaires natifs
 .github/workflows/
@@ -119,7 +127,9 @@ screenshots/          # Captures d'écran pour le README
 2. **Configuration** — définir le titre, la taille de grille, les joueurs et le mode de jeu, puis cliquer *Enregistrer*
 3. **Phrases & Gages** — ajouter les phrases (libellé, points/gage#, taux) et les gages
 4. **Grilles** — générer les grilles ; les cases sont déplaçables par glisser-déposer ou remplaçables par clic
-5. **Aperçu impression** — imprimer ou exporter en PDF (2 grilles par feuille A4)
+5. **Partager** — générer un lien court + QR code pour distribuer la partie aux joueurs
+6. **Sans papier** — jouer directement dans le navigateur ; cliquer *Commencer la partie* pour passer en plein écran interactif
+7. **Aperçu impression** — imprimer ou exporter en PDF (2 grilles par feuille A4)
 
 ## Tech
 
