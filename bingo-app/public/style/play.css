@@ -533,6 +533,17 @@
   padding: 14px 20px 16px;
   backdrop-filter: blur(6px);
   animation: fsGageIn .2s ease both;
+  max-height: 65svh;
+  overflow-y: auto;
+}
+
+.fs-combo-item + .fs-combo-item {
+  margin-top: 10px;
+}
+
+.fs-combo-item:not(:first-child) {
+  border-top: 1px solid rgba(255,255,255,.1);
+  padding-top: 10px;
 }
 
 @keyframes fsGageIn {

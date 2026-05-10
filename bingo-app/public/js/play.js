@@ -88,14 +88,34 @@ function _buildFsRows() {
   ).join('');
 }
 
-function _buildFsGage(gageData) {
-  if (!gageData) return '';
+function _buildFsGage(gageData, newCombos = []) {
+  const combos = state.comboGages || {};
+  const COMBO_META = {
+    line:     { icon: '↔', label: 'Ligne complète' },
+    column:   { icon: '↕', label: 'Colonne complète' },
+    diagonal: { icon: '⤡', label: 'Diagonale complète' },
+  };
+  const comboHtml = newCombos
+    .filter(key => combos[key])
+    .map(key => {
+      const { icon, label } = COMBO_META[key];
+      return `<div class="fs-combo-item">
+        <div class="play-gage-card-header">
+          <span class="play-gage-num">${icon} ${label}</span>
+        </div>
+        <div class="play-gage-desc fs-gage-desc">${esc(combos[key])}</div>
+      </div>`;
+    }).join('');
+
+  if (!gageData && !comboHtml) return '';
   return `<div class="fs-gage-active">
+    ${gageData ? `
     <div class="play-gage-card-header">
       <span class="play-gage-num">Gage #${gageData.num}</span>
       <span class="play-gage-label">${esc(gageData.label)}</span>
     </div>
-    <div class="play-gage-desc fs-gage-desc">${esc(gageData.desc)}</div>
+    <div class="play-gage-desc fs-gage-desc">${esc(gageData.desc)}</div>` : ''}
+    ${comboHtml}
     <div class="fs-gage-timer"><div class="fs-gage-timer-bar"></div></div>
   </div>`;
 }
@@ -109,11 +129,16 @@ function _bingoSet(checks, size) {
 function _onFsCell(cellEl) {
   const { grid, checks, size, mid } = _fsCtx;
   const r = +cellEl.dataset.row, c = +cellEl.dataset.col;
-  const wasChecked = checks[r][c];
-  checks[r][c] = !wasChecked;
+
+  // Snapshot combo types before toggle
+  const oldTypes = new Set(
+    detectBingo(checks, size).map(line => detectLineType(line, size)).filter(Boolean)
+  );
+
+  checks[r][c] = !checks[r][c];
   saveChecks(grid.player, checks);
 
-  // Mettre à jour l'apparence de toutes les cellules (bingo peut changer)
+  // Update cell appearances
   const bingoSet = _bingoSet(checks, size);
   _fsOverlay.querySelectorAll('.play-cell:not(.play-free)').forEach(td => {
     const tr = +td.dataset.row, tc = +td.dataset.col;
@@ -125,7 +150,16 @@ function _onFsCell(cellEl) {
     else if (!chk && mark) mark.remove();
   });
 
-  // Gage
+  // Detect newly completed combo types (only when checking)
+  const newCombos = [];
+  if (checks[r][c]) {
+    const newTypes = new Set(
+      detectBingo(checks, size).map(line => detectLineType(line, size)).filter(Boolean)
+    );
+    newTypes.forEach(t => { if (!oldTypes.has(t)) newCombos.push(t); });
+  }
+
+  // Cell gage
   if (_fsGageTimer) { clearTimeout(_fsGageTimer); _fsGageTimer = null; }
   let gageData = null;
   if (checks[r][c] && state.gageMode) {
@@ -133,13 +167,16 @@ function _onFsCell(cellEl) {
     const gage = cell?.points ? state.gages?.[cell.points - 1] : null;
     if (gage) gageData = { num: cell.points, label: cell.label, desc: gage.description };
   }
+
   const sec = document.getElementById('fs-gage-section');
   if (sec) {
-    sec.innerHTML = _buildFsGage(gageData);
-    if (gageData) _fsGageTimer = setTimeout(() => {
-      const s2 = document.getElementById('fs-gage-section');
-      if (s2) s2.innerHTML = _buildFsGage(null);
-    }, 15000);
+    sec.innerHTML = _buildFsGage(gageData, newCombos);
+    if (gageData || newCombos.length > 0) {
+      _fsGageTimer = setTimeout(() => {
+        const s2 = document.getElementById('fs-gage-section');
+        if (s2) s2.innerHTML = _buildFsGage(null, []);
+      }, 15000);
+    }
   }
 }
 
