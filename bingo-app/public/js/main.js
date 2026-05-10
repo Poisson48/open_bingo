@@ -131,7 +131,11 @@ fetch('version.json')
     showToast('Partie importée depuis le lien !');
     return;
   }
-  loadLastProject();
-  viewProjects.classList.add('active');
-  renderProjects(openProject);
+  const lastId = loadLastProject();
+  if (lastId) {
+    openProject(lastId);
+  } else {
+    viewProjects.classList.add('active');
+    renderProjects(openProject);
+  }
 })();
