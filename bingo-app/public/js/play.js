@@ -33,18 +33,18 @@ let _fsResizeObs  = null;
 
 function _applyFsGridSize() {
   if (!_fsOverlay || !_fsCtx) return;
-  const header = _fsOverlay.querySelector('.fs-header');
+  const fsBody = _fsOverlay.querySelector('.fs-body');
   const grid   = _fsOverlay.querySelector('.fs-grid');
-  if (!header || !grid) return;
+  if (!fsBody || !grid) return;
   const { size } = _fsCtx;
-  // visualViewport donne les vraies dimensions sur mobile (avec/sans barres système)
-  const vw = window.visualViewport?.width  ?? window.innerWidth;
-  const vh = window.visualViewport?.height ?? window.innerHeight;
-  const headerH = header.getBoundingClientRect().height;
-  const cellH = (vh - headerH) / size;
-  const cellW = vw / size;
+  // getBoundingClientRect() mesure le conteneur réel après layout — fiable après orientation
+  const { width: availW, height: availH } = fsBody.getBoundingClientRect();
+  // border-collapse: collapse → size+1 lignes de 1px à déduire (haut+bas+internes)
+  const borders = size + 1;
+  const cellH = Math.floor((availH - borders) / size);
+  const cellW = Math.floor((availW - borders) / size);
   const fontSize = Math.max(10, Math.min(Math.min(cellW, cellH) * 0.22, 36));
-  grid.style.setProperty('--fs-cell-h', `${Math.floor(cellH)}px`);
+  grid.style.setProperty('--fs-cell-h', `${cellH}px`);
   grid.style.setProperty('--fs-font-size', `${fontSize.toFixed(1)}px`);
 }
 

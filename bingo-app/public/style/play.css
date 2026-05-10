@@ -449,7 +449,14 @@
   flex-direction: column;
   overflow: hidden;
   overscroll-behavior: none;
+  touch-action: none;
   animation: fadeIn .15s ease;
+}
+
+/* Les cellules et boutons restent cliquables malgré touch-action:none sur le parent */
+.fs-grid .play-cell,
+.fs-close {
+  touch-action: manipulation;
 }
 
 .fs-header {
