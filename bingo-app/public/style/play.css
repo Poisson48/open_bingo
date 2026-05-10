@@ -499,26 +499,20 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   container-type: size;
 }
 
 .fs-grid {
-  --cell: calc(min(100cqw, 100cqh) / var(--grid-size, 5));
-  width: min(100cqw, 100cqh);
-  height: min(100cqw, 100cqh);
-  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .fs-grid .play-cell {
-  width: var(--cell);
-  height: var(--cell);
+  height: calc(100cqh / var(--grid-size, 5));
 }
 
 .fs-grid .play-cell-label {
-  font-size: clamp(10px, calc(var(--cell) * 0.22), 36px);
+  font-size: clamp(10px, calc(min(100cqw, 100cqh) / var(--grid-size, 5) * 0.22), 36px);
   -webkit-line-clamp: 5;
 }
 
