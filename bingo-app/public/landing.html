@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Bingo — Lien de partage</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <style>
+    :root {
+      --bg:         #0f1623;
+      --bg-card:    #1a2235;
+      --bg-input:   #111827;
+      --accent:     #6366f1;
+      --accent-h:   #4f46e5;
+      --accent-dim: rgba(99,102,241,0.15);
+      --text:       #f1f5f9;
+      --text-muted: #7c8fa6;
+      --border:     #2a3a52;
+      --border-l:   #3d5270;
+      --green:      #22c55e;
+      --radius:     8px;
+      --radius-lg:  12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .logo-row img { width: 36px; height: 36px; }
+    .logo-row span {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .project-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+    .project-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px 18px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-l);
+      background: var(--bg-input);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .15s, border-color .15s;
+      margin-bottom: 10px;
+    }
+    .btn:last-child { margin-bottom: 0; }
+    .btn:hover { background: var(--bg-hover, #232f45); border-color: var(--accent); }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
+    .btn-icon { font-size: 18px; flex-shrink: 0; }
+    .btn-text { flex: 1; text-align: left; }
+    .btn-sub { font-size: 11px; font-weight: 400; color: var(--text-muted); display: block; margin-top: 1px; }
+    .btn-primary .btn-sub { color: rgba(255,255,255,.7); }
+    .error {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 20px 0;
+    }
+    .loading {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 20px 0;
+    }
+    footer {
+      margin-top: 24px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-row">
+      <img src="logo.png" alt="Open Bingo">
+      <span>Open Bingo</span>
+    </div>
+    <div id="content"><div class="loading">Chargement…</div></div>
+  </div>
+  <footer>
+    <a href="https://github.com/Poisson48/open_bingo" target="_blank" rel="noopener">Open Bingo sur GitHub</a>
+  </footer>
+
+  <script type="module">
+    // ── Décompression (même logique que share.js) ───────────────────────────
+    async function decompress(encoded) {
+      if (encoded.startsWith('b64:')) {
+        return decodeURIComponent(escape(atob(encoded.slice(4))));
+      }
+      if (!encoded.startsWith('z:')) return null;
+      const b64 = encoded.slice(2).replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64 + '='.repeat((4 - b64.length % 4) % 4);
+      const binary = atob(pad);
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      const ds = new DecompressionStream('deflate-raw');
+      const w = ds.writable.getWriter();
+      w.write(bytes);
+      w.close();
+      const chunks = [];
+      const r = ds.readable.getReader();
+      for (;;) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
+      const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+      let off = 0;
+      for (const c of chunks) { out.set(c, off); off += c.length; }
+      return new TextDecoder().decode(out);
+    }
+
+    async function parseHash(hash) {
+      const m = hash.match(/[#&]?s=(z:[A-Za-z0-9_-]+|b64:[A-Za-z0-9+/=]+)/);
+      if (!m) return null;
+      try {
+        const json = await decompress(m[1]);
+        return json ? JSON.parse(json) : null;
+      } catch { return null; }
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // ── Téléchargement JSON ─────────────────────────────────────────────────
+    function downloadJson(data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (data.title || 'open-bingo') + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ── URL de l'app ────────────────────────────────────────────────────────
+    function buildAppUrl(hash) {
+      const base = window.location.href.replace(/landing\.html.*$/, 'index.html');
+      return base + hash;
+    }
+
+    // ── Rendu ───────────────────────────────────────────────────────────────
+    const content = document.getElementById('content');
+
+    async function main() {
+      const hash = window.location.hash;
+      if (!hash.includes('s=')) {
+        content.innerHTML = `<div class="error">Aucun projet dans ce lien.</div>`;
+        return;
+      }
+
+      const data = await parseHash(hash);
+      if (!data) {
+        content.innerHTML = `<div class="error">Lien invalide ou corrompu.</div>`;
+        return;
+      }
+
+      const title = data.title || 'Partie sans titre';
+      const playerCount = Array.isArray(data.players) ? data.players.length : 0;
+      const caseCount = Array.isArray(data.cases) ? data.cases.length : 0;
+      const gridSize = data.gridSize || 5;
+
+      const appUrl = buildAppUrl(hash);
+
+      content.innerHTML = `
+        <div class="project-title">${esc(title)}</div>
+        <div class="project-meta">
+          Grille ${esc(gridSize)}×${esc(gridSize)} · ${esc(playerCount)} joueur${playerCount !== 1 ? 's' : ''} · ${esc(caseCount)} case${caseCount !== 1 ? 's' : ''}
+        </div>
+        <div class="section-label">Que souhaitez-vous faire ?</div>
+        <a class="btn btn-primary" id="btn-play" href="${esc(appUrl)}">
+          <span class="btn-icon">🎮</span>
+          <span class="btn-text">
+            Jouer dans le navigateur
+            <span class="btn-sub">Ouvre l'application web</span>
+          </span>
+        </a>
+        <button class="btn" id="btn-download">
+          <span class="btn-icon">📥</span>
+          <span class="btn-text">
+            Télécharger le fichier (.json)
+            <span class="btn-sub">Pour importer dans l'app Android</span>
+          </span>
+        </button>
+        <a class="btn" id="btn-apk" href="https://github.com/Poisson48/open_bingo/releases/latest" target="_blank" rel="noopener">
+          <span class="btn-icon">📱</span>
+          <span class="btn-text">
+            Télécharger l'app Android
+            <span class="btn-sub">Dernière version sur GitHub</span>
+          </span>
+        </a>
+      `;
+
+      document.getElementById('btn-download').addEventListener('click', () => downloadJson(data));
+    }
+
+    main();
+  </script>
+</body>
+</html>

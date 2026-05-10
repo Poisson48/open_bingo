@@ -15,6 +15,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 private class PrintBridge(private val activity: MainActivity, private val webView: WebView) {
   @JavascriptInterface
@@ -42,6 +45,35 @@ private class OrientationBridge(private val activity: MainActivity) {
   }
 }
 
+private class QrBridge(private val activity: MainActivity, private val webView: WebView) {
+  /**
+   * Retourne true si BarcodeDetector est susceptible d'être disponible (Android 9+).
+   * Le JS fait la vérification finale avec typeof BarcodeDetector !== 'undefined'.
+   */
+  @JavascriptInterface
+  fun isAvailable(): Boolean = true
+
+  /**
+   * Demande la permission caméra si elle n'est pas encore accordée,
+   * puis notifie le JS via un callback JS.
+   * Le JS appelle ensuite getUserMedia lui-même.
+   */
+  @JavascriptInterface
+  fun requestCameraPermission(callbackFn: String) {
+    activity.runOnUiThread {
+      val granted = ContextCompat.checkSelfPermission(
+        activity, Manifest.permission.CAMERA
+      ) == PackageManager.PERMISSION_GRANTED
+      if (granted) {
+        webView.evaluateJavascript("$callbackFn(true)", null)
+      } else {
+        activity.pendingQrCallback = callbackFn
+        activity.qrPermissionLauncher.launch(Manifest.permission.CAMERA)
+      }
+    }
+  }
+}
+
 private class SaveBridge(private val activity: MainActivity) {
   @JavascriptInterface
   fun saveFile(content: String, filename: String) {
@@ -59,7 +91,10 @@ private class SaveBridge(private val activity: MainActivity) {
 
 class MainActivity : TauriActivity() {
   var pendingSaveContent: String? = null
+  var pendingQrCallback: String? = null
   lateinit var saveFileLauncher: ActivityResultLauncher<Intent>
+  lateinit var qrPermissionLauncher: ActivityResultLauncher<String>
+  private var qrWebView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -78,6 +113,15 @@ class MainActivity : TauriActivity() {
         }
       }
     }
+    qrPermissionLauncher = registerForActivityResult(
+      ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+      val callback = pendingQrCallback ?: return@registerForActivityResult
+      pendingQrCallback = null
+      val wv = qrWebView ?: return@registerForActivityResult
+      val result = if (isGranted) "true" else "false"
+      runOnUiThread { wv.evaluateJavascript("$callback($result)", null) }
+    }
     super.onCreate(savedInstanceState)
   }
 
@@ -95,8 +139,10 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     webView.overScrollMode = WebView.OVER_SCROLL_NEVER
+    qrWebView = webView
     webView.addJavascriptInterface(PrintBridge(this, webView), "AndroidPrint")
     webView.addJavascriptInterface(SaveBridge(this), "AndroidSave")
     webView.addJavascriptInterface(OrientationBridge(this), "AndroidOrientation")
+    webView.addJavascriptInterface(QrBridge(this, webView), "AndroidQr")
   }
 }

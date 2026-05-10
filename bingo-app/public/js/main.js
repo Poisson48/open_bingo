@@ -70,7 +70,16 @@ tabBtns.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset
 document.getElementById('btn-back-projects').addEventListener('click', showProjectsView);
 
 // ── Export / Import (projet courant) ──────────────────────────────────────────
-document.getElementById('btn-share').addEventListener('click', () => openShareModal({ ...state }));
+document.getElementById('btn-share').addEventListener('click', () => openShareModal({ ...state }, {
+  onImport: (data) => {
+    if (importJSON(JSON.stringify(data))) {
+      openProject(state.id);
+      showToast('Partie importée depuis le QR code !');
+    } else {
+      showToast('Erreur : QR code invalide.', true);
+    }
+  }
+}));
 
 document.getElementById('btn-export').addEventListener('click', exportJSON);
 
