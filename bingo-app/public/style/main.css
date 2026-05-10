@@ -874,12 +874,34 @@ h2:first-child { margin-top: 0; }
   }
 }
 
-.btn-scan-qr,
-.btn-paste-url {
+.btn-scan-qr {
   width: 100%;
   justify-content: center;
   margin-bottom: 10px;
 }
+
+.share-import-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.share-import-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border-l);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color .15s;
+}
+.share-import-input::placeholder { color: var(--text-muted); }
+.share-import-input:focus { outline: none; border-color: var(--accent); }
+.share-import-input.share-import-error { border-color: var(--red); }
 
 .share-url-row {
   display: flex;

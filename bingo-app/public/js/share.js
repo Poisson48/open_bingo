@@ -308,7 +308,11 @@ export async function openShareModal(projectData, { onImport } = {}) {
       </div>
       <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet avec les grilles.</p>
       ${scannerAvailable ? `<button class="btn-secondary btn-scan-qr" id="btn-scan-qr">📷 Scanner un QR code</button>` : ''}
-      ${typeof onImport === 'function' ? `<button class="btn-secondary btn-paste-url" id="btn-paste-url">📋 Importer depuis le presse-papier</button>` : ''}
+      ${typeof onImport === 'function' ? `
+      <div class="share-import-row" id="share-import-row">
+        <input class="share-import-input" type="url" inputmode="url" placeholder="Coller un lien Open Bingo…" id="share-import-input">
+        <button class="btn-secondary btn-sm" id="btn-import-url">Importer</button>
+      </div>` : ''}
       <div class="modal-actions">
         <button class="btn-secondary" id="btn-close-share">Fermer</button>
       </div>
@@ -344,25 +348,23 @@ export async function openShareModal(projectData, { onImport } = {}) {
     });
   }
 
-  // ── Importer depuis le presse-papier ─────────────────────────────────────
+  // ── Importer depuis un lien collé ────────────────────────────────────────
   if (typeof onImport === 'function') {
-    overlay.querySelector('#btn-paste-url').addEventListener('click', async () => {
-      let text = '';
-      try { text = await navigator.clipboard.readText(); } catch { /* non disponible */ }
-      if (!text) {
-        const hint = overlay.querySelector('.hint');
-        if (hint) { hint.textContent = 'Presse-papier vide ou inaccessible.'; hint.style.color = 'var(--red, #f87171)'; }
-        return;
-      }
+    const importInput = overlay.querySelector('#share-import-input');
+    const doImport = async () => {
+      const text = importInput.value.trim();
+      if (!text) return;
       const data = await importFromScannedUrl(text);
       if (data) {
         close();
         onImport(data);
       } else {
-        const hint = overlay.querySelector('.hint');
-        if (hint) { hint.textContent = 'Lien invalide. Copiez d\'abord un lien Open Bingo.'; hint.style.color = 'var(--red, #f87171)'; }
+        importInput.classList.add('share-import-error');
+        setTimeout(() => importInput.classList.remove('share-import-error'), 1500);
       }
-    });
+    };
+    overlay.querySelector('#btn-import-url').addEventListener('click', doImport);
+    importInput.addEventListener('keydown', e => { if (e.key === 'Enter') doImport(); });
   }
 
   // currentUrl est muable : mis à jour si raccourcissement réussit
