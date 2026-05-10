@@ -43,7 +43,9 @@ async function decompress(encoded) {
 // ── Hash encode/decode ─────────────────────────────────────────────────────────
 
 async function buildShareUrl(projectData) {
-  const encoded = await compress(JSON.stringify(projectData));
+  // Exclure les grilles générées : réduites le payload, régénérables côté receveur
+  const payload = { ...projectData, grids: [] };
+  const encoded = await compress(JSON.stringify(payload));
   const base = window.location.href.split('#')[0];
   return base + '#s=' + encoded;
 }
@@ -55,6 +57,33 @@ async function parseShareHash(hash) {
     const json = await decompress(m[1]);
     return json ? JSON.parse(json) : null;
   } catch { return null; }
+}
+
+// ── Clipboard ─────────────────────────────────────────────────────────────────
+
+async function copyText(text, inputEl) {
+  // Méthode 1 : API Clipboard moderne (HTTPS + geste utilisateur)
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return; } catch {}
+  }
+  // Méthode 2 : sélection sur l'input readonly déjà dans le DOM
+  if (inputEl) {
+    inputEl.removeAttribute('readonly');
+    inputEl.select();
+    inputEl.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    inputEl.setAttribute('readonly', '');
+    return;
+  }
+  // Méthode 3 : textarea temporaire
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  Object.assign(ta.style, { position: 'fixed', opacity: '0', top: '0', left: '0' });
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
 }
 
 // ── Import au chargement ───────────────────────────────────────────────────────
@@ -71,7 +100,9 @@ export async function tryImportFromHash() {
 // ── Modal partage ─────────────────────────────────────────────────────────────
 
 export async function openShareModal(projectData) {
-  const url = await buildShareUrl(projectData);
+  let url;
+  try { url = await buildShareUrl(projectData); }
+  catch { return; }
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -80,53 +111,48 @@ export async function openShareModal(projectData) {
       <h3>Partager la partie</h3>
       <div class="share-qr" id="share-qr-target"></div>
       <div class="share-url-row">
-        <input class="share-url-input" type="text" readonly value="">
+        <input class="share-url-input" type="text" readonly>
         <button class="btn-copy btn-secondary btn-sm" id="btn-copy-link">Copier</button>
       </div>
-      <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet.</p>
+      <p class="hint">Scannez le QR code ou copiez le lien. Le destinataire recevra une copie du projet (sans grilles générées).</p>
       <div class="modal-actions">
         <button class="btn-secondary" id="btn-close-share">Fermer</button>
       </div>
     </div>
   `;
 
-  // Afficher l'URL tronquée dans l'input pour la lisibilité, mais copier l'URL complète
-  overlay.querySelector('.share-url-input').value = url;
-
+  const urlInput = overlay.querySelector('.share-url-input');
+  urlInput.value = url;
   document.body.appendChild(overlay);
 
-  // QR code
-  const qrTarget = overlay.querySelector('#share-qr-target');
-  if (window.QRCode) {
-    new window.QRCode(qrTarget, {
-      text: url,
-      width: 220,
-      height: 220,
-      colorDark: '#f1f5f9',
-      colorLight: '#1a2235',
-      correctLevel: window.QRCode.CorrectLevel.M
-    });
-  } else {
-    qrTarget.innerHTML = '<span class="hint" style="padding:16px;display:block;text-align:center">QR code indisponible hors ligne</span>';
-  }
-
-  // Copier
-  const btnCopy = overlay.querySelector('#btn-copy-link');
-  btnCopy.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      const inp = overlay.querySelector('.share-url-input');
-      inp.select();
-      document.execCommand('copy');
-    }
-    const orig = btnCopy.textContent;
-    btnCopy.textContent = 'Copié !';
-    setTimeout(() => { btnCopy.textContent = orig; }, 2000);
-  });
-
-  // Fermer
+  // ── Listeners attachés en premier, avant tout ce qui peut planter ──────────
   const close = () => overlay.remove();
   overlay.querySelector('#btn-close-share').addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  const btnCopy = overlay.querySelector('#btn-copy-link');
+  btnCopy.addEventListener('click', async () => {
+    try { await copyText(url, urlInput); } catch {}
+    btnCopy.textContent = 'Copié !';
+    setTimeout(() => { btnCopy.textContent = 'Copier'; }, 2000);
+  });
+
+  // ── QR code (après les listeners, dans un try/catch) ──────────────────────
+  const qrTarget = overlay.querySelector('#share-qr-target');
+  if (window.QRCode) {
+    try {
+      new window.QRCode(qrTarget, {
+        text: url,
+        width: 220,
+        height: 220,
+        colorDark: '#f1f5f9',
+        colorLight: '#1a2235',
+        correctLevel: window.QRCode.CorrectLevel.L
+      });
+    } catch {
+      qrTarget.innerHTML = '<span class="hint" style="padding:16px;display:block;text-align:center">URL trop longue pour un QR code — utilisez le lien.</span>';
+    }
+  } else {
+    qrTarget.innerHTML = '<span class="hint" style="padding:16px;display:block;text-align:center">QR code indisponible</span>';
+  }
 }
