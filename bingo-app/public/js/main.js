@@ -12,6 +12,7 @@ import { renderPrint }  from './print.js';
 import { renderPlay, activatePlay, deactivatePlay } from './play.js';
 import { renderProjects } from './projects.js';
 import { showToast } from './ui.js';
+import { tryImportFromHash, openShareModal } from './share.js';
 
 // ── Views ──────────────────────────────────────────────────────────────────────
 const viewProjects = document.getElementById('view-projects');
@@ -67,6 +68,8 @@ tabBtns.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset
 document.getElementById('btn-back-projects').addEventListener('click', showProjectsView);
 
 // ── Export / Import (projet courant) ──────────────────────────────────────────
+document.getElementById('btn-share').addEventListener('click', () => openShareModal({ ...state }));
+
 document.getElementById('btn-export').addEventListener('click', exportJSON);
 
 document.getElementById('import-file').addEventListener('change', (e) => {
@@ -118,6 +121,15 @@ fetch('/version.json')
   .catch(() => {});
 
 // ── Init ───────────────────────────────────────────────────────────────────────
-loadLastProject();
-viewProjects.classList.add('active');
-renderProjects(openProject);
+(async () => {
+  const shared = await tryImportFromHash();
+  if (shared) {
+    importJSON(JSON.stringify(shared));
+    openProject(state.id);
+    showToast('Partie importée depuis le lien !');
+    return;
+  }
+  loadLastProject();
+  viewProjects.classList.add('active');
+  renderProjects(openProject);
+})();

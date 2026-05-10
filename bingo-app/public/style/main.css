@@ -754,6 +754,44 @@ h2:first-child { margin-top: 0; }
   .btn-back { font-size: 11px; padding: 4px 8px 4px 0; margin-right: 8px; }
 }
 
+/* ─── Share modal ─── */
+.share-modal { max-width: 300px; }
+
+.share-qr {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  background: #1a2235;
+  border-radius: var(--radius);
+  padding: 12px;
+  min-height: 244px;
+  align-items: center;
+}
+.share-qr img,
+.share-qr canvas { display: block; border-radius: 4px; }
+
+.share-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.share-url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border-l);
+  color: var(--text-muted);
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ─── Toast ─── */
 .toast {
   position: fixed;
