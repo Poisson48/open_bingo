@@ -3,6 +3,7 @@ name        = "open-bingo"
 version     = "1.0.10"
 edition     = "2021"
 description = "Générateur de grilles de bingo"
+license     = "GPL-3.0-only"
 authors     = []
 
 [lib]

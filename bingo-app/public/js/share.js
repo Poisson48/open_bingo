@@ -44,7 +44,9 @@ async function decompress(encoded) {
 
 async function buildShareUrl(projectData) {
   const encoded = await compress(JSON.stringify(projectData));
-  const base = window.location.href.split('#')[0];
+  const loc = window.location;
+  const isLocal = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1' || loc.hostname === '';
+  const base = isLocal ? 'https://poisson48.github.io/open_bingo/' : loc.href.split('#')[0];
   return base + '#s=' + encoded;
 }
 
