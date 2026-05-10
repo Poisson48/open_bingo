@@ -106,7 +106,11 @@ header {
   gap: 2px;
   align-items: flex-end;
   flex: 1;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab-btn {
   background: transparent;
@@ -119,6 +123,7 @@ header {
   font-weight: 500;
   transition: color .15s, border-color .15s;
   white-space: nowrap;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -689,17 +694,12 @@ h2:first-child { margin-top: 0; }
   }
 
   .tabs {
-    display: flex;
     flex-direction: row;
     flex: none;
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
     border-top: 1px solid var(--border);
     gap: 0;
   }
-  .tabs::-webkit-scrollbar { display: none; }
 
   .tab-btn {
     padding: 10px 14px 9px;
