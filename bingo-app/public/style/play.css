@@ -457,10 +457,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 6px 14px;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  min-height: 44px;
 }
 
 .fs-player {
@@ -488,88 +489,71 @@
 }
 .fs-close:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
 
-/* ─── Body : grille + gage ─── */
+/* ─── Body : grille pleine + overlay gage par-dessus ─── */
 .fs-body {
   flex: 1;
-  display: flex;
+  position: relative;
   overflow: hidden;
   min-height: 0;
-  /* Portrait : colonne ; Paysage : ligne (override ci-dessous) */
-  flex-direction: column;
-}
-
-@media (orientation: landscape) {
-  .fs-body { flex-direction: row; }
-  .fs-gage-section {
-    width: 280px;
-    flex-shrink: 0;
-    border-left: 1px solid var(--border);
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
 }
 
 .fs-grid-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
-  min-width: 0;
-  min-height: 0;
+}
+
+.fs-grid {
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
 }
 
 .fs-grid .play-cell {
-  height: clamp(40px, calc((100svh - 90px) / var(--grid-size, 5)), 120px);
-}
-
-@media (orientation: landscape) {
-  .fs-grid .play-cell {
-    height: clamp(40px, calc((100svh - 60px) / var(--grid-size, 5)), 110px);
-  }
+  height: calc((100svh - 44px) / var(--grid-size, 5));
 }
 
 .fs-grid .play-cell-label {
-  font-size: calc(13px - (var(--grid-size, 5) - 5) * 0.6px);
-  -webkit-line-clamp: 4;
+  font-size: clamp(10px, calc(2.2svh - (var(--grid-size, 5) - 3) * 0.5px), 18px);
+  -webkit-line-clamp: 5;
 }
 
-/* ─── Section gage (portrait : barre du bas) ─── */
-.fs-gage-section {
-  flex-shrink: 0;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  min-height: 64px;
-  display: flex;
-  align-items: center;
+/* ─── Gage : overlay glissant depuis le bas ─── */
+.fs-gage-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
-
-.fs-gage-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-}
+.fs-gage-overlay:empty { display: none; }
 
 .fs-gage-active {
-  width: 100%;
-  animation: fadeUp .15s ease both;
+  background: rgba(10, 16, 28, 0.93);
+  border-top: 2px solid var(--accent);
+  padding: 14px 20px 16px;
+  backdrop-filter: blur(6px);
+  animation: fsGageIn .2s ease both;
+}
+
+@keyframes fsGageIn {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 .fs-gage-desc {
-  font-size: 16px !important;
+  font-size: 18px !important;
   font-weight: 600;
   margin-top: 8px;
+  line-height: 1.4;
 }
 
 /* Barre de décompte 15s */
 .fs-gage-timer {
   height: 3px;
-  background: var(--bg-hover);
+  background: rgba(255,255,255,.15);
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .fs-gage-timer-bar {

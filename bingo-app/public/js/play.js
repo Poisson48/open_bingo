@@ -47,7 +47,7 @@ function openFullscreen(grid, checks, size) {
           <tbody>${_buildFsRows()}</tbody>
         </table>
       </div>
-      <div class="fs-gage-section" id="fs-gage-section">${_buildFsGage(null)}</div>
+      <div class="fs-gage-overlay" id="fs-gage-section"></div>
     </div>
   `;
 
@@ -89,11 +89,7 @@ function _buildFsRows() {
 }
 
 function _buildFsGage(gageData) {
-  if (!gageData) {
-    return state.gageMode
-      ? `<div class="fs-gage-hint">👆 Coche une case pour voir le gage</div>`
-      : '';
-  }
+  if (!gageData) return '';
   return `<div class="fs-gage-active">
     <div class="play-gage-card-header">
       <span class="play-gage-num">Gage #${gageData.num}</span>
