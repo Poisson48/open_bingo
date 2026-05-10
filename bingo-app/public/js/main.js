@@ -30,7 +30,8 @@ function openProject(id) {
   document.getElementById('app-title').textContent = state.title;
   viewProjects.classList.remove('active');
   viewEditor.classList.add('active');
-  switchTab('config');
+  const savedTab = localStorage.getItem('bingo_last_tab');
+  switchTab(tabPanels[savedTab] ? savedTab : 'config');
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ function switchTab(name) {
   Object.entries(tabPanels).forEach(([k, el]) => el.classList.toggle('active', k === name));
   tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
   currentTab = name;
+  localStorage.setItem('bingo_last_tab', name);
   renderers[name]();
   if (name === 'play') activatePlay();
 }
