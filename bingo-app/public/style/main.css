@@ -828,8 +828,9 @@ h2:first-child { margin-top: 0; }
 
   .btn-back { font-size: 11px; padding: 4px 8px 4px 0; margin-right: 8px; }
 
-  /* Version badge inutile sur mobile — le titre a besoin de la place */
-  .app-version { display: none; }
+  /* Version badge cachée dans l'éditeur (le titre a besoin de la place),
+     mais conservée dans la vue Projets où il y a de la place */
+  #view-editor header .app-version { display: none; }
 
   /* Cacher Exporter/Importer sur mobile pour libérer de la place */
   #btn-export, label[for="import-file"], #import-file, #import-all-file { display: none; }
