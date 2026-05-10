@@ -153,10 +153,8 @@
   color: var(--text-muted);
   font-style: italic;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 200px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .play-gage-desc {
