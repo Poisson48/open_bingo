@@ -49,7 +49,7 @@ jobs:
 
       - run: npm run build
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: Open Bingo v${{ env.VERSION }}
           generate_release_notes: true
@@ -87,7 +87,7 @@ jobs:
 
       - run: npm run build
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: Open Bingo v${{ env.VERSION }}
           files: src-tauri/target/release/bundle/nsis/*.exe
@@ -124,7 +124,7 @@ jobs:
 
       - run: npm run build
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: Open Bingo v${{ env.VERSION }}
           files: src-tauri/target/release/bundle/dmg/*.dmg
@@ -184,7 +184,7 @@ jobs:
           export NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.12433566"
           npm run android -- --apk
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: Open Bingo v${{ env.VERSION }}
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
