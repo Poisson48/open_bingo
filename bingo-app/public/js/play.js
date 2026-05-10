@@ -22,7 +22,101 @@ document.addEventListener('visibilitychange', () => {
 });
 
 export async function activatePlay()   { _playActive = true;  await _acquireWakeLock(); }
-export async function deactivatePlay() { _playActive = false; await _releaseWakeLock(); }
+export async function deactivatePlay() { _playActive = false; await _releaseWakeLock(); closeFullscreen(); }
+
+// ── Mode plein écran paysage ───────────────────────────────────────────────────
+
+let _fsTimer   = null;
+let _fsOverlay = null;
+
+function showFullscreenOnCheck(grid, checks, size, newR, newC) {
+  closeFullscreen();
+
+  const mid  = Math.floor(size / 2);
+  const completedLines = detectBingo(checks, size);
+  const bingoSet = new Set();
+  completedLines.forEach(line => line.forEach(([r, c]) => bingoSet.add(`${r},${c}`)));
+  const score = computeScore(grid, checks, size);
+
+  const rows = grid.cells.map((row, r) =>
+    `<tr>${row.map((cell, c) => {
+      const isFree  = cell.free || (state.freeCenter && size % 2 === 1 && r === mid && c === mid);
+      const checked = checks[r]?.[c] ?? false;
+      const inBingo = bingoSet.has(`${r},${c}`);
+      const isNew   = r === newR && c === newC;
+      let cls = 'play-cell';
+      if (isFree)        cls += ' play-free';
+      else if (inBingo)  cls += ' play-checked play-bingo';
+      else if (checked)  cls += ' play-checked';
+      if (isNew && !isFree) cls += ' play-cell-new';
+      return `<td class="${cls}"><div class="play-cell-inner">
+        <span class="play-cell-label">${esc(isFree ? 'FREE' : (cell.label || ''))}</span>
+        ${checked && !isFree ? `<div class="play-check-mark">✓</div>` : ''}
+      </div></td>`;
+    }).join('')}</tr>`
+  ).join('');
+
+  let sideHtml = '';
+  if (state.gageMode) {
+    const cell = grid.cells[newR]?.[newC];
+    const gage = cell?.points ? state.gages?.[cell.points - 1] : null;
+    if (gage) {
+      sideHtml = `<div class="fs-gage-card">
+        <div class="play-gage-card-header">
+          <span class="play-gage-num">Gage #${cell.points}</span>
+          <span class="play-gage-label">${esc(cell.label)}</span>
+        </div>
+        <div class="play-gage-desc">${esc(gage.description)}</div>
+      </div>`;
+    }
+  } else {
+    const bingoCount = completedLines.length;
+    sideHtml = `<div class="fs-score-card">
+      <span class="fs-score-num">${score}</span>
+      <span class="fs-score-sub">${score === 1 ? 'point' : 'points'}</span>
+      ${bingoCount > 0 ? `<div class="play-bingo-badge" style="margin-left:0">🎉 ${bingoCount} BINGO${bingoCount > 1 ? 'S' : ''}</div>` : ''}
+    </div>`;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'play-fullscreen';
+  overlay.innerHTML = `
+    <div class="fs-header">
+      <span class="fs-player">${esc(grid.player)}</span>
+      <div class="fs-progress"><div class="fs-progress-bar"></div></div>
+      <button class="fs-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="fs-body">
+      <div class="fs-grid-wrap">
+        <table class="play-grid fs-grid" style="--grid-size:${size}"><tbody>${rows}</tbody></table>
+      </div>
+      <div class="fs-side">${sideHtml}</div>
+    </div>
+    <p class="fs-footer">Tapez n'importe où pour fermer</p>
+  `;
+
+  document.body.appendChild(overlay);
+  _fsOverlay = overlay;
+
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen)            el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch {}
+
+  _fsTimer = setTimeout(closeFullscreen, 15000);
+  overlay.addEventListener('click', closeFullscreen);
+  overlay.querySelector('.fs-close').addEventListener('click', e => { e.stopPropagation(); closeFullscreen(); });
+}
+
+function closeFullscreen() {
+  if (_fsTimer)   { clearTimeout(_fsTimer); _fsTimer = null; }
+  if (_fsOverlay) { _fsOverlay.remove(); _fsOverlay = null; }
+  try {
+    if (document.fullscreenElement)        document.exitFullscreen();
+    else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+  } catch {}
+}
 
 const PLAY_NS = 'bingo_play';
 
@@ -168,13 +262,17 @@ export function renderPlay() {
     cell.addEventListener('click', () => {
       const r = +cell.dataset.row;
       const c = +cell.dataset.col;
-      checks[r][c] = !checks[r][c];
+      const wasChecked = checks[r][c];
+      checks[r][c] = !wasChecked;
       if (state.gageMode && checks[r][c]) {
         _lastCheckedCell = { r, c };
       } else if (state.gageMode && !checks[r][c] && _lastCheckedCell?.r === r && _lastCheckedCell?.c === c) {
         _lastCheckedCell = null;
       }
       saveChecks(grid.player, checks);
+      if (!wasChecked && window.matchMedia('(orientation: landscape)').matches) {
+        showFullscreenOnCheck(grid, checks, size, r, c);
+      }
       renderPlay();
     });
   });
