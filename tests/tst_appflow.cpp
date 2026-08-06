@@ -522,6 +522,9 @@ private slots:
         QCOMPARE(guest.currentProjectId(), id);
         QCOMPARE(guest.title(), QStringLiteral("Soirée partagée"));
         QVERIFY(guest.isProjectShared(id));
+        // Avant sync Nostr : stub sans contenu (le titre vient de l'URI).
+        QCOMPARE(guest.cases().size(), 0);
+        QCOMPARE(guest.players().size(), 0);
 
         guest.leaveProject(id);
         QVERIFY(guest.projects()->rowCount() == 0 || !guest.isProjectShared(id));

@@ -44,9 +44,9 @@ void RelayPool::setRelays(const QList<QUrl>& urls)
     }
 
     // Re-apply subscription if one is already active.
-    if (m_channelTag.has_value()) {
+    if (!m_channelTags.isEmpty()) {
         for (auto& c : m_clients)
-            c->subscribe(*m_channelTag, m_since);
+            c->subscribe(m_channelTags, m_since);
     }
 }
 
@@ -72,10 +72,26 @@ void RelayPool::publishToAll(const NostrEvent& ev)
 
 void RelayPool::subscribeAll(const QString& channelTag, int64_t since)
 {
-    m_channelTag = channelTag;
-    m_since      = since;
+    if (channelTag.isEmpty())
+        return;
+    if (!m_channelTags.contains(channelTag))
+        m_channelTags.append(channelTag);
+    m_since = since;
     for (auto& c : m_clients)
-        c->subscribe(channelTag, since);
+        c->subscribe(m_channelTags, since);
+}
+
+void RelayPool::unsubscribe(const QString& channelTag)
+{
+    if (!m_channelTags.contains(channelTag))
+        return;
+    m_channelTags.removeAll(channelTag);
+    for (auto& c : m_clients) {
+        if (m_channelTags.isEmpty())
+            c->closeSubscription();
+        else
+            c->subscribe(m_channelTags, m_since);
+    }
 }
 
 // ── Private slots ──────────────────────────────────────────────────────────

@@ -40,8 +40,9 @@ public:
     // Publish a NostrEvent to this relay.
     void publish(const NostrEvent& ev);
 
-    // Subscribe using kind 4545, the given channel tag, and a since timestamp.
+    // Subscribe using kind 4545, the given channel tags (#t OR), and a since timestamp.
     // Calling again replaces the current subscription.
+    void subscribe(const QStringList& channelTags, int64_t since);
     void subscribe(const QString& channelTag, int64_t since);
 
     // Close the current subscription (sends CLOSE).
@@ -78,7 +79,7 @@ private:
     bool    m_intentionalDisconnect = false;
 
     // Active subscription parameters (re-applied after reconnect).
-    std::optional<QString>  m_channelTag;
+    QStringList             m_channelTags;
     int64_t                 m_since = 0;
     QString                 m_subId;
 

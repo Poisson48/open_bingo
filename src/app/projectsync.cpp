@@ -9,6 +9,23 @@
 #include <QDebug>
 #include <QJsonArray>
 
+namespace {
+
+// Stub local créé à la jointure : updatedAt=0 pour que tout snapshot distant gagne le LWW.
+// (Un stub horodaté « maintenant » rejetait le contenu hôte — seul le titre URI restait.)
+core::Project makeJoinStub(const std::string& id, const std::string& title)
+{
+    core::Project p;
+    p.id = id;
+    p.title = title.empty() ? "Projet partagé" : title;
+    p.createdAt = 0;
+    p.updatedAt = 0;
+    p.players.clear();
+    return p;
+}
+
+} // namespace
+
 namespace app {
 
 ProjectSync::ProjectSync(QObject* parent)
@@ -57,6 +74,11 @@ void ProjectSync::enableSharing(const QString& projectId)
             return;
         m_db->setSyncKey(projectId.toStdString(), key);
     }
+    // Horodater avant publish pour que les invités (même avec un vieux stub) acceptent.
+    if (auto p = m_db->getProject(projectId.toStdString())) {
+        p->updatedAt = QDateTime::currentMSecsSinceEpoch();
+        m_db->upsertProject(*p);
+    }
     subscribeAll(0);
     publishSnapshot(projectId.toStdString());
 }
@@ -67,6 +89,14 @@ QString ProjectSync::joinUri(const QString& projectId, const QString& title)
         return {};
     if (!keyFor(projectId.toStdString()))
         enableSharing(projectId);
+    else {
+        // Republier à chaque ouverture du partage : rattrape les invités qui ont manqué l'event.
+        if (auto p = m_db->getProject(projectId.toStdString())) {
+            p->updatedAt = QDateTime::currentMSecsSinceEpoch();
+            m_db->upsertProject(*p);
+        }
+        publishSnapshot(projectId.toStdString());
+    }
     const auto key = keyFor(projectId.toStdString());
     if (!key)
         return {};
@@ -83,12 +113,16 @@ QString ProjectSync::joinFromUri(const QString& uri)
     m_db->setSyncKey(info->listId, info->key);
 
     if (auto existing = m_db->getProject(info->listId)) {
-        Q_UNUSED(existing);
+        // Projet déjà connu : si c'est un stub (ou quasi vide), forcer updatedAt=0
+        // pour accepter le prochain snapshot même après un ancien bug LWW.
+        if (existing->cases.empty() && existing->grids.empty()
+            && existing->updatedAt > 0) {
+            existing->updatedAt = 0;
+            existing->title = info->title.empty() ? existing->title : info->title;
+            m_db->upsertProject(*existing);
+        }
     } else {
-        core::Project p = core::JsonCodec::defaultProject();
-        p.id = info->listId;
-        p.title = info->title.empty() ? "Projet partagé" : info->title;
-        m_db->upsertProject(p);
+        m_db->upsertProject(makeJoinStub(info->listId, info->title));
     }
 
     subscribeAll(0);
@@ -104,8 +138,12 @@ void ProjectSync::leaveSharing(const QString& projectId)
         return;
     const auto tag = channelTagFor(projectId.toStdString());
     m_db->clearSyncKey(projectId.toStdString());
-    if (tag)
-        m_subscribed.remove(QString::fromStdString(*tag));
+    if (tag) {
+        const QString qtag = QString::fromStdString(*tag);
+        m_subscribed.remove(qtag);
+        if (m_pool)
+            m_pool->unsubscribe(qtag);
+    }
 }
 
 void ProjectSync::onLocalProjectChange(const QString& projectId)
@@ -165,8 +203,14 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         if (!ok)
             continue;
 
+        // Toujours rattacher l'id local (le JSON distant doit coïncider, mais on force).
+        remote.id = projectId;
+
         auto local = m_db->getProject(projectId);
-        if (!local || remote.updatedAt >= local->updatedAt) {
+        const bool accept = !local
+            || local->updatedAt == 0
+            || remote.updatedAt >= local->updatedAt;
+        if (accept) {
             m_db->upsertProject(remote);
             emit remoteProjectUpdated(QString::fromStdString(projectId));
         }

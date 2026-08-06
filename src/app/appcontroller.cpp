@@ -356,8 +356,12 @@ bool AppController::init()
         connect(m_projectSync.get(), &ProjectSync::remoteProjectUpdated, this,
                 [this](const QString& id) {
                     reloadProjects();
-                    if (m_hasCurrent && m_current.id == id.toStdString())
+                    if (m_hasCurrent && m_current.id == id.toStdString()) {
                         openProject(id);
+                        // grids NOTIFY gridsChanged seulement — sans ça l'UI garde l'ancien aperçu.
+                        ++m_gridsRevision;
+                        emit gridsChanged();
+                    }
                 });
         m_updater->check();
     }
@@ -1297,6 +1301,10 @@ QString AppController::buildShareUrl()
 {
     if (!m_hasCurrent || !m_projectSync)
         return {};
+    // Flush mémoire → SQLite avant publish Nostr, sinon l'invité reçoit une version périmée.
+    if (m_autoSaveTimer.isActive())
+        m_autoSaveTimer.stop();
+    persistCurrent();
     return m_projectSync->joinUri(currentProjectId(), title());
 }
 
@@ -1304,6 +1312,11 @@ QString AppController::joinUriForProject(const QString& projectId)
 {
     if (!m_db || !m_projectSync || projectId.isEmpty())
         return {};
+    if (m_hasCurrent && m_current.id == projectId.toStdString()) {
+        if (m_autoSaveTimer.isActive())
+            m_autoSaveTimer.stop();
+        persistCurrent();
+    }
     const auto p = m_db->getProject(projectId.toStdString());
     if (!p)
         return {};

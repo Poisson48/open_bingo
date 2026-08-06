@@ -42,8 +42,13 @@ void RelayClient::publish(const NostrEvent& ev)
 
 void RelayClient::subscribe(const QString& channelTag, int64_t since)
 {
-    m_channelTag = channelTag;
-    m_since      = since;
+    subscribe(QStringList{ channelTag }, since);
+}
+
+void RelayClient::subscribe(const QStringList& channelTags, int64_t since)
+{
+    m_channelTags = channelTags;
+    m_since = since;
 
     if (m_socket.state() == QAbstractSocket::ConnectedState)
         resubscribe();
@@ -138,15 +143,14 @@ void RelayClient::resetBackoff()
 
 void RelayClient::resubscribe()
 {
-    if (!m_channelTag.has_value())
+    if (m_channelTags.isEmpty())
         return;
 
     // Generate a fresh subscription id.
     m_subId = QUuid::createUuid().toString(QUuid::WithoutBraces).left(16);
 
-    const QStringList kinds  = {"4545"};
-    const QStringList tVals  = {*m_channelTag};
-    sendJson(makeReqMsg(m_subId, kinds, tVals, m_since));
+    const QStringList kinds = { "4545" };
+    sendJson(makeReqMsg(m_subId, kinds, m_channelTags, m_since));
 }
 
 } // namespace net
