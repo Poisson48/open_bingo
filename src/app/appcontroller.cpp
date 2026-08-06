@@ -631,46 +631,46 @@ QString AppController::seedDemoProject()
         return {};
 
     auto p = core::JsonCodec::defaultProject();
-    p.title = "Soirée Jeux de Rôle (démo)";
-    p.description = "Projet prêt à jouer — 4 joueurs, grille 5×5, FREE au centre.";
+    p.title = "Soirée Cinéma (démo)";
+    p.description = "Bingo des clichés à cocher pendant le film — 4 joueurs, grille 5×5.";
     p.gridSize = 5;
     p.startHP = 20;
     p.freeCenter = true;
     p.gageMode = false;
-    p.players = { { "Alice" }, { "Bob" }, { "Claire" }, { "David" } };
+    p.players = { { "Léa" }, { "Max" }, { "Sam" }, { "Chloé" } };
 
+    // Événements / clichés DANS le film (pas pendant la séance).
     static const char* phrases[] = {
-        "Le MJ oublie un PNJ important",
-        "Quelqu'un interroge un chandelier",
-        "Critique sur un gobelin",
-        "D20 lancé à voix haute",
-        "Pause pipi de plus de 10 min",
-        "Recyclage d'un ancien perso",
-        "Le barde tente de séduire",
-        "Combat qui dure plus d'une heure",
-        "Plan des joueurs qui échoue",
-        "Plan des joueurs qui réussit",
-        "PNJ meurt de façon absurde",
-        "Quelqu'un oublie son sort",
-        "Dé qui bat des ailes sur la table",
-        "Référence à Game of Thrones",
-        "Le rogue vole dans le groupe",
-        "Le paladin moralise",
-        "MJ improvise un donjon",
-        "Joueur arrive en retard",
-        "Snacks qui disparaissent",
-        "Inside joke depuis 3 ans",
-        "Le mage lance Fireball",
-        "Consultation du rulebook",
-        "Twist de scénario imprévu",
-        "Cliffhanger en fin de session",
-        "Voix ridicule pour un PNJ",
+        "Le héros se réveille en sursaut",
+        "Flashback en noir et blanc",
+        "Le méchant monologue trop longtemps",
+        "Course-poursuite en voiture",
+        "Explosion inutilement spectaculaire",
+        "Révélation : c'était un traître",
+        "Baiser sous la pluie",
+        "Le mentor meurt",
+        "Montage entraînement",
+        "Le chien survit",
+        "Twist prévisible à 20 minutes de la fin",
+        "Scène de bagarre au ralenti",
+        "Le héros refuse d'abord la quête",
+        "Vilain qui tombe d'un immeuble",
+        "Réplique culte répétée deux fois",
+        "Personnage qui se déguise mal",
+        "Fin ouverte ambiguë",
+        "Apparition surprise d'une star",
+        "Plan produit trop long",
+        "Le couple se sépare puis se retrouve",
+        "Apparition d'un fantôme / vision",
+        "Compte à rebours digital",
+        "Le héros sauve quelqu'un in extremis",
+        "Générique final avec gag",
+        "Le vrai méchant était un allié",
     };
     p.cases.clear();
     for (const auto* label : phrases)
-        p.cases.push_back({ label, 2, 100 }); // rate 100 % → grille toujours remplie
+        p.cases.push_back({ label, 2, 100 });
 
-    // roll() compare à rate 0–100 : tirage uniforme sur [0,100).
     std::mt19937 gen(4242);
     const core::Rng rng = [&gen]() {
         return std::uniform_real_distribution<>(0.0, 100.0)(gen);
@@ -683,7 +683,6 @@ QString AppController::seedDemoProject()
 
     m_db->upsertProject(p);
 
-    // Quelques cases déjà cochées pour Alice → le Play montre un vrai bingo.
     {
         const int N = p.gridSize;
         const int mid = N / 2;

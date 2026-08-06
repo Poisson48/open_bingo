@@ -89,14 +89,24 @@ private slots:
 
         app::AppController controller;
         QVERIFY(controller.init());
-        // init() auto-seeds demo when empty
         QVERIFY2(controller.projects()->rowCount() >= 1, "demo auto-seeded");
+        QVERIFY(controller.title().contains(QStringLiteral("Cinéma")));
         QVERIFY(controller.grids().size() >= 2);
         QCOMPARE(controller.grids().size(), controller.players().size());
         const auto grid0 = controller.grids()[0].toMap();
         const auto cells = grid0.value(QStringLiteral("cells")).toList();
         QCOMPARE(cells.size(), controller.gridSize());
         QVERIFY(cells[0].toList().size() >= controller.gridSize());
+
+        // Swap deux cases non-FREE (0,0) et (0,1) si possible
+        const auto before = cells[0].toList()[0].toMap().value(QStringLiteral("label")).toString();
+        controller.swapGridCells(0, 0, 0, 0, 1);
+        const auto afterRows = controller.grids()[0].toMap().value(QStringLiteral("cells")).toList();
+        const auto after01 = afterRows[0].toList()[1].toMap().value(QStringLiteral("label")).toString();
+        QCOMPARE(after01, before);
+
+        controller.moveGrid(0, 1);
+        QCOMPARE(controller.grids().size(), controller.players().size());
     }
 
     void generateAllRequiresCases()
