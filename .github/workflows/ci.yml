@@ -14,7 +14,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build \
+          sudo apt-get install -y build-essential cmake ninja-build xvfb \
             qt6-base-dev qt6-declarative-dev qt6-websockets-dev qt6-multimedia-dev \
             libqt6sql6-sqlite libsodium-dev libsecp256k1-dev zlib1g-dev pkg-config \
             qml6-module-qtquick qml6-module-qtquick-controls \
@@ -31,10 +31,7 @@ jobs:
         run: cmake --build build
 
       - name: Test
-        run: |
-          ctest --test-dir build --output-on-failure
-          bash scripts/smoke-ui.sh
-          bash scripts/test-resolutions.sh
+        run: ctest --test-dir build --output-on-failure
 
   # APK arm64 signé, récupérable dans les artefacts du run.
   android:

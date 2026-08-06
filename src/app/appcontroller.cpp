@@ -66,7 +66,17 @@ AppController::AppController(QObject* parent)
     connect(&m_autoSaveTimer, &QTimer::timeout, this, &AppController::saveCurrentProject);
 }
 
-AppController::~AppController() = default;
+AppController::~AppController()
+{
+    m_autoSaveTimer.stop();
+    m_projectSync.reset();
+    m_relayPool.reset();
+    m_updater.reset();
+    m_projectModel.reset();
+    if (m_db)
+        m_db->close();
+    m_db.reset();
+}
 
 QString AppController::databasePath()
 {
