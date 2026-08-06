@@ -58,22 +58,26 @@ add_library(applib STATIC ${APPLIB_SOURCES})
 target_include_directories(applib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(applib PUBLIC
     core cryptolayer net store qrcodegen qrdecode
-    Qt6::Core Qt6::Network Qt6::Quick Qt6::Sql Qt6::WebSockets Qt6::PrintSupport
+    Qt6::Core Qt6::Network Qt6::Quick Qt6::Sql Qt6::WebSockets Qt6::PrintSupport Qt6::Widgets
     PkgConfig::SODIUM PkgConfig::SECP256K1
 )
 if(BINGO_HAS_CAMERA)
     target_link_libraries(applib PUBLIC Qt6::Multimedia)
     target_compile_definitions(applib PUBLIC BINGO_HAS_CAMERA)
 endif()
-if(TARGET Qt6::Widgets)
-    target_link_libraries(applib PUBLIC Qt6::Widgets)
-endif()
 
-set(BINGO_VERSION_NAME "2.0.0" CACHE STRING "android:versionName")
+set(BINGO_VERSION_NAME "2.0.2" CACHE STRING "android:versionName")
 set(BINGO_VERSION_CODE "1" CACHE STRING "android:versionCode")
 target_compile_definitions(applib PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")
 
 qt_add_executable(openbingo app/main.cpp)
+
+set(BINGO_LOGO "${CMAKE_SOURCE_DIR}/packaging/openbingo.png")
+set_source_files_properties(${BINGO_LOGO} PROPERTIES QT_RESOURCE_ALIAS "openbingo.png")
+qt_add_resources(openbingo "app_icons"
+    PREFIX "/icons"
+    FILES ${BINGO_LOGO}
+)
 
 set(BINGO_QML_FILES
     qml/Main.qml
@@ -89,7 +93,6 @@ set(BINGO_QML_FILES
     qml/ColoMenu.qml
     qml/Icon.qml
     qml/ChangelogDialog.qml
-    qml/FilePickers.qml
     qml/ShareSheet.qml
 )
 if(BINGO_HAS_CAMERA)
@@ -104,7 +107,7 @@ qt_add_qml_module(openbingo
 
 target_link_libraries(openbingo PRIVATE
     applib cryptolayer net store qrcodegen
-    Qt6::Core Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::WebSockets Qt6::PrintSupport
+    Qt6::Core Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::WebSockets Qt6::PrintSupport Qt6::Widgets
     PkgConfig::SODIUM PkgConfig::SECP256K1
 )
 

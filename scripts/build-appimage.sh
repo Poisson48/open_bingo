@@ -35,7 +35,7 @@ cat > "$APPDIR/usr/share/applications/openbingo.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Open Bingo
-Comment=Liste de courses partagée
+Comment=Générateur de cartes bingo pour soirées jeux
 Exec=openbingo
 Icon=openbingo
 Categories=Utility;Network;

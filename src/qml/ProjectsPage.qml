@@ -15,8 +15,8 @@ Item {
         }
         Menu {
             id: importMenu
-            MenuItem { text: "Exporter tout"; onTriggered: filePickers.exportAll() }
-            MenuItem { text: "Importer"; onTriggered: filePickers.importAll() }
+            MenuItem { text: "Exporter tout"; onTriggered: AppController.pickExportAllJson() }
+            MenuItem { text: "Importer"; onTriggered: AppController.pickImportAllJson() }
         }
     }
 
@@ -101,6 +101,4 @@ Item {
         Label { text: "Supprimer « " + page.deleteTargetTitle + " » ?"; color: Theme.text; wrapMode: Text.WordWrap }
         onAccepted: AppController.deleteProject(page.deleteTargetId)
     }
-
-    FilePickers { id: filePickers; anchors.centerIn: parent }
 }

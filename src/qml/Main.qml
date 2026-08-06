@@ -42,6 +42,14 @@ ApplicationWindow {
                 contentItem: Icon { name: "back"; color: Theme.text; size: 22 }
                 onClicked: stack.pop()
             }
+            Image {
+                visible: stack.depth <= 1
+                source: "qrc:/icons/openbingo.png"
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+            }
             Label {
                 Layout.fillWidth: true
                 text: stack.currentItem && stack.currentItem.pageTitle

@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -20,6 +21,7 @@ int main(int argc, char* argv[])
     QGuiApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("OpenBingo"));
     app.setApplicationName(QStringLiteral("OpenBingo"));
+    app.setWindowIcon(QIcon(QStringLiteral("qrc:/icons/openbingo.png")));
 
     QQuickStyle::setStyle(QStringLiteral("Material"));
     app::initNotifications();

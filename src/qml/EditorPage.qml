@@ -14,8 +14,8 @@ Item {
         Menu {
             id: editorMenu
             MenuItem { text: "Partager"; onTriggered: shareSheet.openForCurrent() }
-            MenuItem { text: "Exporter"; onTriggered: filePickers.exportCurrent() }
-            MenuItem { text: "Importer"; onTriggered: filePickers.importOne() }
+            MenuItem { text: "Exporter"; onTriggered: AppController.pickExportCurrentJson() }
+            MenuItem { text: "Importer"; onTriggered: AppController.pickImportJson() }
         }
     }
 
@@ -48,7 +48,6 @@ Item {
     }
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }
-    FilePickers { id: filePickers; anchors.centerIn: parent }
 
     Component.onCompleted: AppController.setKeepScreenOn(tabs.currentIndex === 4)
     Connections {

@@ -23,7 +23,13 @@ ScrollView {
         RowLayout {
             ColoTextField { id: newLabel; Layout.fillWidth: true; hint: "Nouvelle phrase" }
             SpinBox { id: pts; from: 0; to: 99; value: 1 }
-            SpinBox { id: rate; from: 0; to: 100; value: 50; suffix: " %" }
+            SpinBox {
+                id: rate
+                from: 0
+                to: 100
+                value: 50
+                textFromValue: function(value, locale) { return value + " %"; }
+            }
             Button {
                 text: "+"
                 onClicked: {

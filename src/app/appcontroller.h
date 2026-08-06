@@ -117,6 +117,12 @@ public:
     Q_INVOKABLE bool exportAllJson(const QString& filePath);
     Q_INVOKABLE int importAllJsonFile(const QString& filePath);
 
+    Q_INVOKABLE void pickExportCurrentJson();
+    Q_INVOKABLE void pickExportProjectJson();
+    Q_INVOKABLE void pickExportAllJson();
+    Q_INVOKABLE void pickImportJson();
+    Q_INVOKABLE void pickImportAllJson();
+
     Q_INVOKABLE QString buildShareUrl();
     Q_INVOKABLE bool importSharePayload(const QString& payload);
     Q_INVOKABLE void enableProjectSharing();

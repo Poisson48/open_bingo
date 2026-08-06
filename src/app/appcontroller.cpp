@@ -10,6 +10,7 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
+#include <QFileDialog>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -651,6 +652,81 @@ int AppController::importAllJsonFile(const QString& filePath)
         m_db->upsertProject(p);
     reloadProjects();
     return static_cast<int>(projects.size());
+}
+
+namespace {
+
+constexpr auto kJsonFilter = "JSON (*.json)";
+
+QString ensureJsonSuffix(QString path)
+{
+    if (!path.endsWith(QStringLiteral(".json"), Qt::CaseInsensitive))
+        path += QStringLiteral(".json");
+    return path;
+}
+
+} // namespace
+
+void AppController::pickExportCurrentJson()
+{
+    const QString path = ensureJsonSuffix(QFileDialog::getSaveFileName(
+        nullptr, tr("Exporter le projet"), QStringLiteral("bingo-export.json"), kJsonFilter));
+    if (path.isEmpty())
+        return;
+    if (exportCurrentJson(path))
+        emit toast(tr("Projet exporté"));
+    else
+        emit toast(tr("Export impossible"));
+}
+
+void AppController::pickExportProjectJson()
+{
+    const QString path = ensureJsonSuffix(QFileDialog::getSaveFileName(
+        nullptr, tr("Exporter le projet"), QStringLiteral("bingo-projet.json"), kJsonFilter));
+    if (path.isEmpty())
+        return;
+    if (exportProjectJson(currentProjectId(), path))
+        emit toast(tr("Projet exporté"));
+    else
+        emit toast(tr("Export impossible"));
+}
+
+void AppController::pickExportAllJson()
+{
+    const QString path = ensureJsonSuffix(QFileDialog::getSaveFileName(
+        nullptr, tr("Exporter tous les projets"),
+        QStringLiteral("bingo-tous-projets.json"), kJsonFilter));
+    if (path.isEmpty())
+        return;
+    if (exportAllJson(path))
+        emit toast(tr("Projets exportés"));
+    else
+        emit toast(tr("Export impossible"));
+}
+
+void AppController::pickImportJson()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Importer un projet"), {}, kJsonFilter);
+    if (path.isEmpty())
+        return;
+    if (importJsonFile(path))
+        emit toast(tr("Projet importé"));
+    else
+        emit toast(tr("Import impossible"));
+}
+
+void AppController::pickImportAllJson()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Importer des projets"), {}, kJsonFilter);
+    if (path.isEmpty())
+        return;
+    const int n = importAllJsonFile(path);
+    if (n >= 0)
+        emit toast(tr("%1 projet(s) importé(s)").arg(n));
+    else
+        emit toast(tr("Import impossible"));
 }
 
 QString AppController::buildShareUrl()

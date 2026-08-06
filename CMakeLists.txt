@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(openbingo VERSION 2.0.0 LANGUAGES CXX)
+project(openbingo VERSION 2.0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(ANDROID)
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Quick QuickControls2 Sql PrintSupport WebSockets)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Quick QuickControls2 Sql PrintSupport WebSockets Widgets)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Network Quick QuickControls2 Sql PrintSupport WebSockets Test)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network Quick QuickControls2 Sql PrintSupport WebSockets Widgets Test)
     find_package(Qt6 OPTIONAL_COMPONENTS Widgets)
 endif()
 
