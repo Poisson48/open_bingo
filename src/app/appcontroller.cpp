@@ -643,6 +643,17 @@ QString AppController::seedDemoProject()
     p.freeCenter = true;
     p.gageMode = false;
     p.players = { { "Léa" }, { "Max" }, { "Sam" }, { "Chloé" } };
+    // Gages prêts si on active le mode gage (points des cases = n° de gage).
+    p.gages = {
+        { "Imite la voix du personnage", 5 },
+        { "Mime la scène en 10 secondes", 5 },
+        { "Inventez la réplique suivante", 5 },
+        { "Change de place avec ton voisin", 3 },
+        { "Raconte la scène en chuchotant", 3 },
+    };
+    p.comboGages.line = "Toute la table boit une gorgée";
+    p.comboGages.column = "Le joueur à ta gauche invente un titre alternatif";
+    p.comboGages.diagonal = "Tout le monde se lève 5 secondes";
 
     // Clichés / événements DANS le film (pas pendant la séance). Phrases courtes pour mobile.
     static const char* phrases[] = {
@@ -673,8 +684,13 @@ QString AppController::seedDemoProject()
         "Le vrai méchant était un allié",
     };
     p.cases.clear();
-    for (const auto* label : phrases)
-        p.cases.push_back({ label, 2, 100 });
+    const int gageCount = static_cast<int>(p.gages.size());
+    int i = 0;
+    for (const auto* label : phrases) {
+        const int gageNum = (i % gageCount) + 1; // 1-based index dans p.gages
+        p.cases.push_back({ label, gageNum, 100 });
+        ++i;
+    }
 
     std::mt19937 gen(4242);
     const core::Rng rng = [&gen]() {

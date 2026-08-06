@@ -88,25 +88,105 @@ Item {
                     saveChecks()
                 }
 
+                property int bingoRevision: 0
+                property int lastGageR: -1
+                property int lastGageC: -1
+
+                Component.onCompleted: reloadChecks()
+
+                function lineType(line, n) {
+                    if (!line || line.length === 0) return ""
+                    var rows = {}, cols = {}
+                    var mainDiag = true, antiDiag = true
+                    for (var i = 0; i < line.length; ++i) {
+                        const r = line[i][0], c = line[i][1]
+                        rows[r] = true; cols[c] = true
+                        if (r !== c) mainDiag = false
+                        if (r + c !== n - 1) antiDiag = false
+                    }
+                    if (Object.keys(rows).length === 1) return "line"
+                    if (Object.keys(cols).length === 1) return "column"
+                    if (mainDiag || antiDiag) return "diagonal"
+                    return ""
+                }
+
+                function bingoTypes(checkGrid) {
+                    var set = {}
+                    const n = AppController.gridSize
+                    const lines = AppController.detectBingoLines(checkGrid)
+                    for (var i = 0; i < lines.length; ++i) {
+                        const t = lineType(lines[i], n)
+                        if (t.length) set[t] = true
+                    }
+                    return set
+                }
+
+                function lookupCellGage(cell) {
+                    if (!cell) return null
+                    if (cell.gage && String(cell.gage).length > 0)
+                        return { num: cell.points || 0, label: cell.label || "", desc: String(cell.gage) }
+                    const idx = (cell.points || 0) - 1
+                    const list = AppController.gages || []
+                    if (idx < 0 || idx >= list.length) return null
+                    const g = list[idx]
+                    if (!g || !g.description) return null
+                    return { num: cell.points, label: cell.label || "", desc: g.description }
+                }
+
+                readonly property var activeGageCard: {
+                    void bingoRevision
+                    void checks
+                    void lastGageR
+                    if (!AppController.gageMode || lastGageR < 0)
+                        return null
+                    if (!checks[lastGageR] || !checks[lastGageR][lastGageC])
+                        return null
+                    const grid = playerBox.count > 0
+                          ? AppController.grids[playerBox.currentIndex] : null
+                    if (!grid || !grid.cells) return null
+                    return lookupCellGage(grid.cells[lastGageR][lastGageC])
+                }
+
                 function toggle(r, c) {
                     if (!checks[r]) return
                     const mid = Math.floor(AppController.gridSize / 2)
                     if (AppController.freeCenter && AppController.gridSize % 2 === 1
                             && r === mid && c === mid)
                         return
+                    const oldTypes = bingoTypes(checks)
                     checks[r] = checks[r].slice(0)
                     checks[r][c] = !checks[r][c]
                     if (AppController.freeCenter && AppController.gridSize % 2 === 1)
                         checks[mid][mid] = true
                     checks = checks.slice(0)
+                    if (checks[r][c]) {
+                        lastGageR = r
+                        lastGageC = c
+                    } else if (lastGageR === r && lastGageC === c) {
+                        lastGageR = -1
+                        lastGageC = -1
+                    }
                     bingoRevision++
                     saveChecks()
                     AppController.vibrate()
+
+                    // Toast combo nouvellement déclenché (aperçu hors plein écran)
+                    if (checks[r][c]) {
+                        const newTypes = bingoTypes(checks)
+                        const keys = ["line", "column", "diagonal"]
+                        const labels = {
+                            line: "Ligne", column: "Colonne", diagonal: "Diagonale"
+                        }
+                        for (var ki = 0; ki < keys.length; ++ki) {
+                            const k = keys[ki]
+                            if (newTypes[k] && !oldTypes[k]) {
+                                const txt = (AppController.comboGages || {})[k] || ""
+                                if (txt.length)
+                                    AppController.notify(labels[k] + " — " + txt)
+                            }
+                        }
+                    }
                 }
-
-                property int bingoRevision: 0
-
-                Component.onCompleted: reloadChecks()
 
                 readonly property var bingoSet: {
                     void bingoRevision
@@ -137,6 +217,58 @@ Item {
                     gageMode: AppController.gageMode
                     gages: AppController.gages
                     onCellClicked: function(r, c) { playRoot.toggle(r, c) }
+                }
+            }
+
+            // Carte d'action gage (aperçu) — comme l'app web
+            Rectangle {
+                Layout.fillWidth: true
+                visible: AppController.gageMode && playerBox.count > 0
+                implicitHeight: gageCardCol.implicitHeight + 20
+                radius: Theme.radiusLg
+                color: Theme.surface
+                border.color: playRoot.activeGageCard ? Theme.accent : Theme.outline
+                border.width: playRoot.activeGageCard ? 2 : 1
+
+                ColumnLayout {
+                    id: gageCardCol
+                    anchors.fill: parent
+                    anchors.margins: Theme.pad
+                    spacing: 6
+                    Label {
+                        visible: !playRoot.activeGageCard
+                        Layout.fillWidth: true
+                        text: "Coche une case pour voir le gage à effectuer"
+                        color: Theme.textDim
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        visible: !!playRoot.activeGageCard
+                        text: playRoot.activeGageCard
+                              ? ("Gage #" + playRoot.activeGageCard.num)
+                              : ""
+                        color: Theme.accent
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                    }
+                    Label {
+                        visible: !!playRoot.activeGageCard
+                        Layout.fillWidth: true
+                        text: playRoot.activeGageCard ? playRoot.activeGageCard.label : ""
+                        color: Theme.textDim
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        visible: !!playRoot.activeGageCard
+                        Layout.fillWidth: true
+                        text: playRoot.activeGageCard ? playRoot.activeGageCard.desc : ""
+                        color: Theme.text
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 
@@ -204,7 +336,11 @@ Item {
 
             Connections {
                 target: playerBox
-                function onCurrentIndexChanged() { playRoot.reloadChecks() }
+                function onCurrentIndexChanged() {
+                    playRoot.lastGageR = -1
+                    playRoot.lastGageC = -1
+                    playRoot.reloadChecks()
+                }
             }
         }
     }
