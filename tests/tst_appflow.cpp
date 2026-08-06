@@ -409,8 +409,84 @@ private slots:
 
         QImage img(pngPath);
         QVERIFY2(!img.isNull(), "PNG lisible");
-        QCOMPARE(img.width(), 920);
+        QCOMPARE(img.width(), 1000);
         QVERIFY(img.height() > 500);
+    }
+
+    void announcesWinnerOnFullGrid()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(controller.openProject(id));
+        controller.setGageMode(false);
+        controller.setGridSize(2);
+        controller.setFreeCenter(false);
+
+        while (controller.players().size() > 0)
+            controller.removePlayer(controller.players().size() - 1);
+        controller.addPlayer();
+        controller.setPlayerName(0, QStringLiteral("Alice"));
+        controller.addPlayer();
+        controller.setPlayerName(1, QStringLiteral("Bob"));
+
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        controller.addCase(QStringLiteral("A"), 10, 100);
+        controller.addCase(QStringLiteral("B"), 20, 100);
+        controller.addCase(QStringLiteral("C"), 30, 100);
+        controller.addCase(QStringLiteral("D"), 40, 100);
+
+        QVERIFY2(!controller.generateAll().contains(QStringLiteral("Aucun")), "generate");
+        QCOMPARE(controller.grids().size(), 2);
+
+        // Libellés distincts : la sync par texte ne doit pas compléter Bob.
+        const QStringList aliceCells = {
+            QStringLiteral("Alice-1"), QStringLiteral("Alice-2"),
+            QStringLiteral("Alice-3"), QStringLiteral("Alice-4")
+        };
+        const QStringList bobCells = {
+            QStringLiteral("Bob-1"), QStringLiteral("Bob-2"),
+            QStringLiteral("Bob-3"), QStringLiteral("Bob-4")
+        };
+        int k = 0;
+        for (int r = 0; r < 2; ++r) {
+            for (int c = 0; c < 2; ++c) {
+                controller.setGridCellLabel(0, r, c, aliceCells[k], 10 + k);
+                controller.setGridCellLabel(1, r, c, bobCells[k], 10 + k);
+                ++k;
+            }
+        }
+
+        // Remplir la grille d'Alice case par case — la dernière doit annoncer le gagnant.
+        QVariantMap last;
+        for (int r = 0; r < 2; ++r) {
+            for (int c = 0; c < 2; ++c) {
+                last = controller.togglePlayCell(QStringLiteral("Alice"), r, c);
+                QVERIFY(last.value(QStringLiteral("checked")).toBool());
+            }
+        }
+        QVERIFY2(last.value(QStringLiteral("justCompleted")).toBool(), "justCompleted");
+        const auto newWinners = last.value(QStringLiteral("newWinners")).toList();
+        QCOMPARE(newWinners.size(), 1);
+        QCOMPARE(newWinners[0].toMap().value(QStringLiteral("player")).toString(),
+                 QStringLiteral("Alice"));
+        QVERIFY(last.value(QStringLiteral("winners")).toList().contains(QStringLiteral("Alice")));
+        QVERIFY(last.value(QStringLiteral("gridFull")).toBool());
+
+        // Décocher annule le statut gagnant
+        const auto off = controller.togglePlayCell(QStringLiteral("Alice"), 0, 0);
+        QVERIFY(!off.value(QStringLiteral("checked")).toBool());
+        QVERIFY(!off.value(QStringLiteral("gridFull")).toBool());
+        QVERIFY(off.value(QStringLiteral("winners")).toList().isEmpty());
+        QVERIFY(off.value(QStringLiteral("newWinners")).toList().isEmpty());
     }
 };
 

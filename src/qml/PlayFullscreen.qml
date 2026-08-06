@@ -29,6 +29,7 @@ Item {
     function open() {
         visible = true
         clearGagePanel()
+        hideWinner()
         forceActiveFocus()
         AppController.setKeepScreenOn(true)
         AppController.lockLandscape()
@@ -37,6 +38,7 @@ Item {
 
     function close() {
         clearGagePanel()
+        hideWinner()
         visible = false
         AppController.setImmersive(false)
         AppController.unlockOrientation()
@@ -138,11 +140,57 @@ Item {
         checksUpdated(result.checks)
         AppController.vibrate()
 
+        // Gagnant : grille pleine (soi ou un autre via sync libellé).
+        // Décocher annule l'annonce si plus personne n'a une grille pleine.
+        const winners = result.winners || []
         if (!result.checked) {
             clearGagePanel()
+            if (!winners.length)
+                hideWinner()
             return
         }
+        if (result.justCompleted && result.newWinners && result.newWinners.length > 0)
+            showWinner(result.newWinners, result.scoreboard || [])
         enqueueOverlays(result.overlays || [])
+    }
+
+    property bool winnerVisible: false
+    property var winnerEntries: []   // [{player, score, unit, ...}]
+    property var winnerBoard: []
+
+    function showWinner(entries, board) {
+        winnerEntries = entries || []
+        winnerBoard = board || []
+        winnerVisible = winnerEntries.length > 0
+        if (winnerVisible)
+            clearGagePanel()
+    }
+
+    function hideWinner() {
+        winnerVisible = false
+        winnerEntries = []
+        winnerBoard = []
+    }
+
+    readonly property string winnerHeadline: {
+        if (!winnerEntries || winnerEntries.length === 0)
+            return ""
+        if (winnerEntries.length === 1)
+            return (winnerEntries[0].player || "") + " a gagné !"
+        var names = []
+        for (var i = 0; i < winnerEntries.length; ++i)
+            names.push(winnerEntries[i].player || "")
+        return names.join(", ") + " ont gagné !"
+    }
+
+    readonly property string winnerSubline: {
+        if (!winnerEntries || winnerEntries.length === 0)
+            return "Grille complète"
+        const e = winnerEntries[0]
+        const unit = e.unit || "pts"
+        if (winnerEntries.length === 1)
+            return "Grille complète — " + Number(e.score || 0).toLocaleString(Qt.locale("fr_FR")) + " " + unit
+        return winnerEntries.length + " grilles complètes"
     }
 
     property int bingoRevision: 0
@@ -378,9 +426,109 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 180 } }
     }
 
+    Rectangle {
+        id: winnerPanel
+        anchors.fill: parent
+        z: 50
+        visible: fs.winnerVisible
+        color: Qt.rgba(0.04, 0.06, 0.11, 0.88)
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: fs.hideWinner()
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 480)
+            implicitHeight: winCol.implicitHeight + 40
+            radius: Theme.radiusLg
+            color: Theme.surface
+            border.color: Theme.success
+            border.width: 2
+
+            ColumnLayout {
+                id: winCol
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 20
+                spacing: 12
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "BINGO !"
+                    color: Theme.success
+                    font.pixelSize: 28
+                    font.weight: Font.Black
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: fs.winnerHeadline
+                    color: Theme.text
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: fs.winnerSubline
+                    color: Theme.textDim
+                    font.pixelSize: 14
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Repeater {
+                    model: Math.min(5, (fs.winnerBoard || []).length)
+                    delegate: Label {
+                        Layout.fillWidth: true
+                        required property int index
+                        readonly property var entry: fs.winnerBoard[index]
+                        text: (index + 1) + ". " + (entry.player || "")
+                              + " — "
+                              + Number(entry.score || 0).toLocaleString(Qt.locale("fr_FR"))
+                              + " " + (entry.unit || "pts")
+                              + (entry.full ? "  ✓" : "")
+                        color: entry.full ? Theme.success : Theme.textDim
+                        font.pixelSize: 13
+                        font.weight: index === 0 ? Font.DemiBold : Font.Normal
+                        elide: Text.ElideRight
+                    }
+                }
+
+                BingoButton {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    text: "Continuer"
+                    primary: true
+                    onClicked: fs.hideWinner()
+                }
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: "Voir les scores"
+                    onClicked: {
+                        fs.hideWinner()
+                        fs.close()
+                        AppController.lastTab = 6
+                    }
+                }
+            }
+        }
+
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+    }
+
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             event.accepted = true
+            if (fs.winnerVisible) {
+                fs.hideWinner()
+                return
+            }
             if (fs.gagePanelVisible) {
                 fs.dismissCurrentOverlay()
                 return

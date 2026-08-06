@@ -8,9 +8,22 @@ ScrollView {
     contentWidth: availableWidth
 
     property var board: []
+    readonly property var winners: {
+        var out = []
+        for (var i = 0; i < board.length; ++i)
+            if (board[i].full)
+                out.push(board[i])
+        return out
+    }
+    readonly property bool gageMode: board.length > 0 && !!board[0].gageMode
 
     function refresh() {
         board = AppController.playScoreboard()
+    }
+
+    function formatScore(entry) {
+        const n = Number(entry.score || 0).toLocaleString(Qt.locale("fr_FR"))
+        return n + " " + (entry.unit || "pts")
     }
 
     Component.onCompleted: refresh()
@@ -27,10 +40,59 @@ ScrollView {
 
         Label {
             Layout.fillWidth: true
-            text: "Classement live — grille pleine en tête, puis score. Exportez en PNG pour partager."
+            text: "Classement live — grille pleine = gagnant. Exportez en PNG pour partager."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            visible: scroll.winners.length > 0
+            implicitHeight: winBanner.implicitHeight + 24
+            radius: Theme.radiusLg
+            color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.15)
+            border.color: Theme.success
+            border.width: 2
+
+            ColumnLayout {
+                id: winBanner
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Theme.pad
+                spacing: 4
+
+                Label {
+                    Layout.fillWidth: true
+                    text: scroll.winners.length === 1 ? "Gagnant" : "Gagnants"
+                    color: Theme.success
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: {
+                        var names = []
+                        for (var i = 0; i < scroll.winners.length; ++i)
+                            names.push(scroll.winners[i].player || "")
+                        return names.join(" · ")
+                    }
+                    color: Theme.text
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.WordWrap
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: scroll.winners.length === 1
+                    text: scroll.winners.length === 1
+                          ? ("Grille complète — " + scroll.formatScore(scroll.winners[0]))
+                          : ""
+                    color: Theme.textDim
+                    font.pixelSize: 13
+                }
+            }
         }
 
         BingoButton {
@@ -57,84 +119,97 @@ ScrollView {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: rowInner.implicitHeight + 20
+                implicitHeight: rowInner.implicitHeight + 24
                 radius: Theme.radiusLg
-                color: index === 0 ? Theme.surfaceHigh : Theme.surface
-                border.color: index === 0 ? Theme.accent : Theme.outline
-                border.width: index === 0 ? 1.5 : 1
+                color: modelData.full ? Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.12)
+                     : index === 0 ? Theme.surfaceHigh : Theme.surface
+                border.color: modelData.full ? Theme.success
+                             : index === 0 ? Theme.accent : Theme.outline
+                border.width: modelData.full || index === 0 ? 1.5 : 1
 
-                RowLayout {
+                ColumnLayout {
                     id: rowInner
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.margins: Theme.pad
-                    spacing: 12
+                    spacing: 8
 
-                    Rectangle {
-                        Layout.preferredWidth: 36
-                        Layout.preferredHeight: 36
-                        radius: 18
-                        color: index === 0 ? Theme.warning
-                             : index === 1 ? "#94a3b8"
-                             : index === 2 ? "#c08457"
-                             : Theme.outlineLight
-                        Label {
-                            anchors.centerIn: parent
-                            text: (index + 1).toString()
-                            color: index < 3 ? Theme.background : Theme.text
-                            font.pixelSize: 14
-                            font.weight: Font.Bold
-                        }
-                    }
-
-                    ColumnLayout {
+                    RowLayout {
                         Layout.fillWidth: true
-                        spacing: 2
-                        Label {
-                            Layout.fillWidth: true
-                            text: modelData.player || ""
-                            color: Theme.text
-                            font.pixelSize: index < 3 ? 16 : 15
-                            font.weight: index < 3 ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideRight
-                            maximumLineCount: 2
-                            wrapMode: Text.WordWrap
-                        }
-                        RowLayout {
-                            spacing: 8
+                        spacing: 12
+
+                        Rectangle {
+                            Layout.preferredWidth: 36
+                            Layout.preferredHeight: 36
+                            radius: 18
+                            color: index === 0 ? Theme.warning
+                                 : index === 1 ? "#e2e8f0"
+                                 : index === 2 ? "#d97706"
+                                 : Theme.outlineLight
                             Label {
-                                text: (modelData.checked || 0) + " case"
-                                      + ((modelData.checked || 0) > 1 ? "s" : "")
+                                anchors.centerIn: parent
+                                text: (index + 1).toString()
+                                color: index < 3 ? Theme.background : Theme.text
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.player || ""
+                                color: Theme.text
+                                font.pixelSize: index < 3 ? 16 : 15
+                                font.weight: index < 3 || modelData.full ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideRight
+                                maximumLineCount: 2
+                                wrapMode: Text.WordWrap
+                            }
+                            Label {
+                                visible: !!modelData.full
+                                text: "Gagnant — grille complète"
+                                color: Theme.success
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                visible: !modelData.full
+                                text: (modelData.checked || 0) + " / " + (modelData.total || 0) + " cases"
                                 color: Theme.textDim
                                 font.pixelSize: 12
                             }
-                            Rectangle {
-                                visible: !!modelData.full
-                                radius: 6
-                                color: Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.2)
-                                implicitWidth: fullLbl.implicitWidth + 12
-                                implicitHeight: 18
-                                Label {
-                                    id: fullLbl
-                                    anchors.centerIn: parent
-                                    text: "FULL"
-                                    color: Theme.success
-                                    font.pixelSize: 10
-                                    font.weight: Font.Bold
-                                }
-                            }
+                        }
+
+                        Label {
+                            text: scroll.formatScore(modelData)
+                            color: modelData.full ? Theme.success : Theme.accent
+                            font.pixelSize: 17
+                            font.weight: Font.Bold
+                            horizontalAlignment: Text.AlignRight
+                            Layout.alignment: Qt.AlignVCenter
                         }
                     }
 
-                    Label {
-                        text: Number(modelData.score || 0).toLocaleString(Qt.locale("fr_FR"))
-                              + " pts"
-                        color: modelData.full ? Theme.success : Theme.accent
-                        font.pixelSize: 18
-                        font.weight: Font.Bold
-                        horizontalAlignment: Text.AlignRight
-                        Layout.alignment: Qt.AlignVCenter
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 8
+                        radius: 4
+                        color: Theme.inputBg
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: {
+                                const t = Math.max(1, modelData.total || 1)
+                                return parent.width * Math.min(1, (modelData.checked || 0) / t)
+                            }
+                            radius: 4
+                            color: modelData.full ? Theme.success : Theme.accent
+                        }
                     }
                 }
             }

@@ -17,12 +17,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
+#include <QFontDatabase>
 #include <QFontMetrics>
 #include <QImage>
 #include <QJsonArray>
 #include <QLinearGradient>
 #include <QLocale>
 #include <QRadialGradient>
+#include <QSet>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPageLayout>
@@ -218,12 +220,44 @@ int countChecked(const std::vector<std::vector<bool>>& checks)
     return n;
 }
 
+int countPlayableCells(const core::PlayerGrid& grid)
+{
+    int n = 0;
+    for (const auto& row : grid.cells)
+        for (const auto& cell : row)
+            if (!cell.isFree)
+                ++n;
+    return n;
+}
+
+int countCheckedPlayable(const core::PlayerGrid& grid,
+                         const std::vector<std::vector<bool>>& checks)
+{
+    int n = 0;
+    const int rows = static_cast<int>(grid.cells.size());
+    for (int r = 0; r < rows; ++r) {
+        const auto& crow = grid.cells[static_cast<size_t>(r)];
+        for (int c = 0; c < static_cast<int>(crow.size()); ++c) {
+            if (crow[static_cast<size_t>(c)].isFree)
+                continue;
+            if (r < static_cast<int>(checks.size())
+                && c < static_cast<int>(checks[static_cast<size_t>(r)].size())
+                && checks[static_cast<size_t>(r)][static_cast<size_t>(c)])
+                ++n;
+        }
+    }
+    return n;
+}
+
 QVariantList buildScoreboard(const core::Project& project, store::Database* db)
 {
     QVariantList board;
     if (!db)
         return board;
     const int N = project.gridSize;
+    // Mode gage : les « points » des cases sont des n° de gage — on classe
+    // sur les cases cochées, pas sur la somme des n°.
+    const bool gageMode = project.gageMode;
     for (const auto& grid : project.grids) {
         auto checks = emptyChecks(N, project.freeCenter);
         if (const auto json = db->getPlayChecks(project.id, grid.player)) {
@@ -234,12 +268,19 @@ QVariantList buildScoreboard(const core::Project& project, store::Database* db)
                 checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
             }
         }
-        const bool full = isGridFull(checks, N);
+        const int total = countPlayableCells(grid);
+        const int checked = countCheckedPlayable(grid, checks);
+        const bool full = total > 0 && checked >= total;
+        const int score = gageMode ? checked : core::computeScore(grid, checks);
         board.append(QVariantMap{
             { QStringLiteral("player"), QString::fromStdString(grid.player) },
-            { QStringLiteral("score"), core::computeScore(grid, checks) },
-            { QStringLiteral("checked"), countChecked(checks) },
+            { QStringLiteral("score"), score },
+            { QStringLiteral("checked"), checked },
+            { QStringLiteral("total"), total },
             { QStringLiteral("full"), full },
+            { QStringLiteral("gageMode"), gageMode },
+            { QStringLiteral("unit"), gageMode ? QStringLiteral("cases")
+                                              : QStringLiteral("pts") },
         });
     }
     std::sort(board.begin(), board.end(), [](const QVariant& a, const QVariant& b) {
@@ -247,7 +288,12 @@ QVariantList buildScoreboard(const core::Project& project, store::Database* db)
         const auto mb = b.toMap();
         if (ma.value(QStringLiteral("full")).toBool() != mb.value(QStringLiteral("full")).toBool())
             return ma.value(QStringLiteral("full")).toBool();
-        return ma.value(QStringLiteral("score")).toInt() > mb.value(QStringLiteral("score")).toInt();
+        const int sa = ma.value(QStringLiteral("score")).toInt();
+        const int sb = mb.value(QStringLiteral("score")).toInt();
+        if (sa != sb)
+            return sa > sb;
+        return ma.value(QStringLiteral("checked")).toInt()
+            > mb.value(QStringLiteral("checked")).toInt();
     });
     return board;
 }
@@ -1353,6 +1399,14 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     const bool newChecked = !viewerChecksBefore[static_cast<size_t>(row)][static_cast<size_t>(col)];
     const auto oldTypes = bingoTypeSet(m_current, viewerChecksBefore);
 
+    // Qui avait déjà une grille pleine (pour détecter les nouveaux gagnants).
+    QSet<QString> fullBefore;
+    for (const QVariant& rowV : buildScoreboard(m_current, m_db.get())) {
+        const auto m = rowV.toMap();
+        if (m.value(QStringLiteral("full")).toBool())
+            fullBefore.insert(m.value(QStringLiteral("player")).toString());
+    }
+
     QVariantList overlays;
     QVariantList viewerChecksOut;
 
@@ -1429,19 +1483,38 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
 
     const auto board = buildScoreboard(m_current, m_db.get());
     bool viewerFull = false;
-    for (const QVariant& row : board) {
-        const auto m = row.toMap();
-        if (m.value(QStringLiteral("player")).toString() == playerName) {
-            viewerFull = m.value(QStringLiteral("full")).toBool();
-            break;
-        }
+    QVariantList winners;
+    QVariantList newWinners;
+    for (const QVariant& rowV : board) {
+        const auto m = rowV.toMap();
+        if (!m.value(QStringLiteral("full")).toBool())
+            continue;
+        const QString pname = m.value(QStringLiteral("player")).toString();
+        winners.append(pname);
+        if (pname == playerName)
+            viewerFull = true;
+        if (newChecked && !fullBefore.contains(pname))
+            newWinners.append(m); // map complète (player, score, …)
     }
+
+    if (!newWinners.isEmpty()) {
+        QStringList names;
+        for (const QVariant& w : newWinners)
+            names << w.toMap().value(QStringLiteral("player")).toString();
+        const QString msg = names.size() == 1
+            ? (names[0] + QStringLiteral(" a gagné — grille complète !"))
+            : (names.join(QStringLiteral(", ")) + QStringLiteral(" ont gagné !"));
+        emit toast(msg);
+    }
+
     result.insert(QStringLiteral("checked"), newChecked);
     result.insert(QStringLiteral("checks"), viewerChecksOut);
     result.insert(QStringLiteral("overlays"), overlays);
     result.insert(QStringLiteral("label"), label);
     result.insert(QStringLiteral("gridFull"), viewerFull);
-    result.insert(QStringLiteral("justCompleted"), newChecked && viewerFull);
+    result.insert(QStringLiteral("justCompleted"), !newWinners.isEmpty());
+    result.insert(QStringLiteral("newWinners"), newWinners);
+    result.insert(QStringLiteral("winners"), winners);
     result.insert(QStringLiteral("scoreboard"), board);
     emit playChecksChanged();
     return result;
@@ -1520,164 +1593,221 @@ bool AppController::exportScoreboardPng(const QString& filePath)
         return false;
     }
 
-    const int W = 920;
-    const int pad = 36;
-    const int headerH = 132;
-    const int rowH = 76;
-    const int footerH = 52;
-    const int H = headerH + board.size() * rowH + footerH;
+    const bool gageMode = m_current.gageMode;
+    const QString unit = gageMode ? QStringLiteral("cases") : QStringLiteral("pts");
+    QStringList winnerNames;
+    for (const QVariant& rowV : board) {
+        const auto m = rowV.toMap();
+        if (m.value(QStringLiteral("full")).toBool())
+            winnerNames << m.value(QStringLiteral("player")).toString();
+    }
 
-    QImage img(W, H, QImage::Format_ARGB32_Premultiplied);
+    const int W = 1000;
+    const int pad = 40;
+    const int podiumH = board.size() >= 1 ? 220 : 0;
+    const int winnerBannerH = winnerNames.isEmpty() ? 0 : 72;
+    const int headerH = 110 + winnerBannerH;
+    const int rowH = 70;
+    const int footerH = 48;
+    const int listStart = headerH + podiumH;
+    const int H = listStart + board.size() * rowH + footerH;
+
+    QImage img(W, H, QImage::Format_RGB32);
     img.fill(QColor(QStringLiteral("#0f1623")));
 
     QPainter p(&img);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setRenderHint(QPainter::TextAntialiasing, true);
 
-    // Bandeau accent
+    auto fontPx = [](int px, bool bold = false) {
+        QFont f = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+        f.setPixelSize(px);
+        f.setBold(bold);
+        return f;
+    };
+    auto elide = [](const QFont& f, const QString& t, int maxW) {
+        return QFontMetrics(f).elidedText(t, Qt::ElideRight, maxW);
+    };
+    auto fmtScore = [&](int score) {
+        return QLocale(QLocale::French).toString(score) + QLatin1Char(' ') + unit;
+    };
+
+    // Accent top
     QLinearGradient bar(0, 0, W, 0);
     bar.setColorAt(0.0, QColor(QStringLiteral("#4f46e5")));
-    bar.setColorAt(1.0, QColor(QStringLiteral("#818cf8")));
-    p.fillRect(0, 0, W, 7, bar);
-
-    // Halo doux en haut à droite
-    QRadialGradient glow(W - 80, 40, 220);
-    glow.setColorAt(0.0, QColor(99, 102, 241, 55));
-    glow.setColorAt(1.0, QColor(99, 102, 241, 0));
-    p.fillRect(0, 0, W, headerH, glow);
+    bar.setColorAt(1.0, QColor(QStringLiteral("#22c55e")));
+    p.fillRect(0, 0, W, 8, bar);
 
     const QString title = QString::fromStdString(m_current.title).trimmed();
-    QFont titleFont(QStringLiteral("Sans Serif"));
-    titleFont.setPixelSize(30);
-    titleFont.setBold(true);
+    QFont titleFont = fontPx(32, true);
     p.setFont(titleFont);
     p.setPen(QColor(QStringLiteral("#f1f5f9")));
-    const QFontMetrics titleFm(titleFont);
-    const QString titleElided = titleFm.elidedText(
-        title.isEmpty() ? QStringLiteral("Bingo") : title, Qt::ElideRight, W - 2 * pad);
-    p.drawText(QRect(pad, 28, W - 2 * pad, 40), Qt::AlignLeft | Qt::AlignVCenter, titleElided);
+    p.drawText(QRect(pad, 24, W - 2 * pad, 42), Qt::AlignLeft | Qt::AlignVCenter,
+               elide(titleFont, title.isEmpty() ? QStringLiteral("Bingo") : title, W - 2 * pad));
 
-    QFont subFont(QStringLiteral("Sans Serif"));
-    subFont.setPixelSize(15);
+    QFont subFont = fontPx(14);
     p.setFont(subFont);
     p.setPen(QColor(QStringLiteral("#7c8fa6")));
-    p.drawText(QRect(pad, 74, W / 2, 28), Qt::AlignLeft | Qt::AlignVCenter,
+    p.drawText(QRect(pad, 70, W / 2, 24), Qt::AlignLeft | Qt::AlignVCenter,
                QStringLiteral("Classement · Open Bingo"));
-    p.drawText(QRect(W / 2, 74, W / 2 - pad, 28), Qt::AlignRight | Qt::AlignVCenter,
+    p.drawText(QRect(W / 2, 70, W / 2 - pad, 24), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy  HH:mm")));
 
-    // En-tête colonnes
-    QFont colFont(QStringLiteral("Sans Serif"));
-    colFont.setPixelSize(11);
-    colFont.setBold(true);
-    p.setFont(colFont);
-    p.setPen(QColor(QStringLiteral("#5b6b82")));
-    p.drawText(QRect(pad + 68, 108, 200, 18), Qt::AlignLeft, QStringLiteral("JOUEUR"));
-    p.drawText(QRect(W - pad - 200, 108, 200, 18), Qt::AlignRight, QStringLiteral("SCORE"));
+    int y = 104;
+    if (!winnerNames.isEmpty()) {
+        const QRectF banner(pad, y, W - 2 * pad, 56);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(34, 197, 94, 45));
+        p.drawRoundedRect(banner, 14, 14);
+        p.setPen(QPen(QColor(QStringLiteral("#22c55e")), 2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(banner.adjusted(1, 1, -1, -1), 14, 14);
 
-    int y = headerH;
+        QFont winFont = fontPx(18, true);
+        p.setFont(winFont);
+        p.setPen(QColor(QStringLiteral("#22c55e")));
+        const QString winText = winnerNames.size() == 1
+            ? (QStringLiteral("Gagnant : ") + winnerNames[0])
+            : (QStringLiteral("Gagnants : ") + winnerNames.join(QStringLiteral(" · ")));
+        p.drawText(banner.toRect().adjusted(18, 0, -18, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                   elide(winFont, winText, static_cast<int>(banner.width()) - 36));
+        y += winnerBannerH;
+    }
+
+    // Podium top 3
+    if (podiumH > 0 && board.size() >= 1) {
+        const int podiumTop = y + 8;
+        const int baseY = podiumTop + podiumH - 24;
+        const int mid = W / 2;
+
+        auto drawPodiumBlock = [&](int rankIdx, int cx, int blockH, const QColor& color) {
+            if (rankIdx < 0 || rankIdx >= board.size())
+                return;
+            const auto m = board[rankIdx].toMap();
+            const QString name = m.value(QStringLiteral("player")).toString();
+            const int score = m.value(QStringLiteral("score")).toInt();
+            const bool full = m.value(QStringLiteral("full")).toBool();
+            const int bw = 170;
+            const QRect block(cx - bw / 2, baseY - blockH, bw, blockH);
+            p.setPen(Qt::NoPen);
+            p.setBrush(color);
+            p.drawRoundedRect(block, 12, 12);
+
+            QFont rankF = fontPx(28, true);
+            p.setFont(rankF);
+            p.setPen(QColor(QStringLiteral("#0f1623")));
+            p.drawText(QRect(block.x(), block.y() + 10, block.width(), 36), Qt::AlignCenter,
+                       QString::number(rankIdx + 1));
+
+            QFont nameF = fontPx(13, true);
+            p.setFont(nameF);
+            p.setPen(QColor(QStringLiteral("#0f1623")));
+            p.drawText(QRect(block.x() + 8, block.y() + 48, block.width() - 16, 36),
+                       Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap,
+                       elide(nameF, name, block.width() - 16));
+
+            QFont scoreF = fontPx(15, true);
+            p.setFont(scoreF);
+            p.setPen(full ? QColor(QStringLiteral("#14532d")) : QColor(QStringLiteral("#0f1623")));
+            p.drawText(QRect(block.x() + 6, block.bottom() - 34, block.width() - 12, 28),
+                       Qt::AlignCenter, elide(scoreF, fmtScore(score), block.width() - 12));
+        };
+
+        // Ordre visuel : 2 | 1 | 3
+        if (board.size() >= 2)
+            drawPodiumBlock(1, mid - 220, 110, QColor(QStringLiteral("#94a3b8")));
+        drawPodiumBlock(0, mid, 150, QColor(QStringLiteral("#fbbf24")));
+        if (board.size() >= 3)
+            drawPodiumBlock(2, mid + 220, 90, QColor(QStringLiteral("#d97706")));
+        y = listStart;
+    } else {
+        y = listStart;
+    }
+
+    // Liste complète
     for (int i = 0; i < board.size(); ++i) {
         const auto m = board[i].toMap();
         const QString name = m.value(QStringLiteral("player")).toString();
         const int score = m.value(QStringLiteral("score")).toInt();
         const int checked = m.value(QStringLiteral("checked")).toInt();
+        const int total = qMax(1, m.value(QStringLiteral("total")).toInt());
         const bool full = m.value(QStringLiteral("full")).toBool();
         const int rank = i + 1;
 
         const QRectF rowRect(pad, y, W - 2 * pad, rowH - 10);
-        QColor rowBg = (i % 2 == 0) ? QColor(QStringLiteral("#1a2235"))
-                                    : QColor(QStringLiteral("#151c2c"));
-        if (rank == 1)
-            rowBg = QColor(QStringLiteral("#232f45"));
         p.setPen(Qt::NoPen);
-        p.setBrush(rowBg);
-        p.drawRoundedRect(rowRect, 14, 14);
-        if (rank == 1) {
-            p.setPen(QPen(QColor(99, 102, 241, 90), 1.5));
+        p.setBrush(full ? QColor(QStringLiteral("#1a2e24"))
+                        : (i % 2 == 0 ? QColor(QStringLiteral("#1a2235"))
+                                      : QColor(QStringLiteral("#151c2c"))));
+        p.drawRoundedRect(rowRect, 12, 12);
+        if (full) {
+            p.setPen(QPen(QColor(QStringLiteral("#22c55e")), 2));
             p.setBrush(Qt::NoBrush);
-            p.drawRoundedRect(rowRect.adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+            p.drawRoundedRect(rowRect.adjusted(1, 1, -1, -1), 12, 12);
         }
 
         QColor medal = QColor(QStringLiteral("#3d5270"));
-        if (rank == 1)
-            medal = QColor(QStringLiteral("#fbbf24"));
-        else if (rank == 2)
-            medal = QColor(QStringLiteral("#e2e8f0"));
-        else if (rank == 3)
-            medal = QColor(QStringLiteral("#d97706"));
-        const QRectF medalRect(pad + 18, y + 16, 38, 38);
+        if (rank == 1) medal = QColor(QStringLiteral("#fbbf24"));
+        else if (rank == 2) medal = QColor(QStringLiteral("#e2e8f0"));
+        else if (rank == 3) medal = QColor(QStringLiteral("#d97706"));
+        const QRectF medalRect(pad + 16, y + 14, 36, 36);
         p.setPen(Qt::NoPen);
         p.setBrush(medal);
         p.drawEllipse(medalRect);
-        QFont rankFont(QStringLiteral("Sans Serif"));
-        rankFont.setPixelSize(15);
-        rankFont.setBold(true);
+        QFont rankFont = fontPx(14, true);
         p.setFont(rankFont);
-        p.setPen(rank <= 3 ? QColor(QStringLiteral("#0f1623"))
-                           : QColor(QStringLiteral("#f1f5f9")));
+        p.setPen(rank <= 3 ? QColor(QStringLiteral("#0f1623")) : QColor(QStringLiteral("#f1f5f9")));
         p.drawText(medalRect.toRect(), Qt::AlignCenter, QString::number(rank));
 
-        const int nameX = pad + 72;
-        const int scoreColW = 180;
-        const int nameW = W - 2 * pad - 72 - scoreColW - 20;
+        const int nameX = pad + 66;
+        const int scoreColW = 200;
+        const int nameW = W - 2 * pad - 66 - scoreColW - 16;
 
-        QFont nameFont(QStringLiteral("Sans Serif"));
-        nameFont.setPixelSize(rank <= 3 ? 19 : 17);
-        nameFont.setBold(rank <= 3);
+        QFont nameFont = fontPx(full ? 17 : 16, full || rank <= 3);
         p.setFont(nameFont);
         p.setPen(QColor(QStringLiteral("#f1f5f9")));
-        const QFontMetrics nameFm(nameFont);
-        p.drawText(QRect(nameX, y + 10, nameW, 30), Qt::AlignLeft | Qt::AlignVCenter,
-                   nameFm.elidedText(name, Qt::ElideRight, nameW));
+        const QString nameDraw = full ? (name + QStringLiteral("  ·  gagnant")) : name;
+        p.drawText(QRect(nameX, y + 6, nameW, 26), Qt::AlignLeft | Qt::AlignVCenter,
+                   elide(nameFont, nameDraw, nameW));
 
-        QFont metaFont(QStringLiteral("Sans Serif"));
-        metaFont.setPixelSize(12);
-        p.setFont(metaFont);
+        // Barre de progression (cases cochées / total jouables)
+        const int barW = nameW;
+        const int barX = nameX;
+        const int barY = y + 40;
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(QStringLiteral("#0b1220")));
+        p.drawRoundedRect(QRect(barX, barY, barW, 12), 6, 6);
+        const int fillW = qBound(0, static_cast<int>(barW * (checked / static_cast<double>(total))), barW);
+        p.setBrush(full ? QColor(QStringLiteral("#22c55e")) : QColor(QStringLiteral("#6366f1")));
+        if (fillW > 0)
+            p.drawRoundedRect(QRect(barX, barY, fillW, 12), 6, 6);
+
+        QFont progFont = fontPx(11);
+        p.setFont(progFont);
         p.setPen(QColor(QStringLiteral("#7c8fa6")));
-        QString meta = QStringLiteral("%1 case%2 cochée%2")
-                           .arg(checked)
-                           .arg(checked > 1 ? QStringLiteral("s") : QString());
-        if (full) {
-            const QFontMetrics metaFm(metaFont);
-            const int metaW = metaFm.horizontalAdvance(meta);
-            p.drawText(QRect(nameX, y + 40, metaW + 4, 20), Qt::AlignLeft | Qt::AlignVCenter, meta);
-            const int badgeX = nameX + metaW + 12;
-            const QRect badge(badgeX, y + 40, 52, 20);
-            p.setPen(Qt::NoPen);
-            p.setBrush(QColor(34, 197, 94, 40));
-            p.drawRoundedRect(badge, 6, 6);
-            p.setPen(QColor(QStringLiteral("#22c55e")));
-            QFont badgeFont(QStringLiteral("Sans Serif"));
-            badgeFont.setPixelSize(11);
-            badgeFont.setBold(true);
-            p.setFont(badgeFont);
-            p.drawText(badge, Qt::AlignCenter, QStringLiteral("FULL"));
-        } else {
-            p.drawText(QRect(nameX, y + 40, nameW, 20), Qt::AlignLeft | Qt::AlignVCenter, meta);
-        }
+        p.drawText(QRect(nameX, y + 54, nameW, 14), Qt::AlignLeft | Qt::AlignVCenter,
+                   QStringLiteral("%1 / %2").arg(checked).arg(total));
 
-        QFont scoreFont(QStringLiteral("Sans Serif"));
-        scoreFont.setPixelSize(24);
-        scoreFont.setBold(true);
+        QFont scoreFont = fontPx(20, true);
         p.setFont(scoreFont);
-        p.setPen(full ? QColor(QStringLiteral("#22c55e"))
-                      : QColor(QStringLiteral("#818cf8")));
-        // Gros scores : formatage lisible (12 345)
-        QString scoreText = QLocale(QLocale::French).toString(score) + QStringLiteral(" pts");
-        p.drawText(QRect(W - pad - scoreColW - 12, y, scoreColW, rowH - 10),
-                   Qt::AlignRight | Qt::AlignVCenter, scoreText);
+        p.setPen(full ? QColor(QStringLiteral("#22c55e")) : QColor(QStringLiteral("#a5b4fc")));
+        p.drawText(QRect(W - pad - scoreColW - 8, y, scoreColW, rowH - 10),
+                   Qt::AlignRight | Qt::AlignVCenter, fmtScore(score));
 
         y += rowH;
     }
 
     p.setPen(QColor(QStringLiteral("#5b6b82")));
-    QFont foot(QStringLiteral("Sans Serif"));
-    foot.setPixelSize(12);
-    p.setFont(foot);
-    p.drawText(QRect(pad, H - footerH, W - 2 * pad, footerH - 16), Qt::AlignCenter,
-               QStringLiteral("Open Bingo  ·  %1 joueur%2")
+    p.setFont(fontPx(12));
+    p.drawText(QRect(pad, H - footerH, W - 2 * pad, footerH - 14), Qt::AlignCenter,
+               QStringLiteral("Open Bingo  ·  %1 joueur%2%3")
                    .arg(board.size())
-                   .arg(board.size() > 1 ? QStringLiteral("s") : QString()));
+                   .arg(board.size() > 1 ? QStringLiteral("s") : QString())
+                   .arg(winnerNames.isEmpty()
+                            ? QString()
+                            : QStringLiteral("  ·  %1 gagnant%2")
+                                  .arg(winnerNames.size())
+                                  .arg(winnerNames.size() > 1 ? QStringLiteral("s") : QString())));
     p.end();
 
     QString path = filePath;
