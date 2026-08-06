@@ -5,6 +5,8 @@
 #include "../core/sharecodec.h"
 #include "platform.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -293,12 +295,15 @@ QVariantList AppController::gridsToVariant() const
         QVariantList rows;
         for (const auto& row : grid.cells) {
             QVariantList cells;
-            for (const auto& cell : row)
-                cells.append(QVariantMap{
-                    { QStringLiteral("label"), QString::fromStdString(cell.label) },
-                    { QStringLiteral("points"), cell.points },
-                    { QStringLiteral("isFree"), cell.isFree },
-                });
+            for (const auto& cell : row) {
+                QVariantMap m;
+                m.insert(QStringLiteral("label"), QString::fromStdString(cell.label));
+                m.insert(QStringLiteral("points"), cell.points);
+                m.insert(QStringLiteral("gage"), QString::fromStdString(cell.gage));
+                m.insert(QStringLiteral("gageHP"), cell.gageHP);
+                m.insert(QStringLiteral("isFree"), cell.isFree);
+                cells.append(m);
+            }
             rows.append(cells);
         }
         out.append(QVariantMap{
@@ -816,12 +821,59 @@ QVariantList AppController::detectBingoLines(const QVariantList& checks)
 
 void AppController::setKeepScreenOn(bool on) { platformKeepScreenOn(on); }
 
+void AppController::lockLandscape() { platformLockLandscape(); }
+
+void AppController::unlockOrientation() { platformUnlockOrientation(); }
+
+void AppController::setImmersive(bool on) { platformSetImmersive(on); }
+
+void AppController::vibrate() { platformVibrate(35); }
+
+void AppController::copyToClipboard(const QString& text)
+{
+    if (auto* cb = QGuiApplication::clipboard())
+        cb->setText(text);
+}
+
+QString AppController::detectLineType(const QVariantList& lineCoords, int gridSize) const
+{
+    if (lineCoords.isEmpty() || gridSize <= 0)
+        return {};
+    QSet<int> rows, cols;
+    for (const QVariant& v : lineCoords) {
+        const QVariantList p = v.toList();
+        if (p.size() < 2)
+            continue;
+        rows.insert(p[0].toInt());
+        cols.insert(p[1].toInt());
+    }
+    if (rows.size() == 1)
+        return QStringLiteral("line");
+    if (cols.size() == 1)
+        return QStringLiteral("column");
+    bool mainDiag = true, antiDiag = true;
+    for (const QVariant& v : lineCoords) {
+        const QVariantList p = v.toList();
+        if (p.size() < 2)
+            continue;
+        const int r = p[0].toInt(), c = p[1].toInt();
+        if (r != c)
+            mainDiag = false;
+        if (r + c != gridSize - 1)
+            antiDiag = false;
+    }
+    if (mainDiag || antiDiag)
+        return QStringLiteral("diagonal");
+    return {};
+}
+
 bool AppController::shareText(const QString& text)
 {
     if (platformShare(text))
         return true;
-    emit toast(QStringLiteral("Copié dans le presse-papiers (fallback)"));
-    return false;
+    copyToClipboard(text);
+    emit toast(QStringLiteral("Lien copié"));
+    return true;
 }
 
 bool AppController::printPreview()

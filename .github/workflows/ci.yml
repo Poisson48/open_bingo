@@ -31,7 +31,10 @@ jobs:
         run: cmake --build build
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: |
+          ctest --test-dir build --output-on-failure
+          bash scripts/smoke-ui.sh
+          bash scripts/test-resolutions.sh
 
   # APK arm64 signé, récupérable dans les artefacts du run.
   android:

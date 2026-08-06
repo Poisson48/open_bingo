@@ -4,43 +4,53 @@ import QtQuick.Layouts
 
 ScrollView {
     clip: true
+    contentWidth: availableWidth
+
     ColumnLayout {
-        width: parent.width
+        width: availableWidth - Theme.pad * 2
         spacing: Theme.gap
-        Label { text: "Aperçu impression A4 (2 grilles/page)"; color: Theme.textDim }
-        Button {
+
+        Label {
+            Layout.fillWidth: true
+            text: "Aperçu impression A4 (2 grilles/page)"
+            color: Theme.textDim
+            font.pixelSize: 13
+        }
+        BingoButton {
             text: "Imprimer / PDF"
+            primary: true
             enabled: AppController.grids.length > 0
             onClicked: AppController.printPreview()
         }
+
         Repeater {
             model: AppController.grids
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 200
+                implicitHeight: inner.implicitHeight + 24
                 color: Theme.surface
                 border.color: Theme.outline
-                radius: 8
+                radius: Theme.radiusLg
+
                 ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    Label { text: AppController.title + " — " + modelData.player; color: Theme.text }
-                    GridLayout {
-                        columns: AppController.gridSize
-                        Repeater {
-                            model: modelData.cells
-                            Repeater {
-                                model: modelData
-                                Rectangle {
-                                    Layout.preferredWidth: 48
-                                    Layout.preferredHeight: 36
-                                    color: Theme.surfaceHigh
-                                    Label { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 8; color: Theme.text }
-                                }
-                            }
-                        }
+                    id: inner
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: Theme.pad
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: AppController.title + " — " + modelData.player
+                        color: Theme.text
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
                     }
-                }
+                    BingoGrid {
+                        Layout.fillWidth: true
+                        availableWidth: parent.width - Theme.pad * 2
+                        rows: modelData.cells
+                    }                }
             }
         }
     }

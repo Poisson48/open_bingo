@@ -12,8 +12,9 @@ Popup {
     }
 
     parent: Overlay.overlay
-    width: parent.width
-    y: parent.height - height
+    width: Math.min(Overlay.overlay.width - 32, 480)
+    x: (Overlay.overlay.width - width) / 2
+    y: Math.max(16, Overlay.overlay.height - height - 16)
     modal: true
     padding: 20
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -21,7 +22,7 @@ Popup {
 
     background: Rectangle {
         color: Theme.surface
-        radius: 24
+        radius: Theme.radiusLg
         border.color: Theme.outline
     }
 
@@ -34,18 +35,21 @@ Popup {
             horizontalAlignment: Text.AlignHCenter
             text: "Partager « " + AppController.title + " »"
             color: Theme.text
-            font.pixelSize: 18
+            font.pixelSize: 17
             font.weight: Font.DemiBold
+            elide: Text.ElideRight
         }
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            width: 220; height: 220
-            radius: 12
+            width: Math.min(220, parent.width - 40)
+            height: width
+            radius: Theme.radiusLg
             color: "white"
             Image {
                 anchors.centerIn: parent
-                width: 200; height: 200
+                width: parent.width - 20
+                height: parent.height - 20
                 source: uri.length > 0 ? "image://qr/" + uri : ""
             }
         }
@@ -58,23 +62,43 @@ Popup {
             font.pixelSize: 11
         }
 
+        ColoTextField {
+            id: pasteUri
+            Layout.fillWidth: true
+            hint: "Coller un lien openbingo://join/…"
+        }
+
         RowLayout {
             Layout.fillWidth: true
-            Button {
+            BingoButton {
                 Layout.fillWidth: true
                 text: "Copier le lien"
+                onClicked: AppController.copyToClipboard(uri)
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Partager"
+                primary: true
                 onClicked: AppController.shareText(uri)
             }
-            Button {
-                flat: true
-                text: "Fermer"
-                onClicked: sheet.close()
+        }
+
+        BingoButton {
+            Layout.fillWidth: true
+            text: "Rejoindre (lien collé)"
+            visible: pasteUri.text.trim().length > 0
+            onClicked: {
+                if (AppController.joinProjectUri(pasteUri.text.trim())) {
+                    sheet.close()
+                } else {
+                    AppController.toast("Lien invalide")
+                }
             }
         }
 
         Label {
             Layout.fillWidth: true
-            text: "Le lien contient la clé de chiffrement. Partagez-le uniquement avec les participants."
+            text: "Le lien contient la clé de chiffrement — partagez-le uniquement avec les participants."
             wrapMode: Text.WordWrap
             color: Theme.warning
             font.pixelSize: 12

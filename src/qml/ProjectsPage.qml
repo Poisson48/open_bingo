@@ -9,14 +9,14 @@ Item {
     property string deleteTargetTitle: ""
 
     property Component actions: Row {
-        ToolButton {
-            contentItem: Icon { name: "menu"; color: Theme.text }
-            onClicked: importMenu.open()
+        spacing: 6
+        BingoButton {
+            text: "Exporter"
+            onClicked: AppController.pickExportAllJson()
         }
-        Menu {
-            id: importMenu
-            MenuItem { text: "Exporter tout"; onTriggered: AppController.pickExportAllJson() }
-            MenuItem { text: "Importer"; onTriggered: AppController.pickImportAllJson() }
+        BingoButton {
+            text: "Importer"
+            onClicked: AppController.pickImportAllJson()
         }
     }
 
@@ -27,7 +27,7 @@ Item {
 
         ColoTextField {
             Layout.fillWidth: true
-            hint: "Rechercher…"
+            hint: "Rechercher un projet…"
             onTextChanged: list.filter = text
         }
 
@@ -51,33 +51,74 @@ Item {
                 Rectangle {
                     id: card
                     width: parent.width
-                    implicitHeight: cardCol.implicitHeight + 24
-                    radius: Theme.radius
+                    implicitHeight: cardCol.implicitHeight + 20
+                    radius: Theme.radiusLg
                     color: Theme.surface
                     border.color: Theme.outline
 
-                    RowLayout {
+                    ColumnLayout {
                         id: cardCol
                         anchors.fill: parent
                         anchors.margins: Theme.pad
-                        Rectangle {
-                            Layout.preferredWidth: 6
-                            Layout.fillHeight: true
-                            radius: 3
-                            color: accent
-                        }
-                        ColumnLayout {
+                        spacing: 8
+
+                        RowLayout {
                             Layout.fillWidth: true
-                            Label { text: title; color: Theme.text; font.pixelSize: 18; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                            Label { text: description; color: Theme.textDim; visible: description.length > 0; Layout.fillWidth: true; elide: Text.ElideRight }
-                            Label { text: gridSize + "×" + gridSize + " · " + playerCount + " joueurs · " + caseCount + " cases"; color: Theme.textDim; font.pixelSize: 12 }
+                            spacing: 10
+                            Rectangle {
+                                Layout.preferredWidth: 4
+                                Layout.preferredHeight: 36
+                                radius: 2
+                                color: accent
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: title
+                                    color: Theme.text
+                                    font.pixelSize: 16
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: description
+                                    visible: description.length > 0
+                                    color: Theme.textDim
+                                    font.pixelSize: 13
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 2
+                                    wrapMode: Text.WordWrap
+                                }
+                                Label {
+                                    text: gridSize + "×" + gridSize + " · "
+                                          + playerCount + " j · " + caseCount + " cases"
+                                    color: Theme.textDim
+                                    font.pixelSize: 12
+                                }
+                            }
                         }
-                        Column {
-                            spacing: 4
-                            Button { text: "Ouvrir"; onClicked: AppController.openProject(projectId) }
-                            Button {
-                                flat: true; text: "Suppr."
-                                onClicked: { page.deleteTargetId = projectId; page.deleteTargetTitle = title; confirmDelete.open() }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Item { Layout.fillWidth: true }
+                            BingoButton {
+                                text: "Ouvrir"
+                                primary: true
+                                onClicked: AppController.openProject(projectId)
+                            }
+                            BingoButton {
+                                text: "Suppr."
+                                danger: true
+                                onClicked: {
+                                    page.deleteTargetId = projectId
+                                    page.deleteTargetTitle = title
+                                    confirmDelete.open()
+                                }
                             }
                         }
                     }
@@ -85,10 +126,10 @@ Item {
             }
         }
 
-        Button {
+        BingoButton {
             Layout.fillWidth: true
-            implicitHeight: Theme.touchTarget
             text: "+ Nouveau projet"
+            primary: true
             onClicked: AppController.createProject()
         }
     }
@@ -98,7 +139,12 @@ Item {
         title: "Supprimer ?"
         destructive: true
         acceptText: "Supprimer"
-        Label { text: "Supprimer « " + page.deleteTargetTitle + " » ?"; color: Theme.text; wrapMode: Text.WordWrap }
+        Label {
+            text: "Supprimer « " + page.deleteTargetTitle + " » ?"
+            color: Theme.text
+            wrapMode: Text.WordWrap
+            width: parent.width
+        }
         onAccepted: AppController.deleteProject(page.deleteTargetId)
     }
 }

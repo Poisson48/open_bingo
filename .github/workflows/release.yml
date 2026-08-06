@@ -35,7 +35,7 @@ jobs:
       version_code: ${{ needs.version.outputs.code }}
       # Une release doit porter la clé de publication : sinon elle ne s'installerait
       # pas par-dessus la version précédente.
-      require_release_key: false
+      require_release_key: true
     secrets: inherit
 
   appimage:

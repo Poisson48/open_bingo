@@ -8,6 +8,7 @@
 #include "updater.h"
 
 #include <QObject>
+#include <QSet>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -135,6 +136,12 @@ public:
     Q_INVOKABLE QVariantList detectBingoLines(const QVariantList& checks);
 
     Q_INVOKABLE void setKeepScreenOn(bool on);
+    Q_INVOKABLE void lockLandscape();
+    Q_INVOKABLE void unlockOrientation();
+    Q_INVOKABLE void setImmersive(bool on);
+    Q_INVOKABLE void vibrate();
+    Q_INVOKABLE void copyToClipboard(const QString& text);
+    Q_INVOKABLE QString detectLineType(const QVariantList& lineCoords, int gridSize) const;
     Q_INVOKABLE bool shareText(const QString& text);
     Q_INVOKABLE bool printPreview();
 

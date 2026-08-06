@@ -31,9 +31,10 @@ void platformVibrate(int ms);
 // les mains prises, sans le toucher pendant des minutes).
 void platformKeepScreenOn(bool on);
 
-// Propose l'ajout d'un événement « journée entière » à l'agenda du téléphone
-// (ACTION_INSERT : l'app d'agenda s'ouvre pré-remplie, l'utilisateur confirme).
-// false hors Android → l'appelant retombe sur un fichier .ics.
+bool platformLockLandscape();
+bool platformUnlockOrientation();
+void platformSetImmersive(bool on);
+
 bool platformAddCalendarEvent(const QString& title, const QString& description,
                               qint64 startMs);
 

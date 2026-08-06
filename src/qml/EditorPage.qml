@@ -7,8 +7,9 @@ Item {
     property string pageTitle: AppController.title
 
     property Component actions: Row {
+        spacing: 4
         ToolButton {
-            contentItem: Icon { name: "menu"; color: Theme.text }
+            contentItem: Icon { name: "menu"; color: Theme.text; size: 20 }
             onClicked: editorMenu.open()
         }
         Menu {
@@ -21,30 +22,45 @@ Item {
 
     function handleBack() { return false }
 
-    TabBar {
-        id: tabs
-        width: parent.width
-        currentIndex: AppController.lastTab
-        onCurrentIndexChanged: AppController.lastTab = currentIndex
-        TabButton { text: "Config" }
-        TabButton { text: "Cases" }
-        TabButton { text: "Grilles" }
-        TabButton { text: "Impression" }
-        TabButton { text: "Play" }
-    }
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
 
-    StackLayout {
-        anchors.top: tabs.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        currentIndex: tabs.currentIndex
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 44
+            color: Theme.surface
+            BingoTabBar {
+                anchors.fill: parent
+                labels: ["Config", "Phrases", "Grilles", "Impression", "Play"]
+                currentIndex: tabs.currentIndex
+                onCurrentIndexChanged: tabs.currentIndex = currentIndex
+            }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: Theme.outline
+            }
+        }
 
-        ConfigPage {}
-        CasesPage {}
-        GridsPage {}
-        PrintPage {}
-        PlayPage {}
+        Item {
+            id: tabs
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            property int currentIndex: AppController.lastTab
+            onCurrentIndexChanged: AppController.lastTab = currentIndex
+
+            StackLayout {
+                anchors.fill: parent
+                currentIndex: tabs.currentIndex
+                ConfigPage {}
+                CasesPage {}
+                GridsPage {}
+                PrintPage {}
+                PlayPage {}
+            }
+        }
     }
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }

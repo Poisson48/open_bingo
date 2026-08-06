@@ -14,6 +14,8 @@ import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.content.pm.ActivityInfo;
+import android.view.View;
 import android.view.WindowManager;
 
 import java.io.File;
@@ -253,6 +255,56 @@ public class Platform {
                 else
                     activity.getWindow().clearFlags(
                             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
+    }
+
+    public static void lockLandscape(Context ctx) {
+        if (!(ctx instanceof Activity))
+            return;
+        final Activity activity = (Activity) ctx;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                activity.setRequestedOrientation(
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            }
+        });
+    }
+
+    public static void unlockOrientation(Context ctx) {
+        if (!(ctx instanceof Activity))
+            return;
+        final Activity activity = (Activity) ctx;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                activity.setRequestedOrientation(
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            }
+        });
+    }
+
+    // Mode play plein écran : masquer barres système (comme l'ancienne app Tauri).
+    public static void setImmersive(Context ctx, final boolean on) {
+        if (!(ctx instanceof Activity))
+            return;
+        final Activity activity = (Activity) ctx;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                View decor = activity.getWindow().getDecorView();
+                if (on) {
+                    decor.setSystemUiVisibility(
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+                } else {
+                    decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                }
             }
         });
     }

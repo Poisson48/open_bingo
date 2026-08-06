@@ -43,10 +43,10 @@ Item {
         active: Permissions.cameraGranted
 
         onCodeDetected: function(text) {
-            if (AppController.joinList(text)) {
+            if (AppController.joinProjectUri(text)) {
                 root.joined()
             } else {
-                AppController.toast("Ce QR code n'est pas une invitation Colo Tâches")
+                AppController.toast("Ce QR code n'est pas une invitation Open Bingo")
                 // Réarmer : l'utilisateur peut viser un autre code.
                 rearm.restart()
             }

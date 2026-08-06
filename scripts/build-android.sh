@@ -41,8 +41,8 @@ sed -i -E \
   -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" \
   -DCMAKE_FIND_ROOT_PATH="$PREFIX" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCOLO_VERSION_NAME="$VERSION_NAME" \
-  -DCOLO_VERSION_CODE="$VERSION_CODE"
+  -DBINGO_VERSION_NAME="$VERSION_NAME" \
+  -DBINGO_VERSION_CODE="$VERSION_CODE"
 
 cmake --build "$ROOT/build-android" --target apk -j"$(nproc)"
 
@@ -62,8 +62,9 @@ if [ -n "${ANDROID_KEYSTORE_B64:-}" ]; then
   KEYSTORE="$(mktemp -t openbingo-keystore.XXXXXX.jks)"
   trap 'rm -f "$KEYSTORE"' EXIT
   printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
-  KEYALIAS="${KEYALIAS:?ANDROID_KEYSTORE_B64 fourni sans KEYALIAS}"
-  STOREPASS="${STOREPASS:?ANDROID_KEYSTORE_B64 fourni sans STOREPASS}"
+  KEYALIAS="${KEYALIAS:?keystore fourni sans KEYALIAS}"
+  STOREPASS="${STOREPASS:?keystore fourni sans STOREPASS}"
+  KEYPASS="${KEYPASS:-$STOREPASS}"
   echo "== signature avec la clé de publication (alias $KEYALIAS) =="
 else
   # Build local : le keystore de debug de la machine persiste d'un build à l'autre,
@@ -86,7 +87,7 @@ BT="$SDK_ROOT/build-tools/$BUILD_TOOLS_VER"
 "$BT/zipalign" -f -p 4 "$UNSIGNED" "$ROOT/build-android/aligned.apk"
 "$BT/apksigner" sign \
   --ks "$KEYSTORE" --ks-key-alias "$KEYALIAS" \
-  --ks-pass "pass:$STOREPASS" --key-pass "pass:$STOREPASS" \
+  --ks-pass "pass:$STOREPASS" --key-pass "pass:$KEYPASS" \
   --out "$OUT" "$ROOT/build-android/aligned.apk"
 "$BT/apksigner" verify "$OUT"
 

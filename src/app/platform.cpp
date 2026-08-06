@@ -104,6 +104,36 @@ void platformKeepScreenOn(bool on)
         "(Landroid/content/Context;Z)V", ctx.object(), static_cast<jboolean>(on));
 }
 
+bool platformLockLandscape()
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid())
+        return false;
+    QJniObject::callStaticMethod<void>(
+        kPlatformClass, "lockLandscape", "(Landroid/content/Context;)V", ctx.object());
+    return true;
+}
+
+bool platformUnlockOrientation()
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid())
+        return false;
+    QJniObject::callStaticMethod<void>(
+        kPlatformClass, "unlockOrientation", "(Landroid/content/Context;)V", ctx.object());
+    return true;
+}
+
+void platformSetImmersive(bool on)
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid())
+        return;
+    QJniObject::callStaticMethod<void>(
+        kPlatformClass, "setImmersive",
+        "(Landroid/content/Context;Z)V", ctx.object(), static_cast<jboolean>(on));
+}
+
 bool platformAddCalendarEvent(const QString& title, const QString& description,
                               qint64 startMs)
 {
@@ -133,6 +163,12 @@ bool platformInstallApk(const QString&) { return false; }
 void platformVibrate(int) {}
 
 void platformKeepScreenOn(bool) {}
+
+bool platformLockLandscape() { return false; }
+
+bool platformUnlockOrientation() { return false; }
+
+void platformSetImmersive(bool) {}
 
 bool platformAddCalendarEvent(const QString&, const QString&, qint64) { return false; }
 

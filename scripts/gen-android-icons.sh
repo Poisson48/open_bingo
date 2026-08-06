@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Génère les mipmaps Android depuis packaging/openbingo.png
+# Génère les mipmaps Android depuis packaging/openbingo.png (logo bingo original).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/packaging/openbingo.png"
 OUT="$ROOT/android/res"
-BG="#C62828"
 
 [ -f "$SRC" ] || { echo "Logo absent : $SRC" >&2; exit 1; }
 command -v convert >/dev/null || { echo "ImageMagick requis (convert)" >&2; exit 1; }
@@ -13,13 +12,10 @@ command -v convert >/dev/null || { echo "ImageMagick requis (convert)" >&2; exit
 gen() {
     local dir="$1" launcher="$2" foreground="$3"
     mkdir -p "$OUT/mipmap-$dir"
-    convert -size "${launcher}x${launcher}" "xc:$BG" \
-        \( "$SRC" -resize "$((launcher * 7 / 10))x$((launcher * 7 / 10))" \) \
-        -gravity center -composite \
+    convert "$SRC" -resize "${launcher}x${launcher}" \
         "$OUT/mipmap-$dir/ic_launcher.png"
-    convert -size "${foreground}x${foreground}" "xc:none" \
-        \( "$SRC" -resize "$((foreground * 7 / 10))x$((foreground * 7 / 10))" \) \
-        -gravity center -composite \
+    convert "$SRC" -resize "$((foreground * 72 / 108))x$((foreground * 72 / 108))" \
+        -background none -gravity center -extent "${foreground}x${foreground}" \
         "$OUT/mipmap-$dir/ic_launcher_foreground.png"
     cp "$OUT/mipmap-$dir/ic_launcher.png" "$OUT/mipmap-$dir/ic_launcher_round.png"
 }
