@@ -1236,12 +1236,13 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
                     continue;
                 const bool was = checks[static_cast<size_t>(r)][static_cast<size_t>(c)];
                 checks[static_cast<size_t>(r)][static_cast<size_t>(c)] = newChecked;
-                if (newChecked && !was && m_current.gageMode) {
-                    // Priorité : case tapée du joueur courant en premier.
-                    const bool isTap = (grid.player == playerName.toStdString()
-                                        && r == row && c == col);
+                // Overlay : uniquement le(s) gage(s) du joueur en train de jouer,
+                // pas ceux des autres grilles (sync par libellé reste silencieuse).
+                if (newChecked && !was && m_current.gageMode
+                    && grid.player == playerName.toStdString()) {
                     QVariantMap ov = gageOverlayForCell(m_current, cell, pname);
                     if (!ov.isEmpty()) {
+                        const bool isTap = (r == row && c == col);
                         if (isTap)
                             overlays.insert(0, ov);
                         else
@@ -1430,40 +1431,46 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
     // En-tête : titre projet + nom joueur
     QFont titleFont(QStringLiteral("Sans Serif"));
     titleFont.setBold(true);
-    titleFont.setPixelSize(qMax(9, int(area.height() * 0.035)));
+    titleFont.setPixelSize(qMax(10, int(area.height() * 0.032)));
     p.setFont(titleFont);
     p.setPen(Qt::black);
-    p.drawText(QRectF(left, y, w, titleFont.pixelSize() * 1.4),
+    p.drawText(QRectF(left, y, w, titleFont.pixelSize() * 1.35),
                Qt::AlignHCenter | Qt::AlignVCenter,
                QString::fromStdString(project.title));
-    y += titleFont.pixelSize() * 1.5;
+    y += titleFont.pixelSize() * 1.4;
 
     QFont playerFont(titleFont);
-    playerFont.setPixelSize(qMax(12, int(area.height() * 0.055)));
+    playerFont.setPixelSize(qMax(14, int(area.height() * 0.052)));
     playerFont.setBold(true);
     p.setFont(playerFont);
-    p.drawText(QRectF(left, y, w, playerFont.pixelSize() * 1.3),
+    p.drawText(QRectF(left, y, w, playerFont.pixelSize() * 1.25),
                Qt::AlignHCenter | Qt::AlignVCenter,
                QString::fromStdString(grid.player));
-    y += playerFont.pixelSize() * 1.4;
+    y += playerFont.pixelSize() * 1.35;
 
-    p.setPen(QPen(Qt::black, 2));
+    p.setPen(QPen(Qt::black, 2.2));
     p.drawLine(QPointF(left, y), QPointF(left + w, y));
-    y += 6;
+    y += 8;
 
-    // Pied de page réservé (HP / règles / note gage)
-    const qreal footerH = area.height() * (gageMode ? 0.12 : 0.28);
+    // Pied réservé (HP / règles / note gage)
+    const qreal footerH = area.height() * (gageMode ? 0.11 : 0.26);
     const qreal gridBottom = area.bottom() - footerH;
-    const QRectF gridArea(left, y, w, qMax(20.0, gridBottom - y));
+    QRectF gridArea(left, y, w, qMax(20.0, gridBottom - y));
 
     if (grid.cells.empty() || gridArea.height() < 20)
         return;
 
     const int N = static_cast<int>(grid.cells.size());
-    const qreal cellW = gridArea.width() / N;
-    const qreal cellH = gridArea.height() / N;
-    const qreal fontPx = qMax(6.0, qMin(cellW, cellH) * (N <= 5 ? 0.20 : 0.16));
-    const qreal ptsPx = qMax(5.0, fontPx * 0.75);
+    // Cases carrées centrées (comme une vraie grille bingo imprimée)
+    const qreal side = qMin(gridArea.width() / N, gridArea.height() / N);
+    const qreal gridW = side * N;
+    const qreal gridH = side * N;
+    gridArea = QRectF(left + (w - gridW) / 2,
+                      y + qMax(0.0, (gridArea.height() - gridH) / 2),
+                      gridW, gridH);
+
+    const qreal fontPx = qMax(6.0, side * (N <= 3 ? 0.22 : N <= 5 ? 0.18 : 0.15));
+    const qreal ptsPx = qMax(5.0, fontPx * 0.72);
 
     QFont cellFont(QStringLiteral("Sans Serif"));
     cellFont.setPixelSize(int(fontPx));
@@ -1479,14 +1486,14 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
         const auto& row = grid.cells[static_cast<size_t>(r)];
         for (int c = 0; c < N && c < static_cast<int>(row.size()); ++c) {
             const auto& cell = row[static_cast<size_t>(c)];
-            const QRectF rect(gridArea.left() + c * cellW,
-                              gridArea.top() + r * cellH,
-                              cellW, cellH);
+            const QRectF rect(gridArea.left() + c * side,
+                              gridArea.top() + r * side,
+                              side, side);
             if (cell.isFree)
                 p.fillRect(rect, QColor(QStringLiteral("#e8e8e8")));
             else
                 p.fillRect(rect, Qt::white);
-            p.setPen(QPen(Qt::black, 1.8));
+            p.setPen(QPen(Qt::black, 2.0));
             p.drawRect(rect);
 
             const QString label = cell.isFree
@@ -1494,7 +1501,7 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
                 : QString::fromStdString(cell.label);
             p.setFont(cellFont);
             p.setPen(Qt::black);
-            p.drawText(rect.adjusted(3, 2, -3, -ptsPx - 2), label, opt);
+            p.drawText(rect.adjusted(3, 2, -3, -ptsPx - 3), label, opt);
 
             if (!cell.isFree) {
                 const QString pts = gageMode
@@ -1503,20 +1510,22 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
                 p.setFont(ptsFont);
                 p.setPen(gageMode ? QColor(QStringLiteral("#4f46e5"))
                                   : QColor(QStringLiteral("#555555")));
-                p.drawText(rect.adjusted(2, 2, -3, -2),
+                p.drawText(rect.adjusted(2, 2, -4, -3),
                            Qt::AlignBottom | Qt::AlignRight, pts);
             }
         }
     }
 
     // Pied
-    y = gridArea.bottom() + 8;
+    y = qMax(gridArea.bottom(), gridBottom - footerH) + 6;
+    if (y > area.bottom() - 8)
+        y = area.bottom() - footerH + 4;
     p.setPen(QPen(QColor(QStringLiteral("#bbbbbb")), 1));
     p.drawLine(QPointF(left, y), QPointF(left + w, y));
     y += 6;
 
     QFont small(QStringLiteral("Sans Serif"));
-    small.setPixelSize(qMax(7, int(area.height() * 0.022)));
+    small.setPixelSize(qMax(8, int(area.height() * 0.02)));
     QFont smallBold(small);
     smallBold.setBold(true);
 
@@ -1532,50 +1541,76 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
         return;
     }
 
-    // Mode classique : cases PV + multiplicateurs
+    // Mode classique : cases PV + multiplicateurs (tableau 2×2 comme l'app web)
     p.setFont(smallBold);
     p.setPen(Qt::black);
-    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.3),
+    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.25),
                Qt::AlignLeft | Qt::AlignVCenter,
                QStringLiteral("Points de vie — %1 PV").arg(project.startHP));
-    y += smallBold.pixelSize() * 1.5;
+    y += smallBold.pixelSize() * 1.4;
 
-    const qreal box = qMax(8.0, small.pixelSize() * 1.2);
+    const qreal box = qMax(9.0, small.pixelSize() * 1.15);
     const int hp = qBound(0, project.startHP, 80);
     qreal x = left;
-    p.setPen(QPen(Qt::black, 1.2));
+    p.setPen(QPen(Qt::black, 1.4));
     for (int i = 0; i < hp; ++i) {
         if (x + box > left + w) {
             x = left;
             y += box + 3;
+            if (y + box > area.bottom() - small.pixelSize() * 6)
+                break;
         }
         p.drawRect(QRectF(x, y, box, box));
         x += box + 3;
     }
-    y += box + 8;
+    y += box + 7;
 
     p.setFont(smallBold);
-    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.3),
+    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.25),
                Qt::AlignLeft | Qt::AlignVCenter,
                QStringLiteral("Règles des combinaisons"));
-    y += smallBold.pixelSize() * 1.4;
+    y += smallBold.pixelSize() * 1.35;
 
     p.setFont(small);
-    const QString rules = QStringLiteral(
-        "Ligne ×%1    Colonne ×%2    Diagonale ×%3    Grille complète ×%4\n"
+    const qreal colW = w * 0.5;
+    const qreal rowH = small.pixelSize() * 1.45;
+    auto ruleRow = [&](const QString& a, const QString& av, const QString& b, const QString& bv) {
+        if (y + rowH > area.bottom())
+            return;
+        p.drawText(QRectF(left, y, colW * 0.55, rowH), Qt::AlignVCenter | Qt::AlignLeft, a);
+        p.setFont(smallBold);
+        p.drawText(QRectF(left + colW * 0.55, y, colW * 0.45, rowH),
+                   Qt::AlignVCenter | Qt::AlignLeft, av);
+        p.setFont(small);
+        p.drawText(QRectF(left + colW, y, colW * 0.55, rowH), Qt::AlignVCenter | Qt::AlignLeft, b);
+        p.setFont(smallBold);
+        p.drawText(QRectF(left + colW + colW * 0.55, y, colW * 0.45, rowH),
+                   Qt::AlignVCenter | Qt::AlignLeft, bv);
+        p.setFont(small);
+        y += rowH;
+    };
+    ruleRow(QStringLiteral("Ligne complète"),
+            QStringLiteral("× %1").arg(project.multipliers.line),
+            QStringLiteral("Colonne complète"),
+            QStringLiteral("× %1").arg(project.multipliers.column));
+    ruleRow(QStringLiteral("Diagonale complète"),
+            QStringLiteral("× %1").arg(project.multipliers.diagonal),
+            QStringLiteral("Grille complète (BINGO)"),
+            QStringLiteral("× %1").arg(project.multipliers.full));
+
+    y += 3;
+    p.setFont(small);
+    p.setPen(QColor(QStringLiteral("#444444")));
+    QTextOption rulesOpt;
+    rulesOpt.setWrapMode(QTextOption::WordWrap);
+    const QString note = QStringLiteral(
         "Cochez une case quand l'événement se produit. La valeur en points est "
-        "dans le coin bas-droit.%5")
-        .arg(project.multipliers.line)
-        .arg(project.multipliers.column)
-        .arg(project.multipliers.diagonal)
-        .arg(project.multipliers.full)
+        "dans le coin bas-droit.%1")
         .arg(hasGages
                  ? QStringLiteral(" Pour récupérer des PV, accomplissez un gage "
                                   "(feuille « Tableau des Gages »).")
                  : QString());
-    QTextOption rulesOpt;
-    rulesOpt.setWrapMode(QTextOption::WordWrap);
-    p.drawText(QRectF(left, y, w, area.bottom() - y), rules, rulesOpt);
+    p.drawText(QRectF(left, y, w, area.bottom() - y), note, rulesOpt);
 }
 
 void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project)
@@ -1713,8 +1748,32 @@ void paintBingoDocument(QPrinter& printer, const core::Project& project)
 
     const QRectF page = printer.pageRect(QPrinter::DevicePixel);
     const int perPage = 2;
-    const qreal gap = mmToPx(printer, 2);
-    const qreal halfH = (page.height() - gap) / perPage;
+    // Bande centrale pour découper les deux demi-feuilles A5 (≈148,5 mm).
+    const qreal cutBand = mmToPx(printer, 5);
+    const qreal halfH = (page.height() - cutBand) / perPage;
+    const qreal insetX = mmToPx(printer, 4); // padding horizontal type web (15 mm − marge page)
+    const qreal insetY = mmToPx(printer, 2);
+
+    auto drawCutGuide = [&](qreal midY) {
+        const qreal y = midY;
+        QPen dash(QColor(QStringLiteral("#888888")), 1.2, Qt::DashLine);
+        dash.setDashPattern({ 4, 3 });
+        painter.setPen(dash);
+        painter.drawLine(QPointF(page.left(), y), QPointF(page.right(), y));
+
+        // Petites marques « ciseaux » aux extrémités
+        QFont mark(QStringLiteral("Sans Serif"));
+        mark.setPixelSize(qMax(8, int(mmToPx(printer, 2.8))));
+        painter.setFont(mark);
+        painter.setPen(QColor(QStringLiteral("#666666")));
+        const QString scissors = QStringLiteral("✂ découper");
+        painter.drawText(QRectF(page.left(), y - mark.pixelSize() * 0.7,
+                                page.width() * 0.45, mark.pixelSize() * 1.4),
+                         Qt::AlignLeft | Qt::AlignVCenter, scissors);
+        painter.drawText(QRectF(page.left() + page.width() * 0.55, y - mark.pixelSize() * 0.7,
+                                page.width() * 0.45, mark.pixelSize() * 1.4),
+                         Qt::AlignRight | Qt::AlignVCenter, scissors);
+    };
 
     int slot = 0;
     for (size_t i = 0; i < project.grids.size(); ++i) {
@@ -1725,10 +1784,14 @@ void paintBingoDocument(QPrinter& printer, const core::Project& project)
             }
             slot = 0;
         }
-        const QRectF area(page.left(),
-                          page.top() + slot * (halfH + gap),
-                          page.width(),
-                          halfH);
+        if (slot == 1)
+            drawCutGuide(page.top() + halfH + cutBand * 0.5);
+
+        const qreal top = page.top() + slot * (halfH + cutBand);
+        const QRectF area(page.left() + insetX,
+                          top + insetY,
+                          page.width() - 2 * insetX,
+                          halfH - 2 * insetY);
         drawPlayerSheet(painter, area, project, project.grids[i]);
         ++slot;
     }
@@ -1738,7 +1801,11 @@ void paintBingoDocument(QPrinter& printer, const core::Project& project)
             painter.end();
             return;
         }
-        drawGageSheet(painter, page, project);
+        const QRectF gageArea(page.left() + insetX,
+                              page.top() + insetY,
+                              page.width() - 2 * insetX,
+                              page.height() - 2 * insetY);
+        drawGageSheet(painter, gageArea, project);
     }
 
     painter.end();
@@ -1758,7 +1825,7 @@ bool AppController::exportPdf(const QString& filePath)
     printer.setOutputFileName(filePath);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setPageOrientation(QPageLayout::Portrait);
-    printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout::Millimeter);
+    printer.setPageMargins(QMarginsF(8, 6, 8, 6), QPageLayout::Millimeter);
 
     paintBingoDocument(printer, m_current);
     return QFile::exists(filePath) && QFileInfo(filePath).size() > 500;
@@ -1823,7 +1890,7 @@ bool AppController::printGrids()
     QPrinter printer(QPrinter::HighResolution);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setPageOrientation(QPageLayout::Portrait);
-    printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout::Millimeter);
+    printer.setPageMargins(QMarginsF(8, 6, 8, 6), QPageLayout::Millimeter);
 
     QPrintPreviewDialog dlg(&printer);
     dlg.setWindowTitle(QStringLiteral("Aperçu avant impression — Open Bingo"));

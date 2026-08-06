@@ -120,7 +120,9 @@ private slots:
         QVERIFY(controller.init());
         QVERIFY(controller.grids().size() >= 1);
 
-        const QString pdfPath = tmp.path() + QStringLiteral("/grilles.pdf");
+        const QString pdfPath = qEnvironmentVariableIsSet("BINGO_PDF_OUT")
+            ? QString::fromLocal8Bit(qgetenv("BINGO_PDF_OUT"))
+            : (tmp.path() + QStringLiteral("/grilles.pdf"));
         QVERIFY2(controller.exportPdf(pdfPath), "exportPdf");
         QVERIFY(QFileInfo::exists(pdfPath));
         QVERIFY(QFileInfo(pdfPath).size() > 500);
@@ -247,7 +249,14 @@ private slots:
         const QString bob = QStringLiteral("Bob");
         const auto result = controller.togglePlayCell(alice, 0, 0);
         QVERIFY(result.value(QStringLiteral("checked")).toBool());
-        QVERIFY(!result.value(QStringLiteral("overlays")).toList().isEmpty());
+        const auto overlays = result.value(QStringLiteral("overlays")).toList();
+        QVERIFY(!overlays.isEmpty());
+        // Un seul joueur (Alice) : pas d'overlay pour Bob malgré la sync.
+        for (const auto& ovV : overlays) {
+            const auto ov = ovV.toMap();
+            if (ov.value(QStringLiteral("kind")).toString() == QLatin1String("gage"))
+                QCOMPARE(ov.value(QStringLiteral("player")).toString(), alice);
+        }
 
         auto countChecked = [](const QVariantList& checks) {
             int n = 0;

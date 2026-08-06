@@ -177,10 +177,7 @@ Item {
         if (!activeOverlay) return ""
         if (overlayIsCombo)
             return comboIcon(activeOverlay.key) + "  " + (activeOverlay.label || comboLabel(activeOverlay.key))
-        const num = activeOverlay.num || 0
-        const who = activeOverlay.player && activeOverlay.player !== fs.playerName
-                    ? (" · " + activeOverlay.player) : ""
-        return "Gage #" + num + who
+        return "Gage #" + (activeOverlay.num || 0)
     }
 
     Timer {
