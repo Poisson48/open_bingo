@@ -8,14 +8,11 @@ ApplicationWindow {
     id: window
     visible: true
     title: "Open Bingo"
-    readonly property int forcedW: {
-        const v = Qt.environmentVariable("BINGO_TEST_W")
-        return v.length ? parseInt(v) : 0
-    }
-    readonly property int forcedH: {
-        const v = Qt.environmentVariable("BINGO_TEST_H")
-        return v.length ? parseInt(v) : 0
-    }
+    readonly property int forcedW: typeof bingoForcedW !== "undefined" ? bingoForcedW : 0
+    readonly property int forcedH: typeof bingoForcedH !== "undefined" ? bingoForcedH : 0
+    readonly property string screenshotDir: typeof bingoScreenshotDir !== "undefined"
+                                            ? bingoScreenshotDir : ""
+    readonly property bool screenshotMode: screenshotDir.length > 0
     width: forcedW > 0 ? forcedW : Screen.width
     height: forcedH > 0 ? forcedH : Screen.height
     minimumWidth: 320
@@ -25,6 +22,8 @@ ApplicationWindow {
     Component.onCompleted: {
         if (Qt.platform.os === "android")
             window.showMaximized()
+        if (window.screenshotMode)
+            screenshotRunner.start()
     }
 
     Material.theme: Material.Dark
@@ -158,7 +157,7 @@ ApplicationWindow {
         Rectangle {
             width: parent.width
             height: visible ? 44 : 0
-            visible: Updater.updateAvailable || Updater.readyToInstall
+            visible: !window.screenshotMode && (Updater.updateAvailable || Updater.readyToInstall)
             color: Theme.surfaceHigh
             RowLayout {
                 anchors.fill: parent
@@ -191,6 +190,76 @@ ApplicationWindow {
     }
 
     ChangelogDialog { id: changelogDialog }
+
+    Timer {
+        id: shotTimer
+        repeat: false
+        onTriggered: screenshotRunner.runStep()
+    }
+
+    // Mode capture pour README / page GitHub (BINGO_SCREENSHOT_DIR=/chemin).
+    QtObject {
+        id: screenshotRunner
+        property int step: 0
+        property string demoId: ""
+
+        function start() {
+            demoId = AppController.seedDemoProject()
+            schedule(800)
+        }
+
+        function schedule(ms) {
+            shotTimer.interval = ms
+            shotTimer.restart()
+        }
+
+        function capture(name) {
+            const path = window.screenshotDir + "/" + name
+            if (AppController.saveScreenshot(path))
+                console.log("Screenshot:", path)
+            else
+                console.warn("Screenshot failed:", path)
+            step++
+            if (step >= 10)
+                Qt.quit()
+            else
+                schedule(350)
+        }
+
+        function runStep() {
+            if (step === 0) {
+                capture("01-projects.png")
+            } else if (step === 1) {
+                AppController.openProject(demoId)
+                step = 2
+                schedule(600)
+            } else if (step === 2) {
+                AppController.lastTab = 0
+                step = 3
+                schedule(400)
+            } else if (step === 3) {
+                capture("02-config.png")
+            } else if (step === 4) {
+                AppController.lastTab = 1
+                step = 5
+                schedule(400)
+            } else if (step === 5) {
+                capture("03-cases.png")
+            } else if (step === 6) {
+                AppController.lastTab = 2
+                step = 7
+                schedule(400)
+            } else if (step === 7) {
+                capture("04-grids.png")
+            } else if (step === 8) {
+                AppController.lastTab = 4
+                step = 9
+                schedule(500)
+            } else if (step === 9) {
+                capture("05-play.png")
+            }
+        }
+    }
 
     Popup {
         id: snackbar

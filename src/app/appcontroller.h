@@ -107,6 +107,7 @@ public:
     Q_INVOKABLE void setComboGage(const QString& key, const QString& value);
 
     Q_INVOKABLE QString generateAll();
+    Q_INVOKABLE QString seedDemoProject();
     Q_INVOKABLE void reshuffleGrid(int playerIdx);
     Q_INVOKABLE void swapGridCells(int playerIdx, int r1, int c1, int r2, int c2);
     Q_INVOKABLE void replaceGridCell(int playerIdx, int row, int col, int caseIdx);
@@ -144,6 +145,7 @@ public:
     Q_INVOKABLE QString detectLineType(const QVariantList& lineCoords, int gridSize) const;
     Q_INVOKABLE bool shareText(const QString& text);
     Q_INVOKABLE bool printPreview();
+    Q_INVOKABLE bool saveScreenshot(const QString& filePath);
 
     Q_INVOKABLE QString formatRelativeDate(qint64 ms) const;
 

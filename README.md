@@ -1,17 +1,45 @@
 # Open Bingo
 
-**Générateur de cartes bingo pour soirées jeux — natif, gratuit, sans serveur à héberger.**
+<p align="center">
+  <img src="docs/assets/logo.png" alt="Open Bingo" width="120">
+</p>
 
-Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez sans papier sur téléphone. Partagez un projet entre plusieurs appareils par QR code : les modifications se synchronisent via relais Nostr chiffrés (même stack réseau que [Colo Tâches](https://github.com/Poisson48/Colo_Taches)). Données locales en SQLite, export/import JSON compatible avec l'ancienne app web. Open source, GPLv3.
+<p align="center">
+  <strong>Générateur de cartes bingo pour soirées jeux — natif, gratuit, sans serveur à héberger.</strong>
+</p>
 
-[![CI](https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml/badge.svg)](https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://poisson48.github.io/open_bingo/"><strong>Site web & téléchargements</strong></a> ·
+  <a href="https://github.com/Poisson48/open_bingo/releases/latest">Releases</a> ·
+  <a href="https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml"><img src="https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez sans papier sur téléphone. Partagez un projet entre plusieurs appareils par QR code : les modifications se synchronisent via relais Nostr chiffrés. Données locales en SQLite, export/import JSON. Open source, GPLv3.
 
 > **v2.x** — application **Qt 6 / QML** native (Linux AppImage + Android APK).  
-> Les releases **v1.2.x** correspondaient à l'ancienne app web/Tauri ; elles ne sont **pas** compatibles (package Android différent, pas de mise à jour par-dessus).
+> Les releases **v1.2.x** (app web/Tauri) ne sont **pas** compatibles (package Android différent).
 
-## Essayer maintenant
+## Aperçu
 
-Téléchargez la dernière version — **[Releases](https://github.com/Poisson48/open_bingo/releases/latest)** :
+<p align="center">
+  <img src="docs/assets/screenshots/phone/05-play.png" alt="Mode play" width="280">
+  &nbsp;
+  <img src="docs/assets/screenshots/phone/01-projects.png" alt="Projets" width="280">
+  &nbsp;
+  <img src="docs/assets/screenshots/phone/04-grids.png" alt="Grilles" width="280">
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshots/phone/02-config.png" alt="Configuration" width="220">
+  &nbsp;
+  <img src="docs/assets/screenshots/phone/03-cases.png" alt="Phrases" width="220">
+</p>
+
+<p align="center"><em>Interface sombre indigo — responsive mobile & desktop · <a href="https://poisson48.github.io/open_bingo/#screenshots">plus de captures</a></em></p>
+
+## Télécharger
+
+**[→ Page de téléchargement](https://poisson48.github.io/open_bingo/#download)** · **[Releases GitHub](https://github.com/Poisson48/open_bingo/releases/latest)**
 
 | Plateforme | Fichier | Installation |
 |---|---|---|
@@ -20,7 +48,7 @@ Téléchargez la dernière version — **[Releases](https://github.com/Poisson48
 
 L'AppImage embarque Qt : un seul fichier, aucune dépendance système.
 
-Sur Android, l'app vérifie les mises à jour sur GitHub au lancement et propose d'installer la nouvelle APK (bandeau « Mise à jour disponible »). Les releases signées avec la clé de publication du projet s'installent **par-dessus** la version précédente.
+Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les releases signées s'installent **par-dessus** la version précédente.
 
 ## Fonctionnalités
 
@@ -29,7 +57,7 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement et propose
 - **Phrases & gages** — pool de cases avec points et taux d'inclusion (0–100 %)
 - **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle
 - **Impression** — aperçu A4 (2 grilles/page) + page gages
-- **Sans papier** — cocher les cases, score en direct, persistance des checks
+- **Sans papier** — cocher les cases, score en direct, plein écran paysage, persistance des checks
 - **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
 
@@ -59,6 +87,12 @@ ctest --test-dir build --output-on-failure
 ./build/src/openbingo
 ```
 
+Captures d'écran pour la doc :
+
+```bash
+bash scripts/capture-screenshots.sh   # → docs/assets/screenshots/
+```
+
 ### Android (APK local)
 
 ```bash
@@ -73,20 +107,13 @@ bash scripts/build-android.sh
 bash scripts/build-appimage.sh
 ```
 
-### Windows (phase 2)
-
-```powershell
-# Qt 6 MinGW installé, variable QT_DIR pointée
-.\scripts\build-windows.ps1
-```
-
 ## Publier une release
 
 Chaque tag `v*` déclenche GitHub Actions (`release.yml`) : build APK arm64 + AppImage, publication sur GitHub Releases.
 
 ```bash
-git tag -a v2.0.2 -m "Description des nouveautés (affichée dans l'app avant mise à jour)"
-git push origin v2.0.2
+git tag -a v2.0.5 -m "Description des nouveautés (affichée dans l'app avant mise à jour)"
+git push origin v2.0.5
 ```
 
 **Secrets GitHub** (optionnels mais recommandés pour Android) :
@@ -97,21 +124,20 @@ git push origin v2.0.2
 | `ANDROID_KEY_ALIAS` | Alias de la clé |
 | `ANDROID_KEYSTORE_PASS` | Mot de passe |
 
-Générer une clé une fois : `bash scripts/make-release-key.sh`  
-Sans ces secrets, l'APK de release est signé en debug (installable, mais pas de chaîne de mises à jour stables).
+Générer une clé une fois : `bash scripts/make-release-key.sh`
 
 ## Architecture
 
 ```
 src/
-  core/     Générateur, JSON, pairing, CRDT (Colo)
+  core/     Générateur, JSON, pairing, CRDT
   net/      Nostr, WebSocket, chiffrement
   store/    SQLite (projets, sync, play checks)
   app/      AppController, ProjectSync, Updater, Theme
-  qml/      Interface Material (pages, composants Colo)
+  qml/      Interface Material (pages, composants Bingo*)
 ```
 
-Documentation détaillée : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), [`CLAUDE.md`](CLAUDE.md).
+Documentation : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), [`CLAUDE.md`](CLAUDE.md).
 
 ## Plateformes
 

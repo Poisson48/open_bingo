@@ -56,6 +56,12 @@ int main(int argc, char* argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("AppController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
     engine.rootContext()->setContextProperty(QStringLiteral("Updater"), &updater);
+    engine.rootContext()->setContextProperty(QStringLiteral("bingoForcedW"),
+        qEnvironmentVariableIntValue("BINGO_TEST_W"));
+    engine.rootContext()->setContextProperty(QStringLiteral("bingoForcedH"),
+        qEnvironmentVariableIntValue("BINGO_TEST_H"));
+    engine.rootContext()->setContextProperty(QStringLiteral("bingoScreenshotDir"),
+        QString::fromUtf8(qgetenv("BINGO_SCREENSHOT_DIR")));
 
     const QUrl url(QStringLiteral("qrc:/OpenBingo/qml/Main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

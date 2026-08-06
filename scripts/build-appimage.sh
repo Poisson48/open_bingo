@@ -38,14 +38,6 @@ else
   echo "Icône 512×512 requise : packaging/openbingo-512.png (ou ImageMagick)" >&2
   exit 1
 fi
-# linuxdeploy refuse un PNG 1024×1024 dans hicolor/512x512.
-if command -v identify >/dev/null; then
-  read -r IW IH < <(identify -format '%w %h' "$ICON512")
-  if [ "$IW" != 512 ] || [ "$IH" != 512 ]; then
-    echo "Icône AppImage invalide : ${IW}×${IH}, attendu 512×512" >&2
-    exit 1
-  fi
-fi
 
 cat > "$APPDIR/usr/share/applications/openbingo.desktop" <<'EOF'
 [Desktop Entry]

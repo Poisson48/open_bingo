@@ -9,6 +9,7 @@
 #include <QGuiApplication>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <random>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
@@ -19,6 +20,7 @@
 #include <QJsonObject>
 #include <QPrinter>
 #include <QPrintDialog>
+#include <QQuickWindow>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QtGlobal>
@@ -87,6 +89,8 @@ QString AppController::databasePath()
 
 bool AppController::init()
 {
+    const bool screenshotMode = !qEnvironmentVariableIsEmpty("BINGO_SCREENSHOT_DIR");
+
     m_db = std::make_unique<store::Database>();
     if (!m_db->open(databasePath()))
         return false;
@@ -103,21 +107,25 @@ bool AppController::init()
     }
     const QString deviceId = QString::fromStdString(deviceIdStr);
 
-    m_projectSync->init(m_db.get(), m_relayPool.get(), deviceId);
-    connect(m_projectSync.get(), &ProjectSync::toast, this, &AppController::toast);
-    connect(m_projectSync.get(), &ProjectSync::onlineChanged, this, &AppController::onlineChanged);
-    connect(m_projectSync.get(), &ProjectSync::pendingChangesChanged, this,
-            &AppController::pendingChangesChanged);
-    connect(m_projectSync.get(), &ProjectSync::remoteProjectUpdated, this,
-            [this](const QString& id) {
-                reloadProjects();
-                if (m_hasCurrent && m_current.id == id.toStdString())
-                    openProject(id);
-            });
-
-    m_updater->check();
+    if (!screenshotMode) {
+        m_projectSync->init(m_db.get(), m_relayPool.get(), deviceId);
+        connect(m_projectSync.get(), &ProjectSync::toast, this, &AppController::toast);
+        connect(m_projectSync.get(), &ProjectSync::onlineChanged, this, &AppController::onlineChanged);
+        connect(m_projectSync.get(), &ProjectSync::pendingChangesChanged, this,
+                &AppController::pendingChangesChanged);
+        connect(m_projectSync.get(), &ProjectSync::remoteProjectUpdated, this,
+                [this](const QString& id) {
+                    reloadProjects();
+                    if (m_hasCurrent && m_current.id == id.toStdString())
+                        openProject(id);
+                });
+        m_updater->check();
+    }
 
     reloadProjects();
+
+    if (screenshotMode)
+        return true;
 
     if (auto lastTab = m_db->getSetting("last_tab"))
         m_lastTab = QString::fromStdString(*lastTab).toInt();
@@ -564,6 +572,79 @@ QString AppController::generateAll()
     return QStringLiteral("Grilles générées.");
 }
 
+QString AppController::seedDemoProject()
+{
+    if (!m_db)
+        return {};
+
+    auto p = core::JsonCodec::defaultProject();
+    p.title = "Soirée Jeux de Rôle";
+    p.description = "Bingo improvisé pour la table — D&D, Pathfinder, etc.";
+    p.gridSize = 5;
+    p.startHP = 20;
+    p.freeCenter = true;
+    p.gageMode = false;
+    p.players = { { "Alice" }, { "Bob" }, { "Claire" }, { "David" } };
+
+    static const char* phrases[] = {
+        "Le MJ oublie un PNJ important",
+        "Quelqu'un interroge un chandelier",
+        "Critique sur un gobelin",
+        "D20 lancé à voix haute",
+        "Pause pipi de plus de 10 min",
+        "Recyclage d'un ancien perso",
+        "Le barde tente de séduire",
+        "Combat qui dure plus d'une heure",
+        "Plan des joueurs qui échoue",
+        "Plan des joueurs qui réussit",
+        "PNJ meurt de façon absurde",
+        "Quelqu'un oublie son sort",
+        "Dé qui bat des ailes sur la table",
+        "Référence à Game of Thrones",
+        "Le rogue vole dans le groupe",
+        "Le paladin moralise",
+        "MJ improvise un donjon",
+        "Joueur arrive en retard",
+        "Snacks qui disparaissent",
+        "Inside joke depuis 3 ans",
+        "Le mage lance Fireball",
+        "Consultation du rulebook",
+        "Twist de scénario imprévu",
+        "Cliffhanger en fin de session",
+        "Voix ridicule pour un PNJ",
+    };
+    for (const auto* label : phrases)
+        p.cases.push_back({ label, 2, 85 });
+
+    std::mt19937 gen(4242);
+    const core::Rng rng = [&gen]() {
+        return std::uniform_real_distribution<>(0.0, 1.0)(gen);
+    };
+    const auto result = core::generateAll(p, rng);
+    if (result.error)
+        return {};
+
+    if (!p.grids.empty()) {
+        const int N = p.gridSize;
+        const int mid = N / 2;
+        QJsonArray rows;
+        for (int r = 0; r < N; ++r) {
+            QJsonArray row;
+            for (int c = 0; c < N; ++c) {
+                const bool free = p.freeCenter && N % 2 == 1 && r == mid && c == mid;
+                row.append(free || (r == c));
+            }
+            rows.append(row);
+        }
+        m_db->savePlayChecks(p.id, p.grids[0].player,
+                             QJsonDocument(rows).toJson(QJsonDocument::Compact).toStdString());
+    }
+
+    m_db->upsertProject(p);
+    reloadProjects();
+    return QString::fromStdString(p.id);
+}
+
 void AppController::reshuffleGrid(int playerIdx)
 {
     if (!m_hasCurrent)
@@ -894,6 +975,17 @@ bool AppController::printPreview()
         return false;
     emit toast(QStringLiteral("Impression lancée"));
     return true;
+}
+
+bool AppController::saveScreenshot(const QString& filePath)
+{
+    const auto windows = QGuiApplication::topLevelWindows();
+    if (windows.isEmpty())
+        return false;
+    auto* window = qobject_cast<QQuickWindow*>(windows.first());
+    if (!window)
+        return false;
+    return window->grabWindow().save(filePath);
 }
 
 QString AppController::formatRelativeDate(qint64 ms) const
