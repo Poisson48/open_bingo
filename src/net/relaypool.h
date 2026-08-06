@@ -44,8 +44,9 @@ public:
     // Publish to every connected relay.
     void publishToAll(const NostrEvent& ev);
 
-    // Subscribe on every relay. Subscription is re-applied on reconnect automatically.
+    // Subscribe on every relay (accumulates channel tags — un filtre #t multi-valeurs).
     void subscribeAll(const QString& channelTag, int64_t since);
+    void unsubscribe(const QString& channelTag);
 
     bool isOnline() const { return m_online; }
 
@@ -69,9 +70,9 @@ private:
     std::vector<std::unique_ptr<RelayClient>> m_clients;
     QSet<QString> m_seenIds;   // in-memory dedup by event id
 
-    // Active subscription (stored for new relays added after subscribeAll).
-    std::optional<QString> m_channelTag;
-    int64_t                m_since = 0;
+    // Active subscription tags (OR on #t) — re-applied for new relays / reconnect.
+    QStringList m_channelTags;
+    int64_t     m_since = 0;
 
     bool m_online = false;
 };

@@ -24,6 +24,14 @@ target_link_libraries(tst_appflow PRIVATE
 )
 add_test(NAME appflow COMMAND tst_appflow)
 
+qt_add_executable(tst_projectsync tst_projectsync.cpp)
+target_link_libraries(tst_projectsync PRIVATE
+    applib cryptolayer net store
+    Qt6::Core Qt6::Gui Qt6::Sql Qt6::WebSockets Qt6::Test
+    PkgConfig::SODIUM PkgConfig::SECP256K1
+)
+add_test(NAME projectsync COMMAND tst_projectsync)
+
 add_test(NAME qml_smoke COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/smoke-ui.sh)
 add_test(NAME live_xvfb COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/run-live-test.sh)
 add_test(NAME resolutions COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-resolutions.sh)
