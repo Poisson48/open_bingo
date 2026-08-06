@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
-// Page Play : aperçu + lancement plein écran (popup hors du ScrollView).
+// Page Play : aperçu + lancement plein écran (overlay Main.openPlayGame).
 Item {
     id: page
 
@@ -205,25 +206,22 @@ Item {
         }
     }
 
-    PlayFullscreen {
-        id: fullscreen
-        onChecksUpdated: function(c) {
-            playRoot.checks = c
-            playRoot.saveChecks()
-        }
+    function applyPlayChecks(c) {
+        playRoot.checks = c
+        playRoot.saveChecks()
     }
 
     function openFullscreen() {
         if (playerBox.count <= 0)
             return
         const g = AppController.grids[playerBox.currentIndex]
-        fullscreen.playerName = g.player
-        fullscreen.playerIndex = playerBox.currentIndex
-        fullscreen.rows = g.cells
-        fullscreen.checks = playRoot.checks
-        fullscreen.open()
+        const w = page.Window.window
+        if (w && typeof w.openPlayGame === "function") {
+            w.openPlayGame(g.player, playerBox.currentIndex, g.cells, playRoot.checks)
+            return
+        }
+        console.warn("openPlayGame indisponible — overlay Main manquant")
     }
 
-    // Pour les captures / tests automatiques.
     function openFullscreenForShot() { openFullscreen() }
 }

@@ -67,6 +67,10 @@ Item {
         playTab.openFullscreen()
     }
 
+    function applyPlayChecks(c) {
+        playTab.applyPlayChecks(c)
+    }
+
     ShareSheet { id: shareSheet; anchors.centerIn: parent }
 
     Component.onCompleted: AppController.setKeepScreenOn(AppController.lastTab === 4)

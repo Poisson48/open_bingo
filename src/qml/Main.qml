@@ -37,6 +37,10 @@ ApplicationWindow {
 
     onClosing: function (close) {
         close.accepted = false
+        if (playGame.visible) {
+            playGame.close()
+            return
+        }
         const page = stack.currentItem
         if (page && typeof page.handleBack === "function" && page.handleBack())
             return
@@ -48,8 +52,13 @@ ApplicationWindow {
     }
 
     header: Column {
+        id: headerColumn
         width: parent.width
         spacing: 0
+        // Caché pendant la partie : l'overlay Overlay couvre déjà, mais on
+        // libère la hauteur pour éviter tout décalage de layout.
+        visible: !playGame.visible
+        height: visible ? implicitHeight : 0
 
         Rectangle {
             width: parent.width
@@ -266,6 +275,26 @@ ApplicationWindow {
 
     function openChangelog() { changelogDialog.openHistory() }
 
+    function openPlayGame(playerName, playerIndex, rows, checks) {
+        playGame.playerName = playerName || ""
+        playGame.playerIndex = playerIndex
+        playGame.rows = rows || []
+        playGame.checks = checks || []
+        playGame.open()
+    }
+
+    // Mode « Commencer la partie » : couvre TOUTE la fenêtre (header inclus).
+    PlayFullscreen {
+        id: playGame
+        parent: Overlay.overlay
+        anchors.fill: parent
+        onChecksUpdated: function(c) {
+            const ed = stack.currentItem
+            if (ed && typeof ed.applyPlayChecks === "function")
+                ed.applyPlayChecks(c)
+        }
+    }
+
     Timer {
         id: shotTimer
         repeat: false
@@ -334,6 +363,11 @@ ApplicationWindow {
                 const ed = stack.currentItem
                 if (ed && typeof ed.openPlayFullscreen === "function")
                     ed.openPlayFullscreen()
+                else if (typeof window.openPlayGame === "function"
+                         && AppController.grids.length > 0) {
+                    const g = AppController.grids[0]
+                    window.openPlayGame(g.player, 0, g.cells, [])
+                }
                 step = 10
                 schedule(900)
             } else if (step === 10) {
