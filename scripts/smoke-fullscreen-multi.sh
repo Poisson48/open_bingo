@@ -35,7 +35,7 @@ for size in "${SIZES[@]}"; do
     QT_QPA_PLATFORM=xcb \
     "$BIN" 2>&1 | tee "$TMP/log-$w$h.txt" | grep -E 'Screenshot:|TypeError|ReferenceError|unavailable' || true
 
-  shot="$dir/06-play-fullscreen.png"
+  shot="$dir/07-play-fullscreen.png"
   if [ ! -f "$shot" ]; then
     echo "FAIL: $shot manquant" >&2
     grep -E 'error|Error|unavailable|failed' "$TMP/log-$w$h.txt" >&2 || true
