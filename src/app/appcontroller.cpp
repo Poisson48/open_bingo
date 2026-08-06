@@ -432,7 +432,8 @@ void AppController::persistCurrent()
     touchProject();
     m_db->upsertProject(m_current);
     m_db->setSetting("current_project_id", m_current.id);
-    m_projectSync->onLocalProjectChange(QString::fromStdString(m_current.id));
+    if (m_projectSync)
+        m_projectSync->onLocalProjectChange(QString::fromStdString(m_current.id));
     reloadProjects();
 }
 
@@ -631,6 +632,10 @@ void AppController::reloadProjects()
 {
     if (!m_db)
         return;
+    QSet<QString> shared;
+    for (const auto& id : m_db->sharedProjectIds())
+        shared.insert(QString::fromStdString(id));
+    m_projectModel->setSharedIds(shared);
     m_projectModel->setProjects(m_db->getAllProjects());
 }
 
@@ -1290,10 +1295,19 @@ void AppController::pickImportAllJson()
 
 QString AppController::buildShareUrl()
 {
-    if (!m_hasCurrent)
+    if (!m_hasCurrent || !m_projectSync)
         return {};
-    enableProjectSharing();
     return m_projectSync->joinUri(currentProjectId(), title());
+}
+
+QString AppController::joinUriForProject(const QString& projectId)
+{
+    if (!m_db || !m_projectSync || projectId.isEmpty())
+        return {};
+    const auto p = m_db->getProject(projectId.toStdString());
+    if (!p)
+        return {};
+    return m_projectSync->joinUri(projectId, QString::fromStdString(p->title));
 }
 
 bool AppController::importSharePayload(const QString& payload)
@@ -1310,18 +1324,48 @@ bool AppController::importSharePayload(const QString& payload)
 
 void AppController::enableProjectSharing()
 {
-    if (m_hasCurrent)
+    if (m_hasCurrent && m_projectSync)
         m_projectSync->enableSharing(currentProjectId());
 }
 
 bool AppController::joinProjectUri(const QString& uri)
 {
-    return m_projectSync->joinFromUri(uri);
+    if (!m_projectSync)
+        return false;
+    const QString id = m_projectSync->joinFromUri(uri.trimmed());
+    if (id.isEmpty())
+        return false;
+    reloadProjects();
+    openProject(id);
+    return true;
 }
 
 void AppController::handleJoinUrl(const QUrl& url)
 {
-    joinProjectUri(url.toString(QUrl::FullyEncoded));
+    if (!joinProjectUri(url.toString(QUrl::FullyEncoded)))
+        emit toast(QStringLiteral("Lien d'invitation invalide"));
+}
+
+void AppController::leaveProject(const QString& projectId)
+{
+    if (!m_db || projectId.isEmpty())
+        return;
+    if (m_projectSync)
+        m_projectSync->leaveSharing(projectId);
+    m_db->deleteProject(projectId.toStdString());
+    if (m_hasCurrent && m_current.id == projectId.toStdString()) {
+        m_hasCurrent = false;
+        emit currentProjectChanged();
+    }
+    reloadProjects();
+    emit toast(QStringLiteral("Projet retiré de cet appareil"));
+}
+
+bool AppController::isProjectShared(const QString& projectId) const
+{
+    if (!m_db || projectId.isEmpty())
+        return false;
+    return m_db->getSyncKey(projectId.toStdString()).has_value();
 }
 
 QVariantList AppController::loadPlayChecks(const QString& playerName)

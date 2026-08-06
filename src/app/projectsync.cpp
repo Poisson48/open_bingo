@@ -48,18 +48,25 @@ int ProjectSync::pendingChanges() const
 
 void ProjectSync::enableSharing(const QString& projectId)
 {
-    if (!m_db)
+    if (!m_db || projectId.isEmpty())
         return;
-    auto key = net::generateListKey();
-    if (key.size() != 32)
-        return;
-    m_db->setSyncKey(projectId.toStdString(), key);
+    // Ne jamais régénérer la clé : sinon les participants déjà joints sont exclus.
+    if (!m_db->getSyncKey(projectId.toStdString())) {
+        auto key = net::generateListKey();
+        if (key.size() != 32)
+            return;
+        m_db->setSyncKey(projectId.toStdString(), key);
+    }
     subscribeAll(0);
     publishSnapshot(projectId.toStdString());
 }
 
 QString ProjectSync::joinUri(const QString& projectId, const QString& title)
 {
+    if (projectId.isEmpty())
+        return {};
+    if (!keyFor(projectId.toStdString()))
+        enableSharing(projectId);
     const auto key = keyFor(projectId.toStdString());
     if (!key)
         return {};
@@ -67,16 +74,16 @@ QString ProjectSync::joinUri(const QString& projectId, const QString& title)
         core::buildJoinUri(projectId.toStdString(), *key, title.toStdString()));
 }
 
-bool ProjectSync::joinFromUri(const QString& uri)
+QString ProjectSync::joinFromUri(const QString& uri)
 {
     const auto info = core::parseJoinUri(uri.toStdString());
     if (!info || !m_db)
-        return false;
+        return {};
 
     m_db->setSyncKey(info->listId, info->key);
 
     if (auto existing = m_db->getProject(info->listId)) {
-        // already local
+        Q_UNUSED(existing);
     } else {
         core::Project p = core::JsonCodec::defaultProject();
         p.id = info->listId;
@@ -85,9 +92,20 @@ bool ProjectSync::joinFromUri(const QString& uri)
     }
 
     subscribeAll(0);
-    emit remoteProjectUpdated(QString::fromStdString(info->listId));
+    const QString id = QString::fromStdString(info->listId);
+    emit remoteProjectUpdated(id);
     emit toast(QStringLiteral("Projet rejoint : %1").arg(QString::fromStdString(info->title)));
-    return true;
+    return id;
+}
+
+void ProjectSync::leaveSharing(const QString& projectId)
+{
+    if (!m_db || projectId.isEmpty())
+        return;
+    const auto tag = channelTagFor(projectId.toStdString());
+    m_db->clearSyncKey(projectId.toStdString());
+    if (tag)
+        m_subscribed.remove(QString::fromStdString(*tag));
 }
 
 void ProjectSync::onLocalProjectChange(const QString& projectId)

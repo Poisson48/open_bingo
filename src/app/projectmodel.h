@@ -4,6 +4,7 @@
 
 #include <QAbstractListModel>
 #include <QHash>
+#include <QSet>
 #include <QVariant>
 
 namespace app {
@@ -24,6 +25,7 @@ public:
         CaseCountRole,
         GridCountRole,
         AccentRole,
+        SharedRole,
     };
 
     explicit ProjectModel(QObject* parent = nullptr);
@@ -33,6 +35,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void setProjects(std::vector<core::Project> projects);
+    void setSharedIds(const QSet<QString>& sharedIds);
     QString idAt(int row) const;
 
 signals:
@@ -42,6 +45,7 @@ private:
     static QString accentForId(const QString& id);
 
     std::vector<core::Project> m_projects;
+    QSet<QString> m_sharedIds;
 };
 
 } // namespace app

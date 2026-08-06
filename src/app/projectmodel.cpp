@@ -32,6 +32,7 @@ QVariant ProjectModel::data(const QModelIndex& index, int role) const
     case CaseCountRole: return static_cast<int>(p.cases.size());
     case GridCountRole: return static_cast<int>(p.grids.size());
     case AccentRole: return accentForId(QString::fromStdString(p.id));
+    case SharedRole: return m_sharedIds.contains(QString::fromStdString(p.id));
     default: return {};
     }
 }
@@ -48,6 +49,7 @@ QHash<int, QByteArray> ProjectModel::roleNames() const
         { CaseCountRole, "caseCount" },
         { GridCountRole, "gridCount" },
         { AccentRole, "accent" },
+        { SharedRole, "shared" },
     };
 }
 
@@ -57,6 +59,15 @@ void ProjectModel::setProjects(std::vector<core::Project> projects)
     m_projects = std::move(projects);
     endResetModel();
     emit countChanged();
+}
+
+void ProjectModel::setSharedIds(const QSet<QString>& sharedIds)
+{
+    if (m_sharedIds == sharedIds)
+        return;
+    beginResetModel();
+    m_sharedIds = sharedIds;
+    endResetModel();
 }
 
 QString ProjectModel::idAt(int row) const

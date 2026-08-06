@@ -488,6 +488,49 @@ private slots:
         QVERIFY(off.value(QStringLiteral("winners")).toList().isEmpty());
         QVERIFY(off.value(QStringLiteral("newWinners")).toList().isEmpty());
     }
+
+    void joinAndLeaveSharedProject()
+    {
+        QTemporaryDir hostDir;
+        QTemporaryDir guestDir;
+        QVERIFY(hostDir.isValid() && guestDir.isValid());
+
+        qputenv("XDG_DATA_HOME", hostDir.path().toUtf8());
+        app::AppController host;
+        QVERIFY(host.init());
+        while (host.projects()->rowCount() > 0)
+            host.deleteProject(host.projects()->idAt(0));
+
+        const QString id = host.createProject();
+        QVERIFY(!id.isEmpty());
+        host.setTitle(QStringLiteral("Soirée partagée"));
+        const QString uri1 = host.buildShareUrl();
+        QVERIFY2(!uri1.isEmpty(), "join URI");
+        QVERIFY(uri1.startsWith(QStringLiteral("openbingo://join/")));
+        QVERIFY(host.isProjectShared(id));
+        // Même URI au 2e appel : la clé ne doit pas être régénérée.
+        const QString uri2 = host.buildShareUrl();
+        QCOMPARE(uri2, uri1);
+
+        qputenv("XDG_DATA_HOME", guestDir.path().toUtf8());
+        app::AppController guest;
+        QVERIFY(guest.init());
+        while (guest.projects()->rowCount() > 0)
+            guest.deleteProject(guest.projects()->idAt(0));
+
+        QVERIFY2(guest.joinProjectUri(uri1), "joinProjectUri");
+        QCOMPARE(guest.currentProjectId(), id);
+        QCOMPARE(guest.title(), QStringLiteral("Soirée partagée"));
+        QVERIFY(guest.isProjectShared(id));
+
+        guest.leaveProject(id);
+        QVERIFY(guest.projects()->rowCount() == 0 || !guest.isProjectShared(id));
+        QVERIFY(guest.currentProjectId().isEmpty() || guest.currentProjectId() != id);
+
+        // L'hôte garde toujours sa partie partagée.
+        QVERIFY(host.isProjectShared(id));
+        QVERIFY(host.projects()->rowCount() >= 1);
+    }
 };
 
 int main(int argc, char* argv[])

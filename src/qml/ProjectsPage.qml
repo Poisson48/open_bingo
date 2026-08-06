@@ -8,12 +8,33 @@ Item {
     property string pageTitle: "Mes projets"
     property string deleteTargetId: ""
     property string deleteTargetTitle: ""
+    property string leaveTargetId: ""
+    property string leaveTargetTitle: ""
+    property string menuProjectId: ""
+    property string menuProjectTitle: ""
+    property bool menuShared: false
 
-    // Actions dans le menu : laisse la place au titre « Open Bingo ».
-    property Component actions: IconButton {
-        iconName: "menu"
-        iconColor: Theme.text
-        onClicked: overflowMenu.popup()
+    // Comme Colo Courses : Rejoindre bien visible dans la barre.
+    property Component actions: Row {
+        spacing: 0
+        ToolButton {
+            width: 96
+            height: Theme.touchTarget
+            contentItem: Label {
+                text: "Rejoindre"
+                color: Theme.accent
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            onClicked: joinDialog.open()
+        }
+        IconButton {
+            iconName: "menu"
+            iconColor: Theme.text
+            onClicked: overflowMenu.popup()
+        }
     }
 
     ColoMenu {
@@ -36,6 +57,33 @@ Item {
         }
     }
 
+    ColoMenu {
+        id: cardMenu
+        MenuItem {
+            text: "Partager (QR / lien)"
+            onTriggered: shareSheet.openFor(page.menuProjectId, page.menuProjectTitle)
+        }
+        MenuItem {
+            text: "Quitter la partie"
+            enabled: page.menuShared
+            onTriggered: {
+                page.leaveTargetId = page.menuProjectId
+                page.leaveTargetTitle = page.menuProjectTitle
+                leaveDialog.open()
+            }
+        }
+        MenuItem {
+            text: "Supprimer"
+            onTriggered: {
+                page.deleteTargetId = page.menuProjectId
+                page.deleteTargetTitle = page.menuProjectTitle
+                confirmDelete.open()
+            }
+        }
+    }
+
+    ShareSheet { id: shareSheet }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Theme.pad
@@ -50,21 +98,30 @@ Item {
         Label {
             Layout.fillWidth: true
             visible: AppController.projects.count === 0
-            text: "Aucun projet. Chargez la démo pour voir un bingo jouable tout de suite."
+            text: "Aucun projet. Rejoignez une partie avec un QR / lien, ou créez-en une."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 14
         }
 
-        BingoButton {
+        RowLayout {
             Layout.fillWidth: true
             visible: AppController.projects.count === 0
-            text: "Charger le projet démo"
-            primary: true
-            onClicked: {
-                const id = AppController.seedDemoProject()
-                if (id.length)
-                    AppController.openProject(id)
+            spacing: Theme.gap
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Rejoindre"
+                primary: true
+                onClicked: joinDialog.open()
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Démo cinéma"
+                onClicked: {
+                    const id = AppController.seedDemoProject()
+                    if (id.length)
+                        AppController.openProject(id)
+                }
             }
         }
 
@@ -91,7 +148,8 @@ Item {
                     implicitHeight: cardCol.implicitHeight + 20
                     radius: Theme.radiusLg
                     color: Theme.surface
-                    border.color: Theme.outline
+                    border.color: shared ? Theme.accent : Theme.outline
+                    border.width: shared ? 1.5 : 1
 
                     ColumnLayout {
                         id: cardCol
@@ -111,14 +169,32 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 2
-                                Label {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    text: title
-                                    color: Theme.text
-                                    font.pixelSize: 16
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: title
+                                        color: Theme.text
+                                        font.pixelSize: 16
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                    }
+                                    Rectangle {
+                                        visible: shared
+                                        radius: 6
+                                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.2)
+                                        implicitWidth: sharedLbl.implicitWidth + 12
+                                        implicitHeight: 20
+                                        Label {
+                                            id: sharedLbl
+                                            anchors.centerIn: parent
+                                            text: "Partagé"
+                                            color: Theme.accent
+                                            font.pixelSize: 11
+                                            font.weight: Font.DemiBold
+                                        }
+                                    }
                                 }
                                 Label {
                                     Layout.fillWidth: true
@@ -146,20 +222,24 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
+                            BingoButton {
+                                text: "⋯"
+                                onClicked: {
+                                    page.menuProjectId = projectId
+                                    page.menuProjectTitle = title
+                                    page.menuShared = !!shared
+                                    cardMenu.popup()
+                                }
+                            }
                             Item { Layout.fillWidth: true }
+                            BingoButton {
+                                text: "Partager"
+                                onClicked: shareSheet.openFor(projectId, title)
+                            }
                             BingoButton {
                                 text: "Ouvrir"
                                 primary: true
                                 onClicked: AppController.openProject(projectId)
-                            }
-                            BingoButton {
-                                text: "Suppr."
-                                danger: true
-                                onClicked: {
-                                    page.deleteTargetId = projectId
-                                    page.deleteTargetTitle = title
-                                    confirmDelete.open()
-                                }
                             }
                         }
                     }
@@ -184,8 +264,97 @@ Item {
             }
         }
 
-        // Marge au-dessus de la barre de geste Android.
         Item { Layout.preferredHeight: Theme.pad * 2 }
+    }
+
+    ColoDialog {
+        id: joinDialog
+        title: "Rejoindre une partie"
+        acceptText: "Rejoindre"
+        acceptEnabled: uriField.text.trim().length > 0
+
+        BingoButton {
+            Layout.fillWidth: true
+            text: "Scanner le QR code"
+            primary: true
+            onClicked: {
+                joinDialog.close()
+                scanPopup.open()
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+            text: "ou collez le lien reçu"
+            color: Theme.textDim
+            font.pixelSize: 13
+        }
+
+        ColoTextField {
+            id: uriField
+            Layout.fillWidth: true
+            hint: "openbingo://join/1/…"
+            onAccepted: if (joinDialog.acceptEnabled) joinDialog.accept()
+        }
+
+        onOpened: {
+            uriField.text = ""
+            uriField.forceActiveFocus()
+        }
+        onAccepted: {
+            if (!AppController.joinProjectUri(uriField.text.trim()))
+                AppController.notify("Lien d'invitation invalide")
+        }
+    }
+
+    Popup {
+        id: scanPopup
+        parent: Overlay.overlay
+        width: parent.width
+        height: parent.height
+        padding: 0
+        modal: true
+        closePolicy: Popup.CloseOnEscape
+        background: Rectangle { color: "black" }
+
+        Loader {
+            id: scanLoader
+            anchors.fill: parent
+            source: scanPopup.opened ? "ScanPage.qml" : ""
+
+            onStatusChanged: {
+                if (status === Loader.Error) {
+                    scanPopup.close()
+                    AppController.notify("Caméra indisponible — collez le lien à la place")
+                    joinDialog.open()
+                }
+            }
+        }
+
+        Connections {
+            target: scanLoader.item
+            ignoreUnknownSignals: true
+            function onJoined() { scanPopup.close() }
+            function onCloseRequested() { scanPopup.close() }
+        }
+    }
+
+    ColoDialog {
+        id: leaveDialog
+        title: "Quitter la partie ?"
+        acceptText: "Quitter"
+        destructive: true
+
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            color: Theme.textDim
+            font.pixelSize: 14
+            text: "« " + page.leaveTargetTitle + " » sera effacé de cet appareil. "
+                  + "Les autres participants le gardent, et vous pourrez le rejoindre à nouveau avec le lien ou le QR."
+        }
+        onAccepted: AppController.leaveProject(page.leaveTargetId)
     }
 
     ColoDialog {

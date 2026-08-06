@@ -34,9 +34,10 @@ public:
                                              const std::string& playerName);
     bool deletePlayChecksForProject(const std::string& projectId);
 
-    // Sync (stack réseau Colo)
+    // Sync Nostr (même stack que Colo) : clé stable une fois le partage activé.
     bool setSyncKey(const std::string& projectId, const std::vector<uint8_t>& key);
     std::optional<std::vector<uint8_t>> getSyncKey(const std::string& projectId);
+    bool clearSyncKey(const std::string& projectId);
     std::vector<std::string> sharedProjectIds();
     bool outboxPush(const std::string& projectId, const std::string& eventId,
                     const std::string& content);

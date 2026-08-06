@@ -136,10 +136,14 @@ public:
     Q_INVOKABLE void pickImportAllJson();
 
     Q_INVOKABLE QString buildShareUrl();
+    Q_INVOKABLE QString joinUriForProject(const QString& projectId);
     Q_INVOKABLE bool importSharePayload(const QString& payload);
     Q_INVOKABLE void enableProjectSharing();
     Q_INVOKABLE bool joinProjectUri(const QString& uri);
     Q_INVOKABLE void handleJoinUrl(const QUrl& url);
+    // Comme Colo « Quitter la liste » : retire le projet de cet appareil.
+    Q_INVOKABLE void leaveProject(const QString& projectId);
+    Q_INVOKABLE bool isProjectShared(const QString& projectId) const;
 
     Q_INVOKABLE QVariantList loadPlayChecks(const QString& playerName);
     Q_INVOKABLE void savePlayChecks(const QString& playerName, const QVariantList& checks);

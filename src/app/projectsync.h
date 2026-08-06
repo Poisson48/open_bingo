@@ -33,10 +33,14 @@ public:
     int  pendingChanges() const;
 
     Q_INVOKABLE void enableSharing(const QString& projectId);
+    // URI openbingo://join/1/… (génère la clé si besoin, sans la régénérer).
     Q_INVOKABLE QString joinUri(const QString& projectId, const QString& title);
-    Q_INVOKABLE bool joinFromUri(const QString& uri);
+    // Rejoint un projet ; renvoie l'id local ou chaîne vide si lien invalide.
+    Q_INVOKABLE QString joinFromUri(const QString& uri);
     Q_INVOKABLE void onLocalProjectChange(const QString& projectId);
     Q_INVOKABLE void subscribeAll(int64_t since = 0);
+    // Arrête la sync locale (clé + abonnement) sans toucher les autres appareils.
+    Q_INVOKABLE void leaveSharing(const QString& projectId);
 
 public slots:
     void handleRelayEvent(const net::NostrEvent& ev);

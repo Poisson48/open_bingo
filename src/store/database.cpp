@@ -213,6 +213,14 @@ std::optional<std::vector<uint8_t>> Database::getSyncKey(const std::string& proj
     return std::vector<uint8_t>(blob.begin(), blob.end());
 }
 
+bool Database::clearSyncKey(const std::string& projectId)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("DELETE FROM sync_keys WHERE project_id = ?"));
+    q.addBindValue(QString::fromStdString(projectId));
+    return q.exec();
+}
+
 std::vector<std::string> Database::sharedProjectIds()
 {
     std::vector<std::string> ids;
