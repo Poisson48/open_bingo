@@ -113,7 +113,8 @@ Popup {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 48
+                Layout.preferredHeight: Math.max(36, Math.min(44, fs.overlayH * 0.1))
+                Layout.maximumHeight: 48
                 color: Theme.surface
                 border.color: Theme.outline
                 z: 2
@@ -128,14 +129,14 @@ Popup {
                         Layout.fillWidth: true
                         text: fs.playerName
                         color: Theme.accent
-                        font.pixelSize: 16
+                        font.pixelSize: Math.max(13, Math.min(18, fs.overlayH * 0.045))
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
                     Label {
                         text: fs.checkedCount + " cochées"
                         color: Theme.textDim
-                        font.pixelSize: 12
+                        font.pixelSize: Math.max(11, Math.min(14, fs.overlayH * 0.035))
                     }
                     BingoButton {
                         text: "Quitter"
@@ -148,7 +149,7 @@ Popup {
                 id: gridHost
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 8
+                Layout.margins: Math.max(4, Math.min(12, Math.min(fs.overlayW, fs.overlayH) * 0.015))
 
                 BingoGrid {
                     id: playGrid
@@ -157,6 +158,7 @@ Popup {
                     availableHeight: Math.max(40, gridHost.height)
                     rows: fs.rows
                     interactive: true
+                    hidePoints: true
                     checks: fs.checks
                     bingoSet: fs.bingoSet
                     bingoRevision: fs.bingoRevision
@@ -175,7 +177,7 @@ Popup {
 
             Label {
                 Layout.fillWidth: true
-                Layout.margins: 8
+                Layout.margins: 6
                 visible: !fs.landscapeHint && gridHost.height > 0
                 text: "Tournez le téléphone en paysage pour une grille plus grande"
                 wrapMode: Text.WordWrap
