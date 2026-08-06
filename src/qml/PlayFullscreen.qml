@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 
-// Overlay plein écran « Sans papier » — taille liée à l'overlay (rotation paysage OK).
+// Play plein écran — ancré sur Overlay (pas de x/y manuels qui ratent la taille).
 Popup {
     id: fs
     property string playerName: ""
@@ -15,18 +15,17 @@ Popup {
 
     parent: Overlay.overlay
     modal: true
-    dim: true
+    dim: false
     focus: true
     padding: 0
+    margins: 0
     closePolicy: Popup.NoAutoClose
-    Overlay.modal: Rectangle { color: Theme.background }
 
-    readonly property real overlayW: Overlay.overlay ? Overlay.overlay.width : Screen.width
-    readonly property real overlayH: Overlay.overlay ? Overlay.overlay.height : Screen.height
+    // Popup Qt 6.4 n'accepte pas anchors.fill — lier explicitement à l'overlay.
     x: 0
     y: 0
-    width: overlayW
-    height: overlayH
+    width: Overlay.overlay ? Overlay.overlay.width : Screen.width
+    height: Overlay.overlay ? Overlay.overlay.height : Screen.height
 
     onOpened: {
         AppController.setKeepScreenOn(true)
@@ -36,7 +35,6 @@ Popup {
     onClosed: {
         AppController.setImmersive(false)
         AppController.unlockOrientation()
-        // L'onglet Play remet keep-screen-on si on y reste.
         AppController.setKeepScreenOn(AppController.lastTab === 4)
     }
 
@@ -99,92 +97,95 @@ Popup {
         return n
     }
 
-    readonly property bool landscapeHint: overlayH < overlayW * 0.75
-
-    background: Rectangle { color: Theme.background }
+    background: Rectangle { color: Theme.background; anchors.fill: parent }
 
     contentItem: Item {
-        width: fs.width
-        height: fs.height
+        anchors.fill: parent
+        clip: true
 
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 0
+        Rectangle {
+            id: topBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: Math.round(Math.min(40, Math.max(34, parent.height * 0.08)))
+            color: Theme.surface
+            z: 2
 
             Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(36, Math.min(44, fs.overlayH * 0.1))
-                Layout.maximumHeight: 48
-                color: Theme.surface
-                border.color: Theme.outline
-                z: 2
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 8
-                    spacing: 8
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: fs.playerName
-                        color: Theme.accent
-                        font.pixelSize: Math.max(13, Math.min(18, fs.overlayH * 0.045))
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                    }
-                    Label {
-                        text: fs.checkedCount + " cochées"
-                        color: Theme.textDim
-                        font.pixelSize: Math.max(11, Math.min(14, fs.overlayH * 0.035))
-                    }
-                    BingoButton {
-                        text: "Quitter"
-                        onClicked: fs.close()
-                    }
-                }
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: Theme.outline
             }
 
-            Item {
-                id: gridHost
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.margins: Math.max(4, Math.min(12, Math.min(fs.overlayW, fs.overlayH) * 0.015))
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 12
+                spacing: 8
 
-                BingoGrid {
-                    id: playGrid
-                    anchors.centerIn: parent
-                    availableWidth: Math.max(40, gridHost.width)
-                    availableHeight: Math.max(40, gridHost.height)
-                    rows: fs.rows
-                    interactive: true
-                    hidePoints: true
-                    checks: fs.checks
-                    bingoSet: fs.bingoSet
-                    bingoRevision: fs.bingoRevision
-                    gageMode: AppController.gageMode
-                    gages: AppController.gages
-                    onCellClicked: function(r, c) { fs.toggle(r, c) }
+                Label {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 48
+                    text: fs.playerName
+                    color: Theme.accent
+                    font.pixelSize: Math.max(13, Math.min(17, topBar.height * 0.45))
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
                 }
 
                 Label {
-                    anchors.centerIn: parent
-                    visible: !fs.rows || fs.rows.length === 0
-                    text: "Aucune grille"
+                    text: fs.width < 520 ? String(fs.checkedCount)
+                                         : (fs.checkedCount + " cochées")
                     color: Theme.textDim
+                    font.pixelSize: 12
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                IconButton {
+                    iconName: "close"
+                    iconColor: Theme.text
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.rightMargin: 4
+                    onClicked: fs.close()
                 }
             }
+        }
 
-            Label {
-                Layout.fillWidth: true
-                Layout.margins: 6
-                visible: !fs.landscapeHint && gridHost.height > 0
-                text: "Tournez le téléphone en paysage pour une grille plus grande"
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.warning
-                font.pixelSize: 12
-            }
+        // Grille : 100 % de la largeur et de la hauteur restantes.
+        BingoGrid {
+            id: playGrid
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: topBar.bottom
+            anchors.bottom: parent.bottom
+            anchors.margins: 3
+            availableWidth: width
+            availableHeight: height
+            fillBounds: true
+            rows: fs.rows
+            interactive: true
+            hidePoints: true
+            checks: fs.checks
+            bingoSet: fs.bingoSet
+            bingoRevision: fs.bingoRevision
+            gageMode: AppController.gageMode
+            gages: AppController.gages
+            onCellClicked: function(r, c) { fs.toggle(r, c) }
+        }
+
+        Label {
+            anchors.centerIn: playGrid
+            visible: !fs.rows || fs.rows.length === 0
+            text: "Aucune grille"
+            color: Theme.textDim
+            z: 1
         }
     }
 }
