@@ -7,8 +7,8 @@ ScrollView {
     contentWidth: availableWidth
 
     ColumnLayout {
-        width: availableWidth - Theme.pad * 2
-        anchors.margins: Theme.pad
+        x: Theme.pad
+        width: Math.max(0, availableWidth - Theme.pad * 2)
         spacing: Theme.gap
 
         Label {
@@ -17,6 +17,7 @@ ScrollView {
                   + AppController.availableCells + " cellules disponibles"
             color: Theme.textDim
             font.pixelSize: 13
+            wrapMode: Text.WordWrap
         }
         Label {
             Layout.fillWidth: true
@@ -43,25 +44,29 @@ ScrollView {
                     Layout.fillWidth: true
                     hint: "Texte de la case"
                 }
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 8
+                    rowSpacing: 8
                     Label { text: "Points"; color: Theme.textDim; font.pixelSize: 12 }
-                    SpinBox { id: pts; from: 0; to: 99; value: 1 }
-                    Label { text: "Taux %"; color: Theme.textDim; font.pixelSize: 12; Layout.leftMargin: 8 }
+                    SpinBox { id: pts; from: 0; to: 99; value: 1; Layout.fillWidth: true }
+                    Label { text: "Taux %"; color: Theme.textDim; font.pixelSize: 12 }
                     SpinBox {
                         id: rate
                         from: 0; to: 100; value: 50
+                        Layout.fillWidth: true
                         textFromValue: function(value, locale) { return value + " %"; }
                     }
-                    Item { Layout.fillWidth: true }
-                    BingoButton {
-                        text: "Ajouter"
-                        primary: true
-                        onClicked: {
-                            if (newLabel.text.trim().length === 0) return
-                            AppController.addCase(newLabel.text, pts.value, rate.value)
-                            newLabel.text = ""
-                        }
+                }
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: "Ajouter"
+                    primary: true
+                    onClicked: {
+                        if (newLabel.text.trim().length === 0) return
+                        AppController.addCase(newLabel.text, pts.value, rate.value)
+                        newLabel.text = ""
                     }
                 }
             }
@@ -105,27 +110,33 @@ ScrollView {
             model: AppController.cases
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 52
+                implicitHeight: caseRow.implicitHeight + 20
                 radius: Theme.radius
                 color: Theme.surface
                 border.color: Theme.outline
                 RowLayout {
-                    anchors.fill: parent
+                    id: caseRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
                     anchors.margins: 10
+                    spacing: 8
                     Label {
                         Layout.fillWidth: true
                         text: modelData.label
                         color: Theme.text
                         font.pixelSize: 14
-                        elide: Text.ElideRight
-                        maximumLineCount: 2
                         wrapMode: Text.WordWrap
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
                     }
                     Label {
                         text: modelData.points + " pt · " + modelData.rate + "%"
                         color: Theme.textDim
                         font.pixelSize: 12
-                        Layout.preferredWidth: implicitWidth
+                        Layout.maximumWidth: 96
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignRight
                     }
                     ToolButton {
                         text: "✕"
@@ -169,6 +180,8 @@ ScrollView {
                         text: (index + 1) + ". " + modelData.description
                         color: Theme.text
                         wrapMode: Text.WordWrap
+                        maximumLineCount: 4
+                        elide: Text.ElideRight
                         font.pixelSize: 13
                     }
                 }

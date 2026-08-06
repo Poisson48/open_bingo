@@ -333,6 +333,12 @@ QVariantList AppController::gridsToVariant() const
 }
 
 QVariantList AppController::grids() const { return gridsToVariant(); }
+
+void AppController::notify(const QString& message)
+{
+    emit toast(message);
+}
+
 QVariantMap AppController::multipliers() const
 {
     return m_hasCurrent ? multToMap(m_current.multipliers) : QVariantMap();
@@ -437,6 +443,8 @@ void AppController::saveConfig()
     m_current.grids.clear();
     clearGridsDirtyFlag();
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
     emit toast(QStringLiteral("Configuration enregistrée — grilles réinitialisées"));
 }
@@ -559,17 +567,27 @@ void AppController::setComboGage(const QString& key, const QString& value)
 
 QString AppController::generateAll()
 {
-    if (!m_hasCurrent)
-        return QStringLiteral("Aucun projet ouvert.");
+    if (!m_hasCurrent) {
+        const auto msg = QStringLiteral("Aucun projet ouvert.");
+        emit toast(msg);
+        return msg;
+    }
     const auto result = core::generateAll(m_current);
-    if (result.error)
-        return QString::fromStdString(result.message);
+    if (result.error) {
+        const auto msg = QString::fromStdString(result.message);
+        emit toast(msg);
+        return msg;
+    }
     clearGridsDirtyFlag();
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
-    if (result.repeats)
-        return QStringLiteral("Grilles générées (doublons possibles — pool insuffisant).");
-    return QStringLiteral("Grilles générées.");
+    const auto msg = result.repeats
+        ? QStringLiteral("Grilles générées (doublons possibles — pool insuffisant).")
+        : QStringLiteral("Grilles générées.");
+    emit toast(msg);
+    return msg;
 }
 
 QString AppController::seedDemoProject()
@@ -651,6 +669,8 @@ void AppController::reshuffleGrid(int playerIdx)
         return;
     core::reshuffleGrid(m_current, playerIdx, core::Rng{});
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
 }
 
@@ -665,6 +685,8 @@ void AppController::swapGridCells(int playerIdx, int r1, int c1, int r2, int c2)
         return;
     std::swap(cells[r1][c1], cells[r2][c2]);
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
 }
 
@@ -677,6 +699,8 @@ void AppController::replaceGridCell(int playerIdx, int row, int col, int caseIdx
     const auto& src = m_current.cases[static_cast<size_t>(caseIdx)];
     cells[row][col] = { src.label, src.points, src.rate, "", 0, false };
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
 }
 
@@ -691,6 +715,8 @@ void AppController::moveGrid(int fromIdx, int toIdx)
     m_current.grids.erase(m_current.grids.begin() + fromIdx);
     m_current.grids.insert(m_current.grids.begin() + toIdx, g);
     persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
     emit currentProjectChanged();
 }
 

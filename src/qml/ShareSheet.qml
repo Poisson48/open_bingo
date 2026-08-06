@@ -37,6 +37,8 @@ Popup {
             color: Theme.text
             font.pixelSize: 17
             font.weight: Font.DemiBold
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
             elide: Text.ElideRight
         }
 
@@ -91,7 +93,7 @@ Popup {
                 if (AppController.joinProjectUri(pasteUri.text.trim())) {
                     sheet.close()
                 } else {
-                    AppController.toast("Lien invalide")
+                    AppController.notify("Lien invalide")
                 }
             }
         }

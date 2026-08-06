@@ -7,7 +7,8 @@ ScrollView {
     contentWidth: availableWidth
 
     ColumnLayout {
-        width: availableWidth - Theme.pad * 2
+        x: Theme.pad
+        width: Math.max(0, availableWidth - Theme.pad * 2)
         spacing: Theme.gap
 
         Label {
@@ -45,6 +46,8 @@ ScrollView {
                         color: Theme.text
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
+                        maximumLineCount: 2
+                        wrapMode: Text.WordWrap
                     }
                     BingoGrid {
                         Layout.fillWidth: true

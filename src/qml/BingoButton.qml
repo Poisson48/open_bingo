@@ -10,6 +10,7 @@ Button {
     padding: primary ? 12 : 10
 
     contentItem: Label {
+        width: Math.max(0, btn.availableWidth)
         text: btn.text
         font.pixelSize: primary ? 14 : 13
         font.weight: primary ? Font.DemiBold : Font.Normal
@@ -19,6 +20,9 @@ Button {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+        maximumLineCount: 2
+        wrapMode: Text.Wrap
+        clip: true
     }
 
     background: Rectangle {

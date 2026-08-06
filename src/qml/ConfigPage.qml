@@ -7,10 +7,10 @@ ScrollView {
     contentWidth: availableWidth
 
     ColumnLayout {
-        width: Math.min(availableWidth - Theme.pad * 2, Theme.contentMax)
+        x: Theme.pad
+        width: Math.min(Math.max(0, availableWidth - Theme.pad * 2), Theme.contentMax)
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: Theme.gap
-        anchors.margins: Theme.pad
 
         Rectangle {
             Layout.fillWidth: true
@@ -42,30 +42,34 @@ ScrollView {
                 Label { text: "Grille"; color: Theme.text; font.weight: Font.DemiBold; font.pixelSize: 14 }
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "Taille"; color: Theme.textDim; Layout.fillWidth: true }
+                    Label { text: "Taille"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     SpinBox {
-                        from: 2; to: 12; value: AppController.gridSize
+                        from: 2; to: 12
+                        value: AppController.gridSize
                         onValueModified: AppController.gridSize = value
                     }
                 }
 
                 CheckBox {
+                    Layout.fillWidth: true
                     text: "Case FREE au centre"
                     checked: AppController.freeCenter
-                    onCheckedChanged: AppController.freeCenter = checked
+                    onClicked: AppController.freeCenter = checked
                 }
                 CheckBox {
+                    Layout.fillWidth: true
                     text: "Mode gage"
                     checked: AppController.gageMode
-                    onCheckedChanged: AppController.gageMode = checked
+                    onClicked: AppController.gageMode = checked
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     visible: !AppController.gageMode
-                    Label { text: "HP de départ"; color: Theme.textDim; Layout.fillWidth: true }
+                    Label { text: "HP de départ"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     SpinBox {
-                        from: 1; to: 100; value: AppController.startHP
+                        from: 1; to: 100
+                        value: AppController.startHP
                         onValueModified: AppController.startHP = value
                     }
                 }
@@ -76,6 +80,8 @@ ScrollView {
                     color: Theme.text
                     font.weight: Font.DemiBold
                     font.pixelSize: 14
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
                 GridLayout {
                     Layout.fillWidth: true
@@ -83,24 +89,28 @@ ScrollView {
                     columns: 2
                     rowSpacing: 8
                     columnSpacing: 12
-                    Label { text: "Ligne"; color: Theme.textDim }
+                    Label { text: "Ligne"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
                     SpinBox {
-                        from: 1; to: 99; value: AppController.multipliers.line
+                        from: 1; to: 99
+                        value: AppController.multipliers.line
                         onValueModified: AppController.setMultiplier("line", value)
                     }
-                    Label { text: "Colonne"; color: Theme.textDim }
+                    Label { text: "Colonne"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
                     SpinBox {
-                        from: 1; to: 99; value: AppController.multipliers.column
+                        from: 1; to: 99
+                        value: AppController.multipliers.column
                         onValueModified: AppController.setMultiplier("column", value)
                     }
-                    Label { text: "Diagonale"; color: Theme.textDim }
+                    Label { text: "Diagonale"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
                     SpinBox {
-                        from: 1; to: 99; value: AppController.multipliers.diagonal
+                        from: 1; to: 99
+                        value: AppController.multipliers.diagonal
                         onValueModified: AppController.setMultiplier("diagonal", value)
                     }
-                    Label { text: "Grille complète"; color: Theme.textDim }
+                    Label { text: "Grille complète"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
                     SpinBox {
-                        from: 1; to: 99; value: AppController.multipliers.full
+                        from: 1; to: 99
+                        value: AppController.multipliers.full
                         onValueModified: AppController.setMultiplier("full", value)
                     }
                 }
@@ -136,6 +146,7 @@ ScrollView {
                     }
                 }
                 BingoButton {
+                    Layout.fillWidth: true
                     text: "+ Ajouter un joueur"
                     onClicked: AppController.addPlayer()
                 }

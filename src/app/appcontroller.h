@@ -33,7 +33,8 @@ class AppController : public QObject
     Q_PROPERTY(QVariantList players READ players NOTIFY currentProjectChanged)
     Q_PROPERTY(QVariantList cases READ cases NOTIFY currentProjectChanged)
     Q_PROPERTY(QVariantList gages READ gages NOTIFY currentProjectChanged)
-    Q_PROPERTY(QVariantList grids READ grids NOTIFY currentProjectChanged)
+    Q_PROPERTY(QVariantList grids READ grids NOTIFY gridsChanged)
+    Q_PROPERTY(int gridsRevision READ gridsRevision NOTIFY gridsChanged)
     Q_PROPERTY(QVariantMap multipliers READ multipliers NOTIFY currentProjectChanged)
     Q_PROPERTY(QVariantMap comboGages READ comboGages NOTIFY currentProjectChanged)
     Q_PROPERTY(int availableCells READ availableCells NOTIFY currentProjectChanged)
@@ -64,6 +65,7 @@ public:
     QVariantList cases() const;
     QVariantList gages() const;
     QVariantList grids() const;
+    int gridsRevision() const { return m_gridsRevision; }
     QVariantMap multipliers() const;
     QVariantMap comboGages() const;
     int availableCells() const;
@@ -146,6 +148,7 @@ public:
     Q_INVOKABLE bool shareText(const QString& text);
     Q_INVOKABLE bool printPreview();
     Q_INVOKABLE bool saveScreenshot(const QString& filePath);
+    Q_INVOKABLE void notify(const QString& message);
 
     Q_INVOKABLE QString formatRelativeDate(qint64 ms) const;
 
@@ -153,6 +156,7 @@ public:
 
 signals:
     void currentProjectChanged();
+    void gridsChanged();
     void gridsDirtyChanged();
     void lastTabChanged();
     void onlineChanged();
@@ -177,6 +181,7 @@ private:
     core::Project                    m_current;
     bool                             m_hasCurrent = false;
     bool                             m_gridsDirty = false;
+    int                              m_gridsRevision = 0;
     int                              m_lastTab     = 0;
     QTimer                           m_autoSaveTimer;
 };

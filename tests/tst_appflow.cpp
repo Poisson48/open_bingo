@@ -66,6 +66,19 @@ private slots:
         QVERIFY(imported >= 1);
         QVERIFY(controller.projects()->rowCount() >= 1);
     }
+    void generateAllRequiresCases()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        controller.createProject();
+        const QString msg = controller.generateAll();
+        QVERIFY2(msg.contains(QStringLiteral("case")), qPrintable(msg));
+        QCOMPARE(controller.grids().size(), 0);
+    }
 };
 
 int main(int argc, char* argv[])

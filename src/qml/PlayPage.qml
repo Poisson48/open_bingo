@@ -7,8 +7,8 @@ ScrollView {
     contentWidth: availableWidth
 
     ColumnLayout {
-        width: availableWidth - Theme.pad * 2
-        anchors.margins: Theme.pad
+        x: Theme.pad
+        width: Math.max(0, availableWidth - Theme.pad * 2)
         spacing: Theme.gap
 
         ComboBox {

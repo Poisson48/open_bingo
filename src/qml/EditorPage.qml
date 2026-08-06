@@ -31,10 +31,14 @@ Item {
             implicitHeight: 44
             color: Theme.surface
             BingoTabBar {
+                id: tabBar
                 anchors.fill: parent
                 labels: ["Config", "Phrases", "Grilles", "Impression", "Play"]
-                currentIndex: tabs.currentIndex
-                onCurrentIndexChanged: tabs.currentIndex = currentIndex
+                currentIndex: AppController.lastTab
+                onCurrentIndexChanged: {
+                    if (AppController.lastTab !== currentIndex)
+                        AppController.lastTab = currentIndex
+                }
             }
             Rectangle {
                 anchors.bottom: parent.bottom
@@ -44,32 +48,26 @@ Item {
             }
         }
 
-        Item {
-            id: tabs
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            property int currentIndex: AppController.lastTab
-            onCurrentIndexChanged: AppController.lastTab = currentIndex
+            currentIndex: AppController.lastTab
 
-            StackLayout {
-                anchors.fill: parent
-                currentIndex: tabs.currentIndex
-                ConfigPage {}
-                CasesPage {}
-                GridsPage {}
-                PrintPage {}
-                PlayPage {}
-            }
+            ConfigPage {}
+            CasesPage {}
+            GridsPage {}
+            PrintPage {}
+            PlayPage {}
         }
     }
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }
 
-    Component.onCompleted: AppController.setKeepScreenOn(tabs.currentIndex === 4)
+    Component.onCompleted: AppController.setKeepScreenOn(AppController.lastTab === 4)
     Connections {
-        target: tabs
-        function onCurrentIndexChanged() {
-            AppController.setKeepScreenOn(tabs.currentIndex === 4)
+        target: AppController
+        function onLastTabChanged() {
+            AppController.setKeepScreenOn(AppController.lastTab === 4)
         }
     }
 }

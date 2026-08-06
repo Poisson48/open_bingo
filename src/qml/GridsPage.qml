@@ -7,8 +7,8 @@ ScrollView {
     contentWidth: availableWidth
 
     ColumnLayout {
-        width: availableWidth - Theme.pad * 2
-        anchors.margins: Theme.pad
+        x: Theme.pad
+        width: Math.max(0, availableWidth - Theme.pad * 2)
         spacing: Theme.gap
 
         Label {
@@ -19,10 +19,29 @@ ScrollView {
             wrapMode: Text.WordWrap
         }
 
+        Label {
+            Layout.fillWidth: true
+            visible: AppController.cases.length === 0
+            text: "Ajoutez des phrases dans l'onglet Phrases avant de générer."
+            color: Theme.textDim
+            wrapMode: Text.WordWrap
+            font.pixelSize: 13
+        }
+
         BingoButton {
+            Layout.fillWidth: true
             text: "Générer toutes les grilles"
             primary: true
             onClicked: AppController.generateAll()
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: AppController.grids.length === 0 && AppController.cases.length > 0
+            text: "Aucune grille — cliquez sur « Générer toutes les grilles »."
+            color: Theme.textDim
+            wrapMode: Text.WordWrap
+            font.pixelSize: 13
         }
 
         Repeater {
@@ -44,6 +63,7 @@ ScrollView {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        spacing: 6
                         Column {
                             spacing: 2
                             BingoButton {
@@ -64,6 +84,7 @@ ScrollView {
                             font.weight: Font.DemiBold
                             font.pixelSize: 15
                             elide: Text.ElideRight
+                            maximumLineCount: 1
                         }
                         BingoButton {
                             text: "Reshuffle"

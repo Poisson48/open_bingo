@@ -14,11 +14,14 @@ TextField {
     placeholderTextColor: Theme.textDim
     font.pixelSize: 14
     selectByMouse: true
+    clip: true
+    maximumLength: 512
 
     background: Rectangle {
         radius: Theme.radius
         color: Theme.inputBg
         border.width: field.activeFocus ? 2 : 1
         border.color: field.activeFocus ? Theme.accent : Theme.outlineLight
+        clip: true
     }
 }
