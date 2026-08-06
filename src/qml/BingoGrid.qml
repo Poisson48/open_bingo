@@ -67,14 +67,15 @@ Column {
     property bool didDrag: false
     readonly property real dragThreshold: 10
 
-    // Une seule taille pour toute la grille = rendu homogène (calée sur le pire texte).
+    // Police confortable selon la case ; le texte peut aller à la ligne.
+    // On ne réduit que si le mot le plus long ne tient pas, ou si trop de lignes.
     readonly property real uniformFontSize: {
         const side = Math.min(cellW, cellH)
         if (side <= 0 || n <= 0)
-            return 10
+            return 12
 
-        let maxLen = 4
         let maxWord = 4
+        let maxLen = 4
         for (let r = 0; r < n; ++r) {
             const row = rows[r]
             if (!row) continue
@@ -88,36 +89,45 @@ Column {
             }
         }
 
-        const pad = Math.max(2, side * 0.04)
+        const pad = Math.max(2, side * 0.05)
         const usableW = Math.max(10, cellW - pad * 2)
         const usableH = Math.max(10, cellH - pad * 2)
-        const glyph = 0.68
-        const lineFactor = 1.22
+        const glyph = 0.62
+        const lineFactor = 1.2
 
-        const maxFsz = Math.max(9, Math.floor(side * 0.26))
-        for (let fsz = maxFsz; fsz >= 7; --fsz) {
+        // Taille « confort » basée sur la case (priorité lisibilité + wrap).
+        let fsz = Math.max(10, Math.floor(side * 0.20))
+        fsz = Math.min(fsz, Math.floor(side * 0.28))
+
+        // Le plus long mot doit tenir sur UNE ligne (sinon on descend).
+        while (fsz > 8 && Math.floor(usableW / (fsz * glyph)) < maxWord)
+            --fsz
+
+        // Avec wrap, assez de lignes pour le texte le plus long ?
+        while (fsz > 8) {
             const charsPerLine = Math.max(2, Math.floor(usableW / (fsz * glyph)))
-            if (charsPerLine < maxWord)
-                continue
             const maxLines = Math.max(1, Math.floor(usableH / (fsz * lineFactor)))
-            if (charsPerLine * maxLines >= Math.ceil(maxLen * 1.2))
-                return fsz
+            // Marge soft : le wrap aux mots n'utilise pas 100 % de chaque ligne.
+            if (charsPerLine * maxLines >= Math.ceil(maxLen * 1.1))
+                break
+            --fsz
         }
-        return 7
+        return fsz
     }
 
     function cellFontSize(label, free) {
         const side = Math.min(cellW, cellH)
         if (free)
-            return Math.max(uniformFontSize, Math.min(Math.floor(side * 0.28), uniformFontSize + 4))
+            return Math.max(uniformFontSize + 1, Math.min(Math.floor(side * 0.30), uniformFontSize + 6))
         return uniformFontSize
     }
 
     function maxLabelLines(fsz) {
-        const pad = Math.max(2, Math.min(cellW, cellH) * 0.04)
+        const pad = Math.max(2, Math.min(cellW, cellH) * 0.05)
         const usableH = cellH - pad * 2
-        const lineH = Math.max(1, fsz * 1.22)
-        return Math.max(1, Math.min(10, Math.floor(usableH / lineH)))
+        const lineH = Math.max(1, fsz * 1.2)
+        // Autant de lignes que la case peut contenir — le wrap est voulu.
+        return Math.max(2, Math.min(12, Math.floor(usableH / lineH)))
     }
 
     function longestWordLen(text) {
