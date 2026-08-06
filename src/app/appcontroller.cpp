@@ -224,16 +224,28 @@ bool AppController::init()
     if (m_projectModel->rowCount() == 0) {
         const QString demoId = seedDemoProject();
         if (!demoId.isEmpty()) {
-            m_lastTab = 4; // Play
-            m_db->setSetting("last_tab", "4");
+            m_lastTab = 5; // Play
+            m_db->setSetting("last_tab", "5");
             openProject(demoId);
             emit toast(QStringLiteral("Projet démo chargé — cochez des cases dans Play !"));
             return true;
         }
     }
 
-    if (auto lastTab = m_db->getSetting("last_tab"))
+    // Migration 5 → 6 onglets (insertion de « Gages » après Phrases).
+    const auto tabsVer = m_db->getSetting("editor_tabs_v");
+    if (!tabsVer || *tabsVer != "6") {
+        if (auto lastTab = m_db->getSetting("last_tab")) {
+            int t = QString::fromStdString(*lastTab).toInt();
+            if (t >= 2)
+                ++t; // Grilles/Impression/Play décalés
+            m_lastTab = t;
+            m_db->setSetting("last_tab", std::to_string(t));
+        }
+        m_db->setSetting("editor_tabs_v", "6");
+    } else if (auto lastTab = m_db->getSetting("last_tab")) {
         m_lastTab = QString::fromStdString(*lastTab).toInt();
+    }
 
     const auto currentId = m_db->getSetting("current_project_id");
     if (currentId && openProject(QString::fromStdString(*currentId)))
@@ -366,9 +378,9 @@ void AppController::setGageMode(bool v)
 
 void AppController::setLastTab(int v)
 {
-    m_lastTab = v;
+    m_lastTab = qBound(0, v, 5);
     if (m_db)
-        m_db->setSetting("last_tab", QString::number(v).toStdString());
+        m_db->setSetting("last_tab", QString::number(m_lastTab).toStdString());
     emit lastTabChanged();
 }
 
@@ -480,7 +492,7 @@ QString AppController::createProject()
         m_current.description = "Modifiez les phrases, puis régénérez les grilles.";
         persistCurrent();
         emit currentProjectChanged();
-        m_lastTab = 2; // Grilles
+        m_lastTab = 3; // Grilles
         emit lastTabChanged();
         emit toast(QStringLiteral("Projet créé avec grilles — regénérez après vos modifications."));
     }
@@ -646,7 +658,12 @@ void AppController::addGage(const QString& description, int hp)
 {
     if (!m_hasCurrent)
         return;
-    m_current.gages.push_back({ description.toStdString(), hp });
+    const QString trimmed = description.trimmed();
+    if (trimmed.isEmpty()) {
+        emit toast(QStringLiteral("Écrivez la description du gage"));
+        return;
+    }
+    m_current.gages.push_back({ trimmed.toStdString(), hp });
     emit currentProjectChanged();
     scheduleAutoSave();
 }
@@ -655,7 +672,12 @@ void AppController::updateGage(int index, const QString& description, int hp)
 {
     if (!m_hasCurrent || index < 0 || index >= static_cast<int>(m_current.gages.size()))
         return;
-    m_current.gages[static_cast<size_t>(index)] = { description.toStdString(), hp };
+    const QString trimmed = description.trimmed();
+    if (trimmed.isEmpty()) {
+        emit toast(QStringLiteral("Écrivez la description du gage"));
+        return;
+    }
+    m_current.gages[static_cast<size_t>(index)] = { trimmed.toStdString(), hp };
     emit currentProjectChanged();
     scheduleAutoSave();
 }

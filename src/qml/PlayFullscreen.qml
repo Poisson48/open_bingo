@@ -40,7 +40,7 @@ Item {
         visible = false
         AppController.setImmersive(false)
         AppController.unlockOrientation()
-        AppController.setKeepScreenOn(AppController.lastTab === 4)
+        AppController.setKeepScreenOn(AppController.lastTab === 5)
         closed()
     }
 

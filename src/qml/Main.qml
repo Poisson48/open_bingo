@@ -397,13 +397,13 @@ ApplicationWindow {
             } else if (step === 4) {
                 capture("03-cases.png")
             } else if (step === 5) {
-                AppController.lastTab = 2
+                AppController.lastTab = 3 // Grilles
                 step = 6
                 schedule(500)
             } else if (step === 6) {
                 capture("04-grids.png")
             } else if (step === 7) {
-                AppController.lastTab = 4
+                AppController.lastTab = 5 // Play
                 step = 8
                 schedule(550)
             } else if (step === 8) {

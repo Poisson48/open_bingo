@@ -83,6 +83,15 @@ ScrollView {
                     checked: AppController.gageMode
                     onClicked: AppController.gageMode = checked
                 }
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.gageMode
+                    text: "Les gages se saisissent dans l’onglet Gages. "
+                          + "Le « N° gage » de chaque phrase (onglet Phrases) renvoie à ce tableau."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
 
                 RowLayout {
                     Layout.fillWidth: true

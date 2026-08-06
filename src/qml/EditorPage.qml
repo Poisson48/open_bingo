@@ -34,7 +34,7 @@ Item {
             BingoTabBar {
                 id: tabBar
                 anchors.fill: parent
-                labels: ["Config", "Phrases", "Grilles", "Impression", "Play"]
+                labels: ["Config", "Phrases", "Gages", "Grilles", "Impression", "Play"]
                 currentIndex: AppController.lastTab
                 onCurrentIndexChanged: {
                     if (AppController.lastTab !== currentIndex)
@@ -56,6 +56,7 @@ Item {
 
             ConfigPage {}
             CasesPage {}
+            GagesPage {}
             GridsPage {}
             PrintPage {}
             PlayPage { id: playTab }
@@ -63,7 +64,7 @@ Item {
     }
 
     function openPlayFullscreen() {
-        AppController.lastTab = 4
+        AppController.lastTab = 5
         playTab.openFullscreen()
     }
 
@@ -73,11 +74,11 @@ Item {
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }
 
-    Component.onCompleted: AppController.setKeepScreenOn(AppController.lastTab === 4)
+    Component.onCompleted: AppController.setKeepScreenOn(AppController.lastTab === 5)
     Connections {
         target: AppController
         function onLastTabChanged() {
-            AppController.setKeepScreenOn(AppController.lastTab === 4)
+            AppController.setKeepScreenOn(AppController.lastTab === 5)
         }
     }
 }
