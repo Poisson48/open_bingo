@@ -176,15 +176,26 @@ std::vector<std::vector<std::pair<int, int>>> detectBingo(
     const std::vector<std::vector<bool>>& checks, int N)
 {
     std::vector<std::vector<std::pair<int, int>>> lines;
+    if (N <= 0 || static_cast<int>(checks.size()) < N)
+        return lines;
+
+    auto at = [&](int r, int c) -> bool {
+        if (r < 0 || c < 0 || r >= N || c >= N)
+            return false;
+        if (r >= static_cast<int>(checks.size())
+            || c >= static_cast<int>(checks[static_cast<size_t>(r)].size()))
+            return false;
+        return checks[static_cast<size_t>(r)][static_cast<size_t>(c)];
+    };
 
     auto rowComplete = [&](int r) {
         for (int c = 0; c < N; ++c)
-            if (!checks[r][c]) return false;
+            if (!at(r, c)) return false;
         return true;
     };
     auto colComplete = [&](int c) {
         for (int r = 0; r < N; ++r)
-            if (!checks[r][c]) return false;
+            if (!at(r, c)) return false;
         return true;
     };
 
@@ -207,7 +218,7 @@ std::vector<std::vector<std::pair<int, int>>> detectBingo(
 
     bool mainDiag = true;
     for (int i = 0; i < N; ++i)
-        if (!checks[i][i]) mainDiag = false;
+        if (!at(i, i)) mainDiag = false;
     if (mainDiag) {
         std::vector<std::pair<int, int>> line;
         for (int i = 0; i < N; ++i)
@@ -217,7 +228,7 @@ std::vector<std::vector<std::pair<int, int>>> detectBingo(
 
     bool antiDiag = true;
     for (int i = 0; i < N; ++i)
-        if (!checks[i][N - 1 - i]) antiDiag = false;
+        if (!at(i, N - 1 - i)) antiDiag = false;
     if (antiDiag) {
         std::vector<std::pair<int, int>> line;
         for (int i = 0; i < N; ++i)

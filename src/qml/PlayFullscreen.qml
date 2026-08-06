@@ -57,14 +57,26 @@ Popup {
     function toggle(r, c) {
         if (!checks || !checks[r])
             return
+        const mid = Math.floor(AppController.gridSize / 2)
+        if (AppController.freeCenter && AppController.gridSize % 2 === 1
+                && r === mid && c === mid)
+            return
         var copy = deepCopyChecks(checks)
         copy[r][c] = !copy[r][c]
+        if (AppController.freeCenter && AppController.gridSize % 2 === 1
+                && mid < copy.length && mid < (copy[mid] || []).length)
+            copy[mid][mid] = true
         checks = copy
+        bingoRevision++
         checksUpdated(copy)
         AppController.vibrate()
     }
 
+    property int bingoRevision: 0
+
     readonly property var bingoSet: {
+        void bingoRevision
+        void checks
         var set = {}
         const lines = AppController.detectBingoLines(fs.checks)
         for (var i = 0; i < lines.length; ++i) {
@@ -147,6 +159,7 @@ Popup {
                     interactive: true
                     checks: fs.checks
                     bingoSet: fs.bingoSet
+                    bingoRevision: fs.bingoRevision
                     gageMode: AppController.gageMode
                     gages: AppController.gages
                     onCellClicked: function(r, c) { fs.toggle(r, c) }

@@ -15,6 +15,8 @@ Column {
     property int playerIndex: -1
     property var checks: null
     property var bingoSet: ({})
+    // Incrémenté par le parent quand les checks changent — force le refresh des cellules.
+    property int bingoRevision: 0
     property bool gageMode: false
     property var gages: []
 
@@ -87,9 +89,18 @@ Column {
                     property int colIndex: index
                     property var cell: root.rows[rowIndex][colIndex]
                     property bool isFree: cell && cell.isFree
-                    property bool checked: root.checks && root.checks[rowIndex]
-                                         && root.checks[rowIndex][colIndex]
-                    property bool inBingo: root.bingoSet[rowIndex + "," + colIndex]
+                    property bool checked: {
+                        if (isFree)
+                            return true
+                        return !!(root.checks && root.checks[rowIndex]
+                                  && root.checks[rowIndex][colIndex])
+                    }
+                    // Important : `=== true` — un binding qui renvoie `undefined`
+                    // ne met PAS à jour le bool (le vert resterait collé après décochage).
+                    property bool inBingo: {
+                        void root.bingoRevision
+                        return root.bingoSet[rowIndex + "," + colIndex] === true
+                    }
                     property bool marked: isFree || checked
                     property string cellLabel: cell && cell.label ? cell.label : ""
                     property real labelSize: root.cellFontSize(cellLabel, isFree)

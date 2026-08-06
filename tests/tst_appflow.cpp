@@ -156,6 +156,34 @@ private slots:
         QCOMPARE(after.value(QStringLiteral("points")).toInt(), 4);
     }
 
+    void uncheckClearsBingoHighlight()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        const int n = controller.gridSize();
+        QVERIFY(n >= 3);
+
+        QVariantList checks;
+        for (int r = 0; r < n; ++r) {
+            QVariantList row;
+            for (int c = 0; c < n; ++c)
+                row.append(r == 0); // ligne 0 complète
+            // QVariantList::append(QVariantList) aplatit — encapsuler.
+            checks.append(QVariant(row));
+        }
+        QCOMPARE(controller.detectBingoLines(checks).size(), 1);
+
+        // Décocher le milieu de la ligne → plus de bingo
+        auto row0 = checks[0].toList();
+        row0[1] = false;
+        checks[0] = QVariant(row0);
+        QCOMPARE(controller.detectBingoLines(checks).size(), 0);
+    }
+
     void generateAllRequiresCases()
     {
         QTemporaryDir tmp;

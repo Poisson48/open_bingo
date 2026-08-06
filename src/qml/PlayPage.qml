@@ -77,25 +77,39 @@ Item {
 
                 function resetChecks() {
                     reloadChecks()
+                    const mid = Math.floor(AppController.gridSize / 2)
+                    const free = AppController.freeCenter && AppController.gridSize % 2 === 1
                     for (var r = 0; r < checks.length; r++)
                         for (var c = 0; c < checks[r].length; c++)
-                            checks[r][c] = false
+                            checks[r][c] = free && r === mid && c === mid
                     checks = checks.slice(0)
+                    bingoRevision++
                     saveChecks()
                 }
 
                 function toggle(r, c) {
                     if (!checks[r]) return
+                    const mid = Math.floor(AppController.gridSize / 2)
+                    if (AppController.freeCenter && AppController.gridSize % 2 === 1
+                            && r === mid && c === mid)
+                        return
                     checks[r] = checks[r].slice(0)
                     checks[r][c] = !checks[r][c]
+                    if (AppController.freeCenter && AppController.gridSize % 2 === 1)
+                        checks[mid][mid] = true
                     checks = checks.slice(0)
+                    bingoRevision++
                     saveChecks()
                     AppController.vibrate()
                 }
 
+                property int bingoRevision: 0
+
                 Component.onCompleted: reloadChecks()
 
                 readonly property var bingoSet: {
+                    void bingoRevision
+                    void checks
                     var set = {}
                     const lines = AppController.detectBingoLines(checks)
                     for (var i = 0; i < lines.length; ++i) {
@@ -118,6 +132,7 @@ Item {
                     interactive: true
                     checks: playRoot.checks
                     bingoSet: playRoot.bingoSet
+                    bingoRevision: playRoot.bingoRevision
                     gageMode: AppController.gageMode
                     gages: AppController.gages
                     onCellClicked: function(r, c) { playRoot.toggle(r, c) }
