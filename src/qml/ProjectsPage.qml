@@ -31,6 +31,27 @@ Item {
             onTextChanged: list.filter = text
         }
 
+        Label {
+            Layout.fillWidth: true
+            visible: AppController.projects.count === 0
+            text: "Aucun projet. Chargez la démo pour voir un bingo jouable tout de suite."
+            color: Theme.textDim
+            wrapMode: Text.WordWrap
+            font.pixelSize: 14
+        }
+
+        BingoButton {
+            Layout.fillWidth: true
+            visible: AppController.projects.count === 0
+            text: "▶ Charger le projet démo"
+            primary: true
+            onClicked: {
+                const id = AppController.seedDemoProject()
+                if (id.length)
+                    AppController.openProject(id)
+            }
+        }
+
         ListView {
             id: list
             Layout.fillWidth: true
@@ -94,10 +115,14 @@ Item {
                                     wrapMode: Text.WordWrap
                                 }
                                 Label {
+                                    Layout.fillWidth: true
                                     text: gridSize + "×" + gridSize + " · "
-                                          + playerCount + " j · " + caseCount + " cases"
-                                    color: Theme.textDim
+                                          + playerCount + " j · " + caseCount + " phrases"
+                                          + (gridCount > 0 ? (" · " + gridCount + " grilles") : " · pas de grille")
+                                    color: gridCount > 0 ? Theme.textDim : Theme.warning
                                     font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
                                 }
                             }
                         }
@@ -128,9 +153,19 @@ Item {
 
         BingoButton {
             Layout.fillWidth: true
-            text: "+ Nouveau projet"
+            text: "+ Nouveau projet (avec grilles)"
             primary: true
             onClicked: AppController.createProject()
+        }
+
+        BingoButton {
+            Layout.fillWidth: true
+            text: "Charger un autre projet démo"
+            onClicked: {
+                const id = AppController.seedDemoProject()
+                if (id.length)
+                    AppController.openProject(id)
+            }
         }
     }
 

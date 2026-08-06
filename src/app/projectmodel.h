@@ -11,6 +11,7 @@ namespace app {
 class ProjectModel : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
     enum Roles {
@@ -33,6 +34,9 @@ public:
 
     void setProjects(std::vector<core::Project> projects);
     QString idAt(int row) const;
+
+signals:
+    void countChanged();
 
 private:
     static QString accentForId(const QString& id);

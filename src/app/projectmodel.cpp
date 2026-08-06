@@ -56,6 +56,7 @@ void ProjectModel::setProjects(std::vector<core::Project> projects)
     beginResetModel();
     m_projects = std::move(projects);
     endResetModel();
+    emit countChanged();
 }
 
 QString ProjectModel::idAt(int row) const

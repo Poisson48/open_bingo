@@ -127,6 +127,18 @@ bool AppController::init()
     if (screenshotMode)
         return true;
 
+    // Premier lancement : aucun projet → démo jouable avec grilles déjà générées.
+    if (m_projectModel->rowCount() == 0) {
+        const QString demoId = seedDemoProject();
+        if (!demoId.isEmpty()) {
+            m_lastTab = 4; // Play
+            m_db->setSetting("last_tab", "4");
+            openProject(demoId);
+            emit toast(QStringLiteral("Projet démo chargé — cochez des cases dans Play !"));
+            return true;
+        }
+    }
+
     if (auto lastTab = m_db->getSetting("last_tab"))
         m_lastTab = QString::fromStdString(*lastTab).toInt();
 
@@ -322,7 +334,8 @@ QVariantList AppController::gridsToVariant() const
                 m.insert(QStringLiteral("isFree"), cell.isFree);
                 cells.append(m);
             }
-            rows.append(cells);
+            // QVariantList::append(QVariantList) aplatit — il faut encapsuler.
+            rows.append(QVariant(cells));
         }
         out.append(QVariantMap{
             { QStringLiteral("player"), QString::fromStdString(grid.player) },
@@ -364,11 +377,21 @@ void AppController::reloadProjects()
 
 QString AppController::createProject()
 {
-    auto p = core::JsonCodec::defaultProject();
-    m_db->upsertProject(p);
-    reloadProjects();
-    openProject(QString::fromStdString(p.id));
-    return QString::fromStdString(p.id);
+    // Projet vide = pas de bingo. On démarre avec des phrases + grilles générées.
+    const QString id = seedDemoProject();
+    if (id.isEmpty())
+        return {};
+    // Personnaliser le titre pour ne pas confondre avec la démo d'accueil.
+    if (openProject(id)) {
+        m_current.title = "Nouveau Bingo";
+        m_current.description = "Modifiez les phrases, puis régénérez les grilles.";
+        persistCurrent();
+        emit currentProjectChanged();
+        m_lastTab = 2; // Grilles
+        emit lastTabChanged();
+        emit toast(QStringLiteral("Projet créé avec grilles — regénérez après vos modifications."));
+    }
+    return id;
 }
 
 bool AppController::openProject(const QString& id)
@@ -440,13 +463,25 @@ void AppController::saveConfig()
 {
     if (!m_hasCurrent)
         return;
-    m_current.grids.clear();
-    clearGridsDirtyFlag();
+    // Ne plus laisser l'utilisateur sans grilles : on régénère si possible.
+    if (!m_current.cases.empty() && !m_current.players.empty()) {
+        const auto result = core::generateAll(m_current);
+        if (result.error) {
+            m_current.grids.clear();
+            emit toast(QString::fromStdString(result.message));
+        } else {
+            clearGridsDirtyFlag();
+            emit toast(QStringLiteral("Configuration enregistrée — grilles régénérées."));
+        }
+    } else {
+        m_current.grids.clear();
+        clearGridsDirtyFlag();
+        emit toast(QStringLiteral("Configuration enregistrée — ajoutez des phrases pour générer."));
+    }
     persistCurrent();
     ++m_gridsRevision;
     emit gridsChanged();
     emit currentProjectChanged();
-    emit toast(QStringLiteral("Configuration enregistrée — grilles réinitialisées"));
 }
 
 void AppController::scheduleAutoSave()
@@ -596,8 +631,8 @@ QString AppController::seedDemoProject()
         return {};
 
     auto p = core::JsonCodec::defaultProject();
-    p.title = "Soirée Jeux de Rôle";
-    p.description = "Bingo improvisé pour la table — D&D, Pathfinder, etc.";
+    p.title = "Soirée Jeux de Rôle (démo)";
+    p.description = "Projet prêt à jouer — 4 joueurs, grille 5×5, FREE au centre.";
     p.gridSize = 5;
     p.startHP = 20;
     p.freeCenter = true;
@@ -631,25 +666,32 @@ QString AppController::seedDemoProject()
         "Cliffhanger en fin de session",
         "Voix ridicule pour un PNJ",
     };
+    p.cases.clear();
     for (const auto* label : phrases)
-        p.cases.push_back({ label, 2, 85 });
+        p.cases.push_back({ label, 2, 100 }); // rate 100 % → grille toujours remplie
 
+    // roll() compare à rate 0–100 : tirage uniforme sur [0,100).
     std::mt19937 gen(4242);
     const core::Rng rng = [&gen]() {
-        return std::uniform_real_distribution<>(0.0, 1.0)(gen);
+        return std::uniform_real_distribution<>(0.0, 100.0)(gen);
     };
     const auto result = core::generateAll(p, rng);
-    if (result.error)
+    if (result.error || p.grids.empty()) {
+        qWarning("seedDemoProject failed: %s", result.message.c_str());
         return {};
+    }
 
-    if (!p.grids.empty()) {
+    m_db->upsertProject(p);
+
+    // Quelques cases déjà cochées pour Alice → le Play montre un vrai bingo.
+    {
         const int N = p.gridSize;
         const int mid = N / 2;
         QJsonArray rows;
         for (int r = 0; r < N; ++r) {
             QJsonArray row;
             for (int c = 0; c < N; ++c) {
-                const bool free = p.freeCenter && N % 2 == 1 && r == mid && c == mid;
+                const bool free = p.freeCenter && (N % 2 == 1) && r == mid && c == mid;
                 row.append(free || (r == c));
             }
             rows.append(row);
@@ -658,7 +700,6 @@ QString AppController::seedDemoProject()
                              QJsonDocument(rows).toJson(QJsonDocument::Compact).toStdString());
     }
 
-    m_db->upsertProject(p);
     reloadProjects();
     return QString::fromStdString(p.id);
 }
@@ -930,8 +971,8 @@ QVariantList AppController::detectBingoLines(const QVariantList& checks)
     for (const auto& line : lines) {
         QVariantList coords;
         for (const auto& [r, c] : line)
-            coords.append(QVariantList{ r, c });
-        out.append(coords);
+            coords.append(QVariant(QVariantList{ r, c }));
+        out.append(QVariant(coords));
     }
     return out;
 }
