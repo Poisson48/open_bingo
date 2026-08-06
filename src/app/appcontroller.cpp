@@ -740,9 +740,40 @@ void AppController::replaceGridCell(int playerIdx, int row, int col, int caseIdx
     if (!m_hasCurrent || playerIdx < 0 || caseIdx < 0
         || caseIdx >= static_cast<int>(m_current.cases.size()))
         return;
+    if (playerIdx >= static_cast<int>(m_current.grids.size()))
+        return;
     auto& cells = m_current.grids[static_cast<size_t>(playerIdx)].cells;
+    if (row < 0 || col < 0 || row >= static_cast<int>(cells.size())
+        || col >= static_cast<int>(cells[static_cast<size_t>(row)].size()))
+        return;
     const auto& src = m_current.cases[static_cast<size_t>(caseIdx)];
-    cells[row][col] = { src.label, src.points, src.rate, "", 0, false };
+    cells[static_cast<size_t>(row)][static_cast<size_t>(col)] =
+        { src.label, src.points, src.rate, "", 0, false };
+    persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
+    emit currentProjectChanged();
+}
+
+void AppController::setGridCellLabel(int playerIdx, int row, int col,
+                                     const QString& label, int points)
+{
+    if (!m_hasCurrent || playerIdx < 0
+        || playerIdx >= static_cast<int>(m_current.grids.size()))
+        return;
+    auto& cells = m_current.grids[static_cast<size_t>(playerIdx)].cells;
+    if (row < 0 || col < 0 || row >= static_cast<int>(cells.size())
+        || col >= static_cast<int>(cells[static_cast<size_t>(row)].size()))
+        return;
+    auto& cell = cells[static_cast<size_t>(row)][static_cast<size_t>(col)];
+    if (cell.isFree)
+        return;
+    const QString trimmed = label.trimmed();
+    if (trimmed.isEmpty())
+        return;
+    cell.label = trimmed.toStdString();
+    if (points >= 0)
+        cell.points = points;
     persistCurrent();
     ++m_gridsRevision;
     emit gridsChanged();

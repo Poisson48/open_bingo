@@ -113,6 +113,9 @@ public:
     Q_INVOKABLE void reshuffleGrid(int playerIdx);
     Q_INVOKABLE void swapGridCells(int playerIdx, int r1, int c1, int r2, int c2);
     Q_INVOKABLE void replaceGridCell(int playerIdx, int row, int col, int caseIdx);
+    // Modifie le libellé (et optionnellement les points) d'une case déjà placée.
+    Q_INVOKABLE void setGridCellLabel(int playerIdx, int row, int col,
+                                      const QString& label, int points = -1);
     Q_INVOKABLE void moveGrid(int fromIdx, int toIdx);
 
     Q_INVOKABLE bool exportCurrentJson(const QString& filePath);

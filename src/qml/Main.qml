@@ -296,7 +296,7 @@ ApplicationWindow {
             else
                 console.warn("Screenshot failed:", path)
             step++
-            if (step >= 10)
+            if (step >= 12)
                 Qt.quit()
             else
                 schedule(400)
@@ -330,6 +330,14 @@ ApplicationWindow {
                 schedule(550)
             } else if (step === 8) {
                 capture("05-play.png")
+            } else if (step === 9) {
+                const ed = stack.currentItem
+                if (ed && typeof ed.openPlayFullscreen === "function")
+                    ed.openPlayFullscreen()
+                step = 10
+                schedule(900)
+            } else if (step === 10) {
+                capture("06-play-fullscreen.png")
             } else {
                 Qt.quit()
             }

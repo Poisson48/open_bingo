@@ -106,6 +106,15 @@ ScrollView {
             }
         }
 
+        Label {
+            Layout.fillWidth: true
+            visible: AppController.cases.length > 0
+            text: "Touchez une phrase pour modifier son texte, ses points ou son taux."
+            color: Theme.textDim
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
+
         Repeater {
             model: AppController.cases
             Rectangle {
@@ -144,6 +153,55 @@ ScrollView {
                         onClicked: AppController.removeCase(index)
                     }
                 }
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.rightMargin: 48
+                    onClicked: editCaseDialog.openFor(index, modelData)
+                }
+            }
+        }
+
+        ColoDialog {
+            id: editCaseDialog
+            title: "Modifier la phrase"
+            acceptText: "Enregistrer"
+            acceptEnabled: editLabel.text.trim().length > 0
+            property int caseIndex: -1
+
+            function openFor(idx, data) {
+                caseIndex = idx
+                editLabel.text = data.label || ""
+                editPts.value = data.points !== undefined ? data.points : 1
+                editRate.value = data.rate !== undefined ? data.rate : 50
+                open()
+                editLabel.forceActiveFocus()
+            }
+
+            ColoTextField {
+                id: editLabel
+                Layout.fillWidth: true
+                hint: "Texte de la case"
+            }
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 8
+                rowSpacing: 8
+                Label { text: "Points"; color: Theme.textDim; font.pixelSize: 12 }
+                SpinBox { id: editPts; from: 0; to: 99; Layout.fillWidth: true }
+                Label { text: "Taux %"; color: Theme.textDim; font.pixelSize: 12 }
+                SpinBox {
+                    id: editRate
+                    from: 0; to: 100
+                    Layout.fillWidth: true
+                    textFromValue: function(value, locale) { return value + " %"; }
+                }
+            }
+
+            onAccepted: {
+                if (caseIndex < 0) return
+                AppController.updateCase(caseIndex, editLabel.text.trim(),
+                                         editPts.value, editRate.value)
             }
         }
 

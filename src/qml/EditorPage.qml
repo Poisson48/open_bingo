@@ -58,8 +58,13 @@ Item {
             CasesPage {}
             GridsPage {}
             PrintPage {}
-            PlayPage {}
+            PlayPage { id: playTab }
         }
+    }
+
+    function openPlayFullscreen() {
+        AppController.lastTab = 4
+        playTab.openFullscreen()
     }
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }

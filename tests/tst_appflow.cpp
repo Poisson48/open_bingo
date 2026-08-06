@@ -126,6 +126,36 @@ private slots:
         QVERIFY(QFileInfo(pdfPath).size() > 500);
     }
 
+    void editCaseAndGridCellLabel()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        QVERIFY(controller.cases().size() >= 1);
+        QVERIFY(controller.grids().size() >= 1);
+
+        controller.updateCase(0, QStringLiteral("Phrase éditée"), 7, 80);
+        QCOMPARE(controller.cases()[0].toMap().value(QStringLiteral("label")).toString(),
+                 QStringLiteral("Phrase éditée"));
+        QCOMPARE(controller.cases()[0].toMap().value(QStringLiteral("points")).toInt(), 7);
+
+        // Case (0,0) : si FREE (centre impair), éditer (0,1).
+        const auto rows = controller.grids()[0].toMap().value(QStringLiteral("cells")).toList();
+        QVERIFY(rows.size() >= 1);
+        const auto row0 = rows[0].toList();
+        QVERIFY(row0.size() >= 2);
+        const bool free00 = row0[0].toMap().value(QStringLiteral("isFree")).toBool();
+        const int col = free00 ? 1 : 0;
+        controller.setGridCellLabel(0, 0, col, QStringLiteral("Texte grille"), 4);
+        const auto after = controller.grids()[0].toMap()
+                               .value(QStringLiteral("cells")).toList()[0].toList()[col].toMap();
+        QCOMPARE(after.value(QStringLiteral("label")).toString(), QStringLiteral("Texte grille"));
+        QCOMPARE(after.value(QStringLiteral("points")).toInt(), 4);
+    }
+
     void generateAllRequiresCases()
     {
         QTemporaryDir tmp;

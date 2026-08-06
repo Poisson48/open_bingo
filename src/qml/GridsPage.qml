@@ -46,7 +46,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: page.gridList.length > 0
-            text: "Glisser une case pour l'échanger. Toucher pour remplacer. Boutons pour réordonner les joueurs."
+            text: "Glisser une case pour l'échanger. Toucher pour éditer le texte ou choisir une phrase. Boutons pour réordonner les joueurs."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 12
@@ -123,7 +123,9 @@ ScrollView {
                         playerIndex: index
                         gageMode: AppController.gageMode
                         onCellEditRequested: function(r, c, label) {
-                            cellPicker.openFor(index, r, c, label)
+                            const cell = modelData.cells[r][c]
+                            cellPicker.openFor(index, r, c, label,
+                                               cell && cell.points !== undefined ? cell.points : 1)
                         }
                     }
                 }

@@ -2,19 +2,20 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Remplacer une case de grille par une phrase du pool (comme l'ancienne app web).
+// Remplacer / éditer une case de grille (pool ou texte libre).
 Popup {
     id: picker
     property int playerIdx: -1
     property int cellRow: -1
     property int cellCol: -1
     property string currentLabel: ""
+    property int currentPoints: 1
 
     parent: Overlay.overlay
     modal: true
     padding: 16
     width: Math.min(Overlay.overlay.width - 32, 420)
-    height: Math.min(Overlay.overlay.height - 48, 520)
+    height: Math.min(Overlay.overlay.height - 48, 560)
     x: (Overlay.overlay.width - width) / 2
     y: (Overlay.overlay.height - height) / 2
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -26,14 +27,17 @@ Popup {
         border.color: Theme.outline
     }
 
-    function openFor(pIdx, r, c, label) {
+    function openFor(pIdx, r, c, label, points) {
         playerIdx = pIdx
         cellRow = r
         cellCol = c
         currentLabel = label || ""
+        currentPoints = (points !== undefined && points >= 0) ? points : 1
+        editLabel.text = currentLabel
+        editPts.value = currentPoints
         filterField.text = ""
         open()
-        filterField.forceActiveFocus()
+        editLabel.forceActiveFocus()
     }
 
     ColumnLayout {
@@ -44,7 +48,7 @@ Popup {
             Layout.fillWidth: true
             Label {
                 Layout.fillWidth: true
-                text: "Remplacer la case"
+                text: "Modifier la case"
                 color: Theme.text
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
@@ -57,13 +61,49 @@ Popup {
 
         Label {
             Layout.fillWidth: true
-            visible: currentLabel.length > 0
-            text: "Actuelle : " + currentLabel
+            text: "Texte libre"
             color: Theme.textDim
-            font.pixelSize: 13
-            wrapMode: Text.WordWrap
-            maximumLineCount: 2
-            elide: Text.ElideRight
+            font.pixelSize: 12
+        }
+
+        ColoTextField {
+            id: editLabel
+            Layout.fillWidth: true
+            hint: "Texte de la case"
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "Points"; color: Theme.textDim; font.pixelSize: 12 }
+            SpinBox {
+                id: editPts
+                from: 0; to: 99
+                Layout.fillWidth: true
+            }
+            BingoButton {
+                text: "Enregistrer"
+                primary: true
+                enabled: editLabel.text.trim().length > 0
+                onClicked: {
+                    AppController.setGridCellLabel(
+                        picker.playerIdx, picker.cellRow, picker.cellCol,
+                        editLabel.text, editPts.value)
+                    picker.close()
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Theme.outline
+        }
+
+        Label {
+            Layout.fillWidth: true
+            text: "Ou choisir une phrase du pool"
+            color: Theme.textDim
+            font.pixelSize: 12
         }
 
         ColoTextField {

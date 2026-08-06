@@ -1,27 +1,34 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
-// Overlay plein écran pour le mode « Sans papier » (comme l'ancienne app web).
+// Overlay plein écran « Sans papier » — taille liée à l'overlay (rotation paysage OK).
 Popup {
     id: fs
     property string playerName: ""
     property var rows: []
     property var checks: []
+    property int playerIndex: -1
 
     signal checksUpdated(var newChecks)
 
     parent: Overlay.overlay
     modal: true
+    dim: true
+    focus: true
     padding: 0
     closePolicy: Popup.NoAutoClose
     Overlay.modal: Rectangle { color: Theme.background }
 
+    readonly property real overlayW: Overlay.overlay ? Overlay.overlay.width : Screen.width
+    readonly property real overlayH: Overlay.overlay ? Overlay.overlay.height : Screen.height
+    x: 0
+    y: 0
+    width: overlayW
+    height: overlayH
+
     onOpened: {
-        width = Overlay.overlay.width
-        height = Overlay.overlay.height
-        x = 0
-        y = 0
         AppController.setKeepScreenOn(true)
         AppController.lockLandscape()
         AppController.setImmersive(true)
@@ -29,10 +36,33 @@ Popup {
     onClosed: {
         AppController.setImmersive(false)
         AppController.unlockOrientation()
-        AppController.setKeepScreenOn(false)
+        // L'onglet Play remet keep-screen-on si on y reste.
+        AppController.setKeepScreenOn(AppController.lastTab === 4)
     }
 
     function bingoKey(r, c) { return r + "," + c }
+
+    function deepCopyChecks(src) {
+        var out = []
+        for (var r = 0; r < src.length; ++r) {
+            var row = src[r] || []
+            var copy = []
+            for (var c = 0; c < row.length; ++c)
+                copy.push(!!row[c])
+            out.push(copy)
+        }
+        return out
+    }
+
+    function toggle(r, c) {
+        if (!checks || !checks[r])
+            return
+        var copy = deepCopyChecks(checks)
+        copy[r][c] = !copy[r][c]
+        checks = copy
+        checksUpdated(copy)
+        AppController.vibrate()
+    }
 
     readonly property var bingoSet: {
         var set = {}
@@ -49,82 +79,97 @@ Popup {
 
     readonly property int checkedCount: {
         var n = 0
-        for (var r = 0; r < checks.length; ++r)
-            for (var c = 0; c < (checks[r] || []).length; ++c)
-                if (checks[r][c]) ++n
+        for (var r = 0; r < checks.length; ++r) {
+            const row = checks[r] || []
+            for (var c = 0; c < row.length; ++c)
+                if (row[c]) ++n
+        }
         return n
     }
 
-    contentItem: ColumnLayout {
+    readonly property bool landscapeHint: overlayH < overlayW * 0.75
+
+    background: Rectangle { color: Theme.background }
+
+    contentItem: Item {
         width: fs.width
         height: fs.height
-        spacing: 0
 
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 48
-            color: Theme.surface
-            border.color: Theme.outline
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 8
-                Label {
-                    Layout.fillWidth: true
-                    text: fs.playerName
-                    color: Theme.accent
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                color: Theme.surface
+                border.color: Theme.outline
+                z: 2
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 8
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: fs.playerName
+                        color: Theme.accent
+                        font.pixelSize: 16
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+                    Label {
+                        text: fs.checkedCount + " cochées"
+                        color: Theme.textDim
+                        font.pixelSize: 12
+                    }
+                    BingoButton {
+                        text: "Quitter"
+                        onClicked: fs.close()
+                    }
                 }
+            }
+
+            Item {
+                id: gridHost
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: 8
+
+                BingoGrid {
+                    id: playGrid
+                    anchors.centerIn: parent
+                    availableWidth: Math.max(40, gridHost.width)
+                    availableHeight: Math.max(40, gridHost.height)
+                    rows: fs.rows
+                    interactive: true
+                    checks: fs.checks
+                    bingoSet: fs.bingoSet
+                    gageMode: AppController.gageMode
+                    gages: AppController.gages
+                    onCellClicked: function(r, c) { fs.toggle(r, c) }
+                }
+
                 Label {
-                    text: fs.checkedCount + " cochées"
+                    anchors.centerIn: parent
+                    visible: !fs.rows || fs.rows.length === 0
+                    text: "Aucune grille"
                     color: Theme.textDim
-                    font.pixelSize: 12
-                }
-                BingoButton {
-                    text: "Quitter"
-                    onClicked: fs.close()
                 }
             }
-        }
 
-        Item {
-            id: gridHost
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.margins: 6
-
-            BingoGrid {
-                anchors.centerIn: parent
-                availableWidth: gridHost.width
-                availableHeight: gridHost.height
-                rows: fs.rows
-                interactive: true
-                checks: fs.checks
-                bingoSet: fs.bingoSet
-                gageMode: AppController.gageMode
-                gages: AppController.gages
-                onCellClicked: function(r, c) {
-                    var copy = fs.checks.slice(0)
-                    if (!copy[r]) return
-                    copy[r] = copy[r].slice(0)
-                    copy[r][c] = !copy[r][c]
-                    fs.checks = copy
-                    fs.checksUpdated(copy)
-                    AppController.vibrate()
-                }
+            Label {
+                Layout.fillWidth: true
+                Layout.margins: 8
+                visible: !fs.landscapeHint && gridHost.height > 0
+                text: "Tournez le téléphone en paysage pour une grille plus grande"
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                color: Theme.warning
+                font.pixelSize: 12
             }
-        }
-
-        Label {
-            Layout.fillWidth: true
-            Layout.margins: 8
-            visible: gridHost.height < gridHost.width * 0.55
-            text: "Tournez le téléphone en paysage pour une grille plus grande"
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-            color: Theme.warning
-            font.pixelSize: 12
         }
     }
 }
