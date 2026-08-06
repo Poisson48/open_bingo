@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFile>
+#include <QFileInfo>
 #include <QFont>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -29,6 +30,10 @@
 #include <QTextOption>
 #include <QUrl>
 #include <QtGlobal>
+#include <set>
+#ifndef Q_OS_ANDROID
+#  include <QPrintPreviewDialog>
+#endif
 
 namespace app {
 namespace {
@@ -61,6 +66,89 @@ std::vector<std::vector<bool>> checksFromVariant(const QVariantList& checks, int
             out[r][c] = row[c].toBool();
     }
     return out;
+}
+
+QVariantList checksToVariant(const std::vector<std::vector<bool>>& checks)
+{
+    QVariantList out;
+    for (const auto& row : checks) {
+        QVariantList r;
+        for (bool v : row)
+            r.append(v);
+        // QVariantList::append(QVariantList) aplatit — encapsuler comme ailleurs.
+        out.append(QVariant(r));
+    }
+    return out;
+}
+
+std::vector<std::vector<bool>> emptyChecks(int N, bool freeCenter)
+{
+    std::vector<std::vector<bool>> out(N, std::vector<bool>(N, false));
+    if (freeCenter && N % 2 == 1) {
+        const int mid = N / 2;
+        out[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+    }
+    return out;
+}
+
+QString normalizeCellLabel(const std::string& label)
+{
+    return QString::fromStdString(label).trimmed();
+}
+
+QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCell& cell,
+                               const QString& playerName)
+{
+    QVariantMap m;
+    if (cell.isFree)
+        return m;
+    QString desc;
+    int num = cell.points;
+    if (!cell.gage.empty()) {
+        desc = QString::fromStdString(cell.gage);
+    } else if (project.gageMode && num > 0
+               && num <= static_cast<int>(project.gages.size())) {
+        desc = QString::fromStdString(project.gages[static_cast<size_t>(num - 1)].description);
+    }
+    if (desc.isEmpty())
+        return m;
+    m.insert(QStringLiteral("kind"), QStringLiteral("gage"));
+    m.insert(QStringLiteral("num"), num);
+    m.insert(QStringLiteral("label"), QString::fromStdString(cell.label));
+    m.insert(QStringLiteral("desc"), desc);
+    m.insert(QStringLiteral("player"), playerName);
+    return m;
+}
+
+std::set<QString> bingoTypeSet(const core::Project& project,
+                               const std::vector<std::vector<bool>>& checks)
+{
+    std::set<QString> types;
+    const int N = project.gridSize;
+    const auto lines = core::detectBingo(checks, N);
+    for (const auto& line : lines) {
+        if (line.empty())
+            continue;
+        bool sameRow = true;
+        bool sameCol = true;
+        bool mainDiag = true;
+        bool antiDiag = true;
+        const int r0 = line[0].first;
+        const int c0 = line[0].second;
+        for (const auto& [r, c] : line) {
+            if (r != r0) sameRow = false;
+            if (c != c0) sameCol = false;
+            if (r != c) mainDiag = false;
+            if (r + c != N - 1) antiDiag = false;
+        }
+        if (sameRow)
+            types.insert(QStringLiteral("line"));
+        else if (sameCol)
+            types.insert(QStringLiteral("column"));
+        else if (mainDiag || antiDiag)
+            types.insert(QStringLiteral("diagonal"));
+    }
+    return types;
 }
 
 } // namespace
@@ -1054,6 +1142,167 @@ void AppController::savePlayChecks(const QString& playerName, const QVariantList
                          doc.toJson(QJsonDocument::Compact).toStdString());
 }
 
+QVariantMap AppController::togglePlayCell(const QString& playerName, int row, int col)
+{
+    // Pattern Colo Courses/Tâches (ItemModel::toggleDone) : une seule API de cochage,
+    // persistance immédiate, signal pour rafraîchir l'UI. Ici l'identité partagée
+    // n'est pas un itemId mais le libellé de case (même film → même événement).
+    QVariantMap result;
+    result.insert(QStringLiteral("checked"), false);
+    result.insert(QStringLiteral("checks"), QVariantList{});
+    result.insert(QStringLiteral("overlays"), QVariantList{});
+
+    if (!m_hasCurrent || !m_db || playerName.isEmpty())
+        return result;
+    const int N = m_current.gridSize;
+    if (N <= 0 || row < 0 || col < 0 || row >= N || col >= N)
+        return result;
+
+    const core::PlayerGrid* sourceGrid = nullptr;
+    for (const auto& g : m_current.grids) {
+        if (g.player == playerName.toStdString()) {
+            sourceGrid = &g;
+            break;
+        }
+    }
+    if (!sourceGrid || row >= static_cast<int>(sourceGrid->cells.size())
+        || col >= static_cast<int>(sourceGrid->cells[static_cast<size_t>(row)].size()))
+        return result;
+
+    const auto& sourceCell = sourceGrid->cells[static_cast<size_t>(row)][static_cast<size_t>(col)];
+    if (sourceCell.isFree)
+        return result;
+
+    const QString label = normalizeCellLabel(sourceCell.label);
+    if (label.isEmpty())
+        return result;
+
+    // Snapshot combos avant (joueur courant uniquement).
+    auto loadOrEmpty = [&](const std::string& pname) {
+        const auto json = m_db->getPlayChecks(m_current.id, pname);
+        if (!json)
+            return emptyChecks(N, m_current.freeCenter);
+        const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
+        auto checks = checksFromVariant(doc.array().toVariantList(), N);
+        if (static_cast<int>(checks.size()) != N)
+            return emptyChecks(N, m_current.freeCenter);
+        if (m_current.freeCenter && N % 2 == 1) {
+            const int mid = N / 2;
+            checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+        }
+        return checks;
+    };
+
+    auto viewerChecksBefore = loadOrEmpty(playerName.toStdString());
+    const bool newChecked = !viewerChecksBefore[static_cast<size_t>(row)][static_cast<size_t>(col)];
+    const auto oldTypes = bingoTypeSet(m_current, viewerChecksBefore);
+
+    QVariantList overlays;
+    QVariantList viewerChecksOut;
+
+    for (const auto& grid : m_current.grids) {
+        auto checks = loadOrEmpty(grid.player);
+        const QString pname = QString::fromStdString(grid.player);
+
+        for (int r = 0; r < N && r < static_cast<int>(grid.cells.size()); ++r) {
+            const auto& crow = grid.cells[static_cast<size_t>(r)];
+            for (int c = 0; c < N && c < static_cast<int>(crow.size()); ++c) {
+                const auto& cell = crow[static_cast<size_t>(c)];
+                if (cell.isFree)
+                    continue;
+                if (normalizeCellLabel(cell.label) != label)
+                    continue;
+                const bool was = checks[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                checks[static_cast<size_t>(r)][static_cast<size_t>(c)] = newChecked;
+                if (newChecked && !was && m_current.gageMode) {
+                    // Priorité : case tapée du joueur courant en premier.
+                    const bool isTap = (grid.player == playerName.toStdString()
+                                        && r == row && c == col);
+                    QVariantMap ov = gageOverlayForCell(m_current, cell, pname);
+                    if (!ov.isEmpty()) {
+                        if (isTap)
+                            overlays.insert(0, ov);
+                        else
+                            overlays.append(ov);
+                    }
+                }
+            }
+        }
+
+        if (m_current.freeCenter && N % 2 == 1) {
+            const int mid = N / 2;
+            checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+        }
+
+        const QVariantList asVar = checksToVariant(checks);
+        m_db->savePlayChecks(m_current.id, grid.player,
+                             QJsonDocument(QJsonArray::fromVariantList(asVar))
+                                 .toJson(QJsonDocument::Compact)
+                                 .toStdString());
+        if (grid.player == playerName.toStdString())
+            viewerChecksOut = asVar;
+    }
+
+    // Combos nouvellement débloqués → overlays séparés (après les gages de cases).
+    if (newChecked && m_current.gageMode && !viewerChecksOut.isEmpty()) {
+        const auto after = checksFromVariant(viewerChecksOut, N);
+        const auto newTypes = bingoTypeSet(m_current, after);
+        const auto& combos = m_current.comboGages;
+        auto pushCombo = [&](const char* key, const std::string& text) {
+            if (text.empty())
+                return;
+            const QString k = QString::fromUtf8(key);
+            if (newTypes.count(k) && !oldTypes.count(k)) {
+                QVariantMap ov;
+                ov.insert(QStringLiteral("kind"), QStringLiteral("combo"));
+                ov.insert(QStringLiteral("key"), k);
+                ov.insert(QStringLiteral("label"),
+                          k == QLatin1String("line") ? QStringLiteral("Ligne complète")
+                          : k == QLatin1String("column") ? QStringLiteral("Colonne complète")
+                                                         : QStringLiteral("Diagonale complète"));
+                ov.insert(QStringLiteral("desc"), QString::fromStdString(text));
+                ov.insert(QStringLiteral("player"), playerName);
+                overlays.append(ov);
+            }
+        };
+        pushCombo("line", combos.line);
+        pushCombo("column", combos.column);
+        pushCombo("diagonal", combos.diagonal);
+    }
+
+    result.insert(QStringLiteral("checked"), newChecked);
+    result.insert(QStringLiteral("checks"), viewerChecksOut);
+    result.insert(QStringLiteral("overlays"), overlays);
+    result.insert(QStringLiteral("label"), label);
+    emit playChecksChanged();
+    return result;
+}
+
+void AppController::resetPlayChecks(const QString& playerName)
+{
+    if (!m_hasCurrent || !m_db)
+        return;
+    const int N = m_current.gridSize;
+    // Comme uncheckAll Colo : on remet la grille du joueur (et seulement lui) à zéro.
+    // Les libellés partagés se resynchroniseront au prochain cochage.
+    if (!playerName.isEmpty()) {
+        const auto empty = checksToVariant(emptyChecks(N, m_current.freeCenter));
+        m_db->savePlayChecks(m_current.id, playerName.toStdString(),
+                             QJsonDocument(QJsonArray::fromVariantList(empty))
+                                 .toJson(QJsonDocument::Compact)
+                                 .toStdString());
+    } else {
+        for (const auto& g : m_current.grids) {
+            const auto empty = checksToVariant(emptyChecks(N, m_current.freeCenter));
+            m_db->savePlayChecks(m_current.id, g.player,
+                                 QJsonDocument(QJsonArray::fromVariantList(empty))
+                                     .toJson(QJsonDocument::Compact)
+                                     .toStdString());
+        }
+    }
+    emit playChecksChanged();
+}
+
 int AppController::computeScore(const QString& playerName, const QVariantList& checks)
 {
     if (!m_hasCurrent)
@@ -1142,31 +1391,63 @@ bool AppController::shareText(const QString& text)
 
 namespace {
 
-void drawPlayerGrid(QPainter& p, const QRectF& area, const QString& heading,
-                    const core::PlayerGrid& grid)
+qreal mmToPx(const QPrinter& printer, qreal mm)
 {
-    const qreal titleH = qMin(28.0, area.height() * 0.08);
-    p.setPen(QColor(QStringLiteral("#111827")));
+    return mm * printer.resolution() / 25.4;
+}
+
+void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& project,
+                     const core::PlayerGrid& grid)
+{
+    const bool gageMode = project.gageMode;
+    const bool hasGages = !project.gages.empty();
+    qreal y = area.top();
+    const qreal left = area.left();
+    const qreal w = area.width();
+
+    // En-tête : titre projet + nom joueur
     QFont titleFont(QStringLiteral("Sans Serif"));
     titleFont.setBold(true);
-    titleFont.setPixelSize(qMax(10, int(titleH * 0.7)));
+    titleFont.setPixelSize(qMax(9, int(area.height() * 0.035)));
     p.setFont(titleFont);
-    p.drawText(QRectF(area.left(), area.top(), area.width(), titleH),
-               Qt::AlignLeft | Qt::AlignVCenter, heading);
+    p.setPen(Qt::black);
+    p.drawText(QRectF(left, y, w, titleFont.pixelSize() * 1.4),
+               Qt::AlignHCenter | Qt::AlignVCenter,
+               QString::fromStdString(project.title));
+    y += titleFont.pixelSize() * 1.5;
 
-    const QRectF gridArea(area.left(), area.top() + titleH + 4,
-                          area.width(), area.height() - titleH - 4);
+    QFont playerFont(titleFont);
+    playerFont.setPixelSize(qMax(12, int(area.height() * 0.055)));
+    playerFont.setBold(true);
+    p.setFont(playerFont);
+    p.drawText(QRectF(left, y, w, playerFont.pixelSize() * 1.3),
+               Qt::AlignHCenter | Qt::AlignVCenter,
+               QString::fromStdString(grid.player));
+    y += playerFont.pixelSize() * 1.4;
+
+    p.setPen(QPen(Qt::black, 2));
+    p.drawLine(QPointF(left, y), QPointF(left + w, y));
+    y += 6;
+
+    // Pied de page réservé (HP / règles / note gage)
+    const qreal footerH = area.height() * (gageMode ? 0.12 : 0.28);
+    const qreal gridBottom = area.bottom() - footerH;
+    const QRectF gridArea(left, y, w, qMax(20.0, gridBottom - y));
+
     if (grid.cells.empty() || gridArea.height() < 20)
         return;
 
     const int N = static_cast<int>(grid.cells.size());
     const qreal cellW = gridArea.width() / N;
     const qreal cellH = gridArea.height() / N;
-    const qreal fontPx = qMax(7.0, qMin(cellW, cellH) * 0.22);
+    const qreal fontPx = qMax(6.0, qMin(cellW, cellH) * (N <= 5 ? 0.20 : 0.16));
+    const qreal ptsPx = qMax(5.0, fontPx * 0.75);
 
     QFont cellFont(QStringLiteral("Sans Serif"));
     cellFont.setPixelSize(int(fontPx));
-    p.setFont(cellFont);
+    QFont ptsFont(cellFont);
+    ptsFont.setPixelSize(int(ptsPx));
+    ptsFont.setBold(true);
 
     QTextOption opt;
     opt.setWrapMode(QTextOption::WordWrap);
@@ -1180,19 +1461,265 @@ void drawPlayerGrid(QPainter& p, const QRectF& area, const QString& heading,
                               gridArea.top() + r * cellH,
                               cellW, cellH);
             if (cell.isFree)
-                p.fillRect(rect, QColor(QStringLiteral("#e5e7eb")));
+                p.fillRect(rect, QColor(QStringLiteral("#e8e8e8")));
             else
                 p.fillRect(rect, Qt::white);
-            p.setPen(QPen(QColor(QStringLiteral("#1f2937")), 1.2));
+            p.setPen(QPen(Qt::black, 1.8));
             p.drawRect(rect);
 
             const QString label = cell.isFree
                 ? QStringLiteral("FREE")
                 : QString::fromStdString(cell.label);
-            p.setPen(QColor(QStringLiteral("#111827")));
-            p.drawText(rect.adjusted(3, 2, -3, -2), label, opt);
+            p.setFont(cellFont);
+            p.setPen(Qt::black);
+            p.drawText(rect.adjusted(3, 2, -3, -ptsPx - 2), label, opt);
+
+            if (!cell.isFree) {
+                const QString pts = gageMode
+                    ? (QStringLiteral("#") + QString::number(cell.points))
+                    : QString::number(cell.points);
+                p.setFont(ptsFont);
+                p.setPen(gageMode ? QColor(QStringLiteral("#4f46e5"))
+                                  : QColor(QStringLiteral("#555555")));
+                p.drawText(rect.adjusted(2, 2, -3, -2),
+                           Qt::AlignBottom | Qt::AlignRight, pts);
+            }
         }
     }
+
+    // Pied
+    y = gridArea.bottom() + 8;
+    p.setPen(QPen(QColor(QStringLiteral("#bbbbbb")), 1));
+    p.drawLine(QPointF(left, y), QPointF(left + w, y));
+    y += 6;
+
+    QFont small(QStringLiteral("Sans Serif"));
+    small.setPixelSize(qMax(7, int(area.height() * 0.022)));
+    QFont smallBold(small);
+    smallBold.setBold(true);
+
+    if (gageMode) {
+        p.setFont(small);
+        p.setPen(QColor(QStringLiteral("#333333")));
+        QTextOption noteOpt;
+        noteOpt.setWrapMode(QTextOption::WordWrap);
+        p.drawText(QRectF(left, y, w, area.bottom() - y),
+                   QStringLiteral("Le n° dans le coin bas-droit de chaque case est le "
+                                  "numéro du gage à effectuer (voir la feuille « Tableau des Gages »)."),
+                   noteOpt);
+        return;
+    }
+
+    // Mode classique : cases PV + multiplicateurs
+    p.setFont(smallBold);
+    p.setPen(Qt::black);
+    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.3),
+               Qt::AlignLeft | Qt::AlignVCenter,
+               QStringLiteral("Points de vie — %1 PV").arg(project.startHP));
+    y += smallBold.pixelSize() * 1.5;
+
+    const qreal box = qMax(8.0, small.pixelSize() * 1.2);
+    const int hp = qBound(0, project.startHP, 80);
+    qreal x = left;
+    p.setPen(QPen(Qt::black, 1.2));
+    for (int i = 0; i < hp; ++i) {
+        if (x + box > left + w) {
+            x = left;
+            y += box + 3;
+        }
+        p.drawRect(QRectF(x, y, box, box));
+        x += box + 3;
+    }
+    y += box + 8;
+
+    p.setFont(smallBold);
+    p.drawText(QRectF(left, y, w, smallBold.pixelSize() * 1.3),
+               Qt::AlignLeft | Qt::AlignVCenter,
+               QStringLiteral("Règles des combinaisons"));
+    y += smallBold.pixelSize() * 1.4;
+
+    p.setFont(small);
+    const QString rules = QStringLiteral(
+        "Ligne ×%1    Colonne ×%2    Diagonale ×%3    Grille complète ×%4\n"
+        "Cochez une case quand l'événement se produit. La valeur en points est "
+        "dans le coin bas-droit.%5")
+        .arg(project.multipliers.line)
+        .arg(project.multipliers.column)
+        .arg(project.multipliers.diagonal)
+        .arg(project.multipliers.full)
+        .arg(hasGages
+                 ? QStringLiteral(" Pour récupérer des PV, accomplissez un gage "
+                                  "(feuille « Tableau des Gages »).")
+                 : QString());
+    QTextOption rulesOpt;
+    rulesOpt.setWrapMode(QTextOption::WordWrap);
+    p.drawText(QRectF(left, y, w, area.bottom() - y), rules, rulesOpt);
+}
+
+void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project)
+{
+    qreal y = area.top();
+    const qreal left = area.left();
+    const qreal w = area.width();
+
+    QFont titleFont(QStringLiteral("Sans Serif"));
+    titleFont.setBold(true);
+    titleFont.setPixelSize(qMax(10, int(area.height() * 0.03)));
+    p.setFont(titleFont);
+    p.setPen(Qt::black);
+    p.drawText(QRectF(left, y, w, titleFont.pixelSize() * 1.4),
+               Qt::AlignHCenter | Qt::AlignVCenter,
+               QString::fromStdString(project.title));
+    y += titleFont.pixelSize() * 1.5;
+
+    QFont playerFont(titleFont);
+    playerFont.setPixelSize(qMax(14, int(area.height() * 0.045)));
+    p.setFont(playerFont);
+    p.drawText(QRectF(left, y, w, playerFont.pixelSize() * 1.3),
+               Qt::AlignHCenter | Qt::AlignVCenter,
+               QStringLiteral("Tableau des Gages"));
+    y += playerFont.pixelSize() * 1.5;
+
+    p.setPen(QPen(Qt::black, 2));
+    p.drawLine(QPointF(left, y), QPointF(left + w, y));
+    y += 10;
+
+    QFont body(QStringLiteral("Sans Serif"));
+    body.setPixelSize(qMax(9, int(area.height() * 0.025)));
+    QFont bodyItalic(body);
+    bodyItalic.setItalic(true);
+    p.setFont(bodyItalic);
+    p.setPen(QColor(QStringLiteral("#333333")));
+    const QString intro = project.gageMode
+        ? QStringLiteral("Le numéro sur chaque case de la grille renvoie au gage "
+                         "correspondant. Effectuez-le quand vous tombez dessus !")
+        : QStringLiteral("Accomplissez n'importe quel gage pour récupérer des points "
+                         "de vie. Une fois accompli, cochez-le.");
+    QTextOption introOpt;
+    introOpt.setWrapMode(QTextOption::WordWrap);
+    const qreal introH = body.pixelSize() * 3.2;
+    p.drawText(QRectF(left, y, w, introH), intro, introOpt);
+    y += introH + 8;
+
+    const bool showHp = !project.gageMode;
+    const qreal colNum = w * 0.08;
+    const qreal colHp = showHp ? w * 0.18 : 0;
+    const qreal colDesc = w - colNum - colHp;
+    const qreal rowH = qMax(18.0, body.pixelSize() * 2.0);
+
+    auto drawHeaderCell = [&](const QRectF& r, const QString& text) {
+        p.fillRect(r, QColor(QStringLiteral("#f0f0f0")));
+        p.setPen(QPen(Qt::black, 1.2));
+        p.drawRect(r);
+        QFont h = body;
+        h.setBold(true);
+        p.setFont(h);
+        p.drawText(r.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
+    };
+
+    drawHeaderCell(QRectF(left, y, colNum, rowH), QStringLiteral("#"));
+    drawHeaderCell(QRectF(left + colNum, y, colDesc, rowH), QStringLiteral("Gage"));
+    if (showHp)
+        drawHeaderCell(QRectF(left + colNum + colDesc, y, colHp, rowH),
+                       QStringLiteral("PV"));
+    y += rowH;
+
+    p.setFont(body);
+    for (size_t i = 0; i < project.gages.size(); ++i) {
+        if (y + rowH > area.bottom())
+            break;
+        const auto& g = project.gages[i];
+        const QRectF rNum(left, y, colNum, rowH);
+        const QRectF rDesc(left + colNum, y, colDesc, rowH);
+        const QRectF rHp(left + colNum + colDesc, y, colHp, rowH);
+        p.setPen(QPen(Qt::black, 1));
+        p.drawRect(rNum);
+        p.drawRect(rDesc);
+        if (showHp)
+            p.drawRect(rHp);
+        p.drawText(rNum, Qt::AlignCenter, QString::number(i + 1));
+        p.drawText(rDesc.adjusted(6, 2, -4, -2), Qt::AlignVCenter | Qt::AlignLeft,
+                   QString::fromStdString(g.description));
+        if (showHp)
+            p.drawText(rHp, Qt::AlignCenter,
+                       QStringLiteral("+%1 PV").arg(g.hp));
+        y += rowH;
+    }
+
+    const auto& combos = project.comboGages;
+    if (project.gageMode
+        && (!combos.line.empty() || !combos.column.empty() || !combos.diagonal.empty())) {
+        y += 14;
+        QFont comboTitle(body);
+        comboTitle.setBold(true);
+        p.setFont(comboTitle);
+        p.setPen(Qt::black);
+        p.drawText(QRectF(left, y, w, comboTitle.pixelSize() * 1.4),
+                   Qt::AlignLeft | Qt::AlignVCenter,
+                   QStringLiteral("Gages de combinaison"));
+        y += comboTitle.pixelSize() * 1.6;
+        p.setFont(body);
+        auto addCombo = [&](const char* label, const std::string& text) {
+            if (text.empty() || y + rowH > area.bottom())
+                return;
+            const QRectF rType(left, y, w * 0.28, rowH);
+            const QRectF rText(left + w * 0.28, y, w * 0.72, rowH);
+            p.setPen(QPen(Qt::black, 1));
+            p.drawRect(rType);
+            p.drawRect(rText);
+            QFont bold = body;
+            bold.setBold(true);
+            p.setFont(bold);
+            p.drawText(rType.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                       QString::fromUtf8(label));
+            p.setFont(body);
+            p.drawText(rText.adjusted(6, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                       QString::fromStdString(text));
+            y += rowH;
+        };
+        addCombo("Ligne complète", combos.line);
+        addCombo("Colonne complète", combos.column);
+        addCombo("Diagonale complète", combos.diagonal);
+    }
+}
+
+void paintBingoDocument(QPrinter& printer, const core::Project& project)
+{
+    QPainter painter;
+    if (!painter.begin(&printer))
+        return;
+
+    const QRectF page = printer.pageRect(QPrinter::DevicePixel);
+    const int perPage = 2;
+    const qreal gap = mmToPx(printer, 2);
+    const qreal halfH = (page.height() - gap) / perPage;
+
+    int slot = 0;
+    for (size_t i = 0; i < project.grids.size(); ++i) {
+        if (slot == perPage) {
+            if (!printer.newPage()) {
+                painter.end();
+                return;
+            }
+            slot = 0;
+        }
+        const QRectF area(page.left(),
+                          page.top() + slot * (halfH + gap),
+                          page.width(),
+                          halfH);
+        drawPlayerSheet(painter, area, project, project.grids[i]);
+        ++slot;
+    }
+
+    if (!project.gages.empty()) {
+        if (!printer.newPage()) {
+            painter.end();
+            return;
+        }
+        drawGageSheet(painter, page, project);
+    }
+
+    painter.end();
 }
 
 } // namespace
@@ -1209,43 +1736,13 @@ bool AppController::exportPdf(const QString& filePath)
     printer.setOutputFileName(filePath);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setPageOrientation(QPageLayout::Portrait);
-    printer.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
+    printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout::Millimeter);
 
-    QPainter painter;
-    if (!painter.begin(&printer))
-        return false;
-
-    const QRectF page = printer.pageRect(QPrinter::DevicePixel);
-    const QString projectTitle = QString::fromStdString(m_current.title);
-    const int perPage = 2;
-    const qreal gap = 16;
-    const qreal halfH = (page.height() - gap) / perPage;
-
-    int slot = 0;
-    for (size_t i = 0; i < m_current.grids.size(); ++i) {
-        if (slot == perPage) {
-            if (!printer.newPage()) {
-                painter.end();
-                return false;
-            }
-            slot = 0;
-        }
-        const auto& grid = m_current.grids[i];
-        const QRectF area(page.left(),
-                          page.top() + slot * (halfH + gap),
-                          page.width(),
-                          halfH);
-        const QString heading = projectTitle + QStringLiteral(" — ")
-            + QString::fromStdString(grid.player);
-        drawPlayerGrid(painter, area, heading, grid);
-        ++slot;
-    }
-
-    painter.end();
-    return QFile::exists(filePath);
+    paintBingoDocument(printer, m_current);
+    return QFile::exists(filePath) && QFileInfo(filePath).size() > 500;
 }
 
-bool AppController::printPreview()
+bool AppController::savePdf()
 {
     if (!m_hasCurrent || m_current.grids.empty()) {
         emit toast(QStringLiteral("Générez des grilles d'abord"));
@@ -1260,7 +1757,7 @@ bool AppController::printPreview()
 
     QString path = QFileDialog::getSaveFileName(
         nullptr,
-        QStringLiteral("Exporter les grilles en PDF"),
+        QStringLiteral("Enregistrer les grilles en PDF"),
         suggested,
         QStringLiteral("PDF (*.pdf)"));
     if (path.isEmpty())
@@ -1272,10 +1769,51 @@ bool AppController::printPreview()
         emit toast(QStringLiteral("Échec de l'export PDF"));
         return false;
     }
-
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     emit toast(QStringLiteral("PDF enregistré"));
     return true;
+}
+
+bool AppController::printGrids()
+{
+    if (!m_hasCurrent || m_current.grids.empty()) {
+        emit toast(QStringLiteral("Générez des grilles d'abord"));
+        return false;
+    }
+
+#ifdef Q_OS_ANDROID
+    const QString path = QDir(
+        QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+        .filePath(QStringLiteral("openbingo-print.pdf"));
+    if (!exportPdf(path)) {
+        emit toast(QStringLiteral("Échec de la préparation PDF"));
+        return false;
+    }
+    if (platformPrintPdf(path)) {
+        emit toast(QStringLiteral("Impression…"));
+        return true;
+    }
+    // Repli : ouvrir le PDF (l'utilisateur pourra Imprimer depuis le lecteur).
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    emit toast(QStringLiteral("PDF prêt — utilisez Imprimer dans le lecteur"));
+    return true;
+#else
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setPageOrientation(QPageLayout::Portrait);
+    printer.setPageMargins(QMarginsF(10, 10, 10, 10), QPageLayout::Millimeter);
+
+    QPrintPreviewDialog dlg(&printer);
+    dlg.setWindowTitle(QStringLiteral("Aperçu avant impression — Open Bingo"));
+    QObject::connect(&dlg, &QPrintPreviewDialog::paintRequested,
+                     this, [this](QPrinter* pr) {
+        if (pr && m_hasCurrent)
+            paintBingoDocument(*pr, m_current);
+    });
+    dlg.resize(1000, 700);
+    dlg.exec();
+    return true;
+#endif
 }
 
 bool AppController::saveScreenshot(const QString& filePath)

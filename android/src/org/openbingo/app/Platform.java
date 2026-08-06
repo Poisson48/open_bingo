@@ -11,15 +11,24 @@ import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.content.pm.ActivityInfo;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
 import android.view.View;
 import android.view.WindowManager;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -139,6 +148,68 @@ public class Platform {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    // Impression système (PrintManager) à partir d'un PDF déjà généré — sans
+    // FileProvider : on streame le fichier dans le job d'impression.
+    public static boolean printPdf(Context ctx, final String pdfPath) {
+        if (!(ctx instanceof Activity) || pdfPath == null)
+            return false;
+        final File pdf = new File(pdfPath);
+        if (!pdf.isFile() || pdf.length() == 0)
+            return false;
+
+        final Activity activity = (Activity) ctx;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                PrintManager pm = (PrintManager) activity.getSystemService(Context.PRINT_SERVICE);
+                if (pm == null)
+                    return;
+                PrintDocumentAdapter adapter = new PrintDocumentAdapter() {
+                    @Override
+                    public void onLayout(PrintAttributes oldAttributes,
+                                         PrintAttributes newAttributes,
+                                         CancellationSignal cancellationSignal,
+                                         LayoutResultCallback callback,
+                                         Bundle extras) {
+                        if (cancellationSignal.isCanceled()) {
+                            callback.onLayoutCancelled();
+                            return;
+                        }
+                        PrintDocumentInfo info = new PrintDocumentInfo.Builder("openbingo.pdf")
+                                .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                                .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
+                                .build();
+                        callback.onLayoutFinished(info, true);
+                    }
+
+                    @Override
+                    public void onWrite(PageRange[] pages,
+                                        ParcelFileDescriptor destination,
+                                        CancellationSignal cancellationSignal,
+                                        WriteResultCallback callback) {
+                        try (InputStream in = new FileInputStream(pdf);
+                             OutputStream out = new FileOutputStream(destination.getFileDescriptor())) {
+                            byte[] buffer = new byte[65536];
+                            int read;
+                            while ((read = in.read(buffer)) > 0) {
+                                if (cancellationSignal.isCanceled()) {
+                                    callback.onWriteCancelled();
+                                    return;
+                                }
+                                out.write(buffer, 0, read);
+                            }
+                            callback.onWriteFinished(new PageRange[]{ PageRange.ALL_PAGES });
+                        } catch (Exception e) {
+                            callback.onWriteFailed(e.getMessage());
+                        }
+                    }
+                };
+                pm.print("Open Bingo", adapter, null);
+            }
+        });
+        return true;
     }
 
     // --- Mise à jour depuis l'app ---

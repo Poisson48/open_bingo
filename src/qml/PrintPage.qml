@@ -13,16 +13,28 @@ ScrollView {
 
         Label {
             Layout.fillWidth: true
-            text: "Export PDF A4 — 2 grilles par page (ouvrez le fichier pour imprimer)."
+            text: "Aperçu A4 — 2 grilles par page (nom, points / n° de gage, PV ou note, + feuille des gages). L’impression ouvre le service système ; vous pouvez aussi enregistrer un PDF."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap
         }
-        BingoButton {
-            text: "Exporter PDF"
-            primary: true
-            enabled: AppController.grids.length > 0
-            onClicked: AppController.printPreview()
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Imprimer…"
+                primary: true
+                enabled: AppController.grids.length > 0
+                onClicked: AppController.printGrids()
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Enregistrer PDF"
+                enabled: AppController.grids.length > 0
+                onClicked: AppController.savePdf()
+            }
         }
 
         Repeater {
@@ -54,6 +66,7 @@ ScrollView {
                         Layout.fillWidth: true
                         availableWidth: parent.width - Theme.pad * 2
                         rows: modelData.cells
+                        gageMode: AppController.gageMode
                     }
                 }
             }

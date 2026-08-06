@@ -42,7 +42,14 @@ Item {
                 BingoButton {
                     visible: playerBox.count > 0
                     text: "Réinitialiser"
-                    onClicked: playRoot.resetChecks()
+                    onClicked: {
+                        AppController.resetPlayChecks(
+                            AppController.grids[playerBox.currentIndex].player)
+                        playRoot.reloadChecks()
+                        playRoot.lastGageR = -1
+                        playRoot.lastGageC = -1
+                        playRoot.bingoRevision++
+                    }
                 }
             }
 
@@ -77,48 +84,42 @@ Item {
                 }
 
                 function resetChecks() {
+                    if (playerBox.count <= 0) return
+                    AppController.resetPlayChecks(
+                        AppController.grids[playerBox.currentIndex].player)
                     reloadChecks()
-                    const mid = Math.floor(AppController.gridSize / 2)
-                    const free = AppController.freeCenter && AppController.gridSize % 2 === 1
-                    for (var r = 0; r < checks.length; r++)
-                        for (var c = 0; c < checks[r].length; c++)
-                            checks[r][c] = free && r === mid && c === mid
-                    checks = checks.slice(0)
+                    lastGageR = -1
+                    lastGageC = -1
                     bingoRevision++
-                    saveChecks()
                 }
 
                 property int bingoRevision: 0
                 property int lastGageR: -1
                 property int lastGageC: -1
+                property var previewOverlays: []
 
                 Component.onCompleted: reloadChecks()
 
-                function lineType(line, n) {
-                    if (!line || line.length === 0) return ""
-                    var rows = {}, cols = {}
-                    var mainDiag = true, antiDiag = true
-                    for (var i = 0; i < line.length; ++i) {
-                        const r = line[i][0], c = line[i][1]
-                        rows[r] = true; cols[c] = true
-                        if (r !== c) mainDiag = false
-                        if (r + c !== n - 1) antiDiag = false
+                readonly property var activeGageCard: {
+                    void bingoRevision
+                    void checks
+                    void lastGageR
+                    void previewOverlays
+                    if (previewOverlays && previewOverlays.length > 0) {
+                        const o = previewOverlays[0]
+                        if (o && o.kind === "gage")
+                            return { num: o.num, label: o.label, desc: o.desc }
+                        if (o && o.kind === "combo")
+                            return { num: 0, label: o.label || "", desc: o.desc || "" }
                     }
-                    if (Object.keys(rows).length === 1) return "line"
-                    if (Object.keys(cols).length === 1) return "column"
-                    if (mainDiag || antiDiag) return "diagonal"
-                    return ""
-                }
-
-                function bingoTypes(checkGrid) {
-                    var set = {}
-                    const n = AppController.gridSize
-                    const lines = AppController.detectBingoLines(checkGrid)
-                    for (var i = 0; i < lines.length; ++i) {
-                        const t = lineType(lines[i], n)
-                        if (t.length) set[t] = true
-                    }
-                    return set
+                    if (!AppController.gageMode || lastGageR < 0)
+                        return null
+                    if (!checks[lastGageR] || !checks[lastGageR][lastGageC])
+                        return null
+                    const grid = playerBox.count > 0
+                          ? AppController.grids[playerBox.currentIndex] : null
+                    if (!grid || !grid.cells) return null
+                    return lookupCellGage(grid.cells[lastGageR][lastGageC])
                 }
 
                 function lookupCellGage(cell) {
@@ -133,59 +134,39 @@ Item {
                     return { num: cell.points, label: cell.label || "", desc: g.description }
                 }
 
-                readonly property var activeGageCard: {
-                    void bingoRevision
-                    void checks
-                    void lastGageR
-                    if (!AppController.gageMode || lastGageR < 0)
-                        return null
-                    if (!checks[lastGageR] || !checks[lastGageR][lastGageC])
-                        return null
-                    const grid = playerBox.count > 0
-                          ? AppController.grids[playerBox.currentIndex] : null
-                    if (!grid || !grid.cells) return null
-                    return lookupCellGage(grid.cells[lastGageR][lastGageC])
-                }
-
                 function toggle(r, c) {
-                    if (!checks[r]) return
+                    if (!checks[r] || playerBox.count <= 0) return
                     const mid = Math.floor(AppController.gridSize / 2)
                     if (AppController.freeCenter && AppController.gridSize % 2 === 1
                             && r === mid && c === mid)
                         return
-                    const oldTypes = bingoTypes(checks)
-                    checks[r] = checks[r].slice(0)
-                    checks[r][c] = !checks[r][c]
-                    if (AppController.freeCenter && AppController.gridSize % 2 === 1)
-                        checks[mid][mid] = true
-                    checks = checks.slice(0)
-                    if (checks[r][c]) {
+                    const player = AppController.grids[playerBox.currentIndex].player
+                    const result = AppController.togglePlayCell(player, r, c)
+                    if (!result || !result.checks)
+                        return
+                    checks = result.checks
+                    if (result.checked) {
                         lastGageR = r
                         lastGageC = c
-                    } else if (lastGageR === r && lastGageC === c) {
-                        lastGageR = -1
-                        lastGageC = -1
+                        previewOverlays = result.overlays || []
+                        // Toasts pour chaque overlay (aperçu hors plein écran)
+                        for (var i = 0; i < previewOverlays.length; ++i) {
+                            const o = previewOverlays[i]
+                            if (!o || !o.desc) continue
+                            const title = o.kind === "combo"
+                                          ? (o.label || "Combinaison")
+                                          : ("Gage #" + (o.num || ""))
+                            AppController.notify(title + " — " + o.desc)
+                        }
+                    } else {
+                        if (lastGageR === r && lastGageC === c) {
+                            lastGageR = -1
+                            lastGageC = -1
+                        }
+                        previewOverlays = []
                     }
                     bingoRevision++
-                    saveChecks()
                     AppController.vibrate()
-
-                    // Toast combo nouvellement déclenché (aperçu hors plein écran)
-                    if (checks[r][c]) {
-                        const newTypes = bingoTypes(checks)
-                        const keys = ["line", "column", "diagonal"]
-                        const labels = {
-                            line: "Ligne", column: "Colonne", diagonal: "Diagonale"
-                        }
-                        for (var ki = 0; ki < keys.length; ++ki) {
-                            const k = keys[ki]
-                            if (newTypes[k] && !oldTypes[k]) {
-                                const txt = (AppController.comboGages || {})[k] || ""
-                                if (txt.length)
-                                    AppController.notify(labels[k] + " — " + txt)
-                            }
-                        }
-                    }
                 }
 
                 readonly property var bingoSet: {
@@ -339,7 +320,15 @@ Item {
                 function onCurrentIndexChanged() {
                     playRoot.lastGageR = -1
                     playRoot.lastGageC = -1
+                    playRoot.previewOverlays = []
                     playRoot.reloadChecks()
+                }
+            }
+            Connections {
+                target: AppController
+                function onPlayChecksChanged() {
+                    playRoot.reloadChecks()
+                    playRoot.bingoRevision++
                 }
             }
         }

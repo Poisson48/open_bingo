@@ -3,8 +3,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 
-// Mode « Commencer la partie » — Item plein fenêtre (pas un Popup : taille fiable).
-// Overlay gage (bas, 15 s) comme l'app web : action de case + gages de combinaison.
+// Mode « Commencer la partie » — Item plein fenêtre.
+// Cochage via AppController.togglePlayCell (pattern Colo Courses/Tâches) :
+// même libellé → coché chez tous les joueurs. Overlays gages en file (15 s).
 Item {
     id: fs
     anchors.fill: parent
@@ -16,11 +17,11 @@ Item {
     property var checks: []
     property int playerIndex: -1
 
-    // Overlay temporaire
     property bool gagePanelVisible: false
-    property var activeGage: null      // { num, label, desc } ou null
-    property var activeCombos: []      // ["line"|"column"|"diagonal", ...]
+    property var activeOverlay: null   // { kind, num, label, desc, player, key? }
+    property var gageQueue: []
     readonly property int gageDisplayMs: 15000
+    readonly property int queueRemaining: gageQueue.length
 
     signal checksUpdated(var newChecks)
     signal closed()
@@ -46,10 +47,50 @@ Item {
     function clearGagePanel() {
         gageHideTimer.stop()
         gagePanelVisible = false
-        activeGage = null
-        activeCombos = []
+        activeOverlay = null
+        gageQueue = []
         timerBarAnim.stop()
         timerBar.width = timerTrack.width
+    }
+
+    function enqueueOverlays(list) {
+        if (!list || list.length === 0)
+            return
+        var q = gageQueue.slice(0)
+        for (var i = 0; i < list.length; ++i)
+            q.push(list[i])
+        gageQueue = q
+        if (!gagePanelVisible)
+            showNextOverlay()
+    }
+
+    function showNextOverlay() {
+        if (!gageQueue || gageQueue.length === 0) {
+            clearGagePanel()
+            return
+        }
+        activeOverlay = gageQueue[0]
+        gageQueue = gageQueue.slice(1)
+        gagePanelVisible = !!activeOverlay
+        if (!gagePanelVisible) {
+            showNextOverlay()
+            return
+        }
+        gageHideTimer.restart()
+        Qt.callLater(function() {
+            timerBarAnim.stop()
+            timerBar.width = Math.max(1, timerTrack.width)
+            timerBarAnim.start()
+        })
+    }
+
+    function dismissCurrentOverlay() {
+        gageHideTimer.stop()
+        timerBarAnim.stop()
+        if (gageQueue && gageQueue.length > 0)
+            showNextOverlay()
+        else
+            clearGagePanel()
     }
 
     function bingoKey(r, c) { return r + "," + c }
@@ -66,67 +107,6 @@ Item {
         return out
     }
 
-    function lineType(line, n) {
-        if (!line || line.length === 0)
-            return ""
-        var rows = {}
-        var cols = {}
-        var mainDiag = true
-        var antiDiag = true
-        for (var i = 0; i < line.length; ++i) {
-            const r = line[i][0]
-            const c = line[i][1]
-            rows[r] = true
-            cols[c] = true
-            if (r !== c)
-                mainDiag = false
-            if (r + c !== n - 1)
-                antiDiag = false
-        }
-        if (Object.keys(rows).length === 1)
-            return "line"
-        if (Object.keys(cols).length === 1)
-            return "column"
-        if (mainDiag || antiDiag)
-            return "diagonal"
-        return ""
-    }
-
-    function bingoTypes(checkGrid) {
-        var set = {}
-        const n = AppController.gridSize
-        const lines = AppController.detectBingoLines(checkGrid)
-        for (var i = 0; i < lines.length; ++i) {
-            const t = lineType(lines[i], n)
-            if (t.length)
-                set[t] = true
-        }
-        return set
-    }
-
-    function lookupCellGage(cell) {
-        if (!cell)
-            return null
-        if (cell.gage && String(cell.gage).length > 0)
-            return {
-                num: cell.points || 0,
-                label: cell.label || "",
-                desc: String(cell.gage)
-            }
-        const idx = (cell.points || 0) - 1
-        const list = AppController.gages || []
-        if (idx < 0 || idx >= list.length)
-            return null
-        const g = list[idx]
-        if (!g || !g.description)
-            return null
-        return {
-            num: cell.points,
-            label: cell.label || "",
-            desc: g.description
-        }
-    }
-
     function comboLabel(key) {
         if (key === "line") return "Ligne complète"
         if (key === "column") return "Colonne complète"
@@ -141,33 +121,6 @@ Item {
         return "★"
     }
 
-    function comboText(key) {
-        const c = AppController.comboGages || {}
-        return c[key] || ""
-    }
-
-    function showGagePanel(gageData, newCombos) {
-        const combos = []
-        for (var i = 0; i < newCombos.length; ++i) {
-            const k = newCombos[i]
-            if (comboText(k).length > 0)
-                combos.push(k)
-        }
-        if (!gageData && combos.length === 0) {
-            clearGagePanel()
-            return
-        }
-        activeGage = gageData
-        activeCombos = combos
-        gagePanelVisible = true
-        gageHideTimer.restart()
-        Qt.callLater(function() {
-            timerBarAnim.stop()
-            timerBar.width = Math.max(1, timerTrack.width)
-            timerBarAnim.start()
-        })
-    }
-
     function toggle(r, c) {
         if (!checks || !checks[r])
             return
@@ -176,38 +129,20 @@ Item {
                 && r === mid && c === mid)
             return
 
-        const oldTypes = bingoTypes(checks)
+        const result = AppController.togglePlayCell(fs.playerName, r, c)
+        if (!result || !result.checks)
+            return
 
-        var copy = deepCopyChecks(checks)
-        copy[r][c] = !copy[r][c]
-        if (AppController.freeCenter && AppController.gridSize % 2 === 1
-                && mid < copy.length && mid < (copy[mid] || []).length)
-            copy[mid][mid] = true
-        checks = copy
+        checks = result.checks
         bingoRevision++
-        checksUpdated(copy)
+        checksUpdated(result.checks)
         AppController.vibrate()
 
-        // Gages : uniquement à la cochage (pas au décochage)
-        if (!copy[r][c]) {
+        if (!result.checked) {
             clearGagePanel()
             return
         }
-
-        const newTypes = bingoTypes(copy)
-        var newCombos = []
-        const keys = ["line", "column", "diagonal"]
-        for (var ki = 0; ki < keys.length; ++ki) {
-            const k = keys[ki]
-            if (newTypes[k] && !oldTypes[k])
-                newCombos.push(k)
-        }
-
-        var gageData = null
-        if (AppController.gageMode && fs.rows && fs.rows[r])
-            gageData = lookupCellGage(fs.rows[r][c])
-
-        showGagePanel(gageData, newCombos)
+        enqueueOverlays(result.overlays || [])
     }
 
     property int bingoRevision: 0
@@ -237,20 +172,29 @@ Item {
         return n
     }
 
+    readonly property bool overlayIsCombo: activeOverlay && activeOverlay.kind === "combo"
+    readonly property string overlayTitle: {
+        if (!activeOverlay) return ""
+        if (overlayIsCombo)
+            return comboIcon(activeOverlay.key) + "  " + (activeOverlay.label || comboLabel(activeOverlay.key))
+        const num = activeOverlay.num || 0
+        const who = activeOverlay.player && activeOverlay.player !== fs.playerName
+                    ? (" · " + activeOverlay.player) : ""
+        return "Gage #" + num + who
+    }
+
     Timer {
         id: gageHideTimer
         interval: fs.gageDisplayMs
         repeat: false
-        onTriggered: clearGagePanel()
+        onTriggered: fs.dismissCurrentOverlay()
     }
 
-    // Voile plein écran
     Rectangle {
         anchors.fill: parent
         color: Theme.background
     }
 
-    // Barre haute
     Rectangle {
         id: topBar
         anchors.left: parent.left
@@ -303,7 +247,6 @@ Item {
         }
     }
 
-    // Grille : tout le reste
     BingoGrid {
         id: playGrid
         anchors.left: parent.left
@@ -333,7 +276,6 @@ Item {
         z: 1
     }
 
-    // Overlay gage / combo — glisse depuis le bas, 15 s (parité app web)
     Rectangle {
         id: gagePanel
         anchors.left: parent.left
@@ -342,8 +284,6 @@ Item {
         z: 20
         visible: fs.gagePanelVisible
         color: Qt.rgba(0.04, 0.06, 0.11, 0.94)
-        border.color: Theme.accent
-        border.width: 0
         implicitHeight: gageCol.implicitHeight + 28
         height: Math.min(implicitHeight, parent.height * 0.65)
 
@@ -363,71 +303,45 @@ Item {
             anchors.bottomMargin: 10
             spacing: 10
 
-            // Gage de la case cochée
-            ColumnLayout {
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 6
-                visible: fs.activeGage !== null
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-                    Label {
-                        text: fs.activeGage ? ("Gage #" + fs.activeGage.num) : ""
-                        color: Theme.accent
-                        font.pixelSize: 13
-                        font.weight: Font.DemiBold
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: fs.activeGage ? fs.activeGage.label : ""
-                        color: Theme.textDim
-                        font.pixelSize: 13
-                        elide: Text.ElideRight
-                        maximumLineCount: 2
-                        wrapMode: Text.WordWrap
-                    }
-                }
+                spacing: 8
                 Label {
                     Layout.fillWidth: true
-                    text: fs.activeGage ? fs.activeGage.desc : ""
-                    color: Theme.text
-                    font.pixelSize: Math.max(16, Math.min(22, fs.height * 0.035))
+                    text: fs.overlayTitle
+                    color: fs.overlayIsCombo ? Theme.success : Theme.accent
+                    font.pixelSize: 13
                     font.weight: Font.DemiBold
-                    wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
+                }
+                Label {
+                    visible: fs.queueRemaining > 0
+                    text: "+" + fs.queueRemaining
+                    color: Theme.textDim
+                    font.pixelSize: 12
                 }
             }
 
-            // Gages de combinaison nouvellement déclenchés
-            Repeater {
-                model: fs.activeCombos
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        visible: index > 0 || fs.activeGage !== null
-                        color: Qt.rgba(1, 1, 1, 0.12)
-                    }
-                    Label {
-                        text: fs.comboIcon(modelData) + "  " + fs.comboLabel(modelData)
-                        color: Theme.success
-                        font.pixelSize: 13
-                        font.weight: Font.DemiBold
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: fs.comboText(modelData)
-                        color: Theme.text
-                        font.pixelSize: Math.max(15, Math.min(20, fs.height * 0.032))
-                        font.weight: Font.DemiBold
-                        wrapMode: Text.WordWrap
-                    }
-                }
+            Label {
+                Layout.fillWidth: true
+                visible: !!(fs.activeOverlay && fs.activeOverlay.label && !fs.overlayIsCombo)
+                text: fs.activeOverlay ? (fs.activeOverlay.label || "") : ""
+                color: Theme.textDim
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
             }
 
-            // Barre de décompte 15 s
+            Label {
+                Layout.fillWidth: true
+                text: fs.activeOverlay ? (fs.activeOverlay.desc || "") : ""
+                color: Theme.text
+                font.pixelSize: Math.max(16, Math.min(22, fs.height * 0.035))
+                font.weight: Font.DemiBold
+                wrapMode: Text.WordWrap
+            }
+
             Item {
                 id: timerTrack
                 Layout.fillWidth: true
@@ -458,17 +372,20 @@ Item {
             }
         }
 
-        // Entrée légère
+        MouseArea {
+            anchors.fill: parent
+            onClicked: fs.dismissCurrentOverlay()
+        }
+
         opacity: visible ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 180 } }
     }
 
-    // Retour système / Escape
     Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             event.accepted = true
             if (fs.gagePanelVisible) {
-                clearGagePanel()
+                fs.dismissCurrentOverlay()
                 return
             }
             fs.close()

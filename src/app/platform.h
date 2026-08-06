@@ -38,4 +38,7 @@ void platformSetImmersive(bool on);
 bool platformAddCalendarEvent(const QString& title, const QString& description,
                               qint64 startMs);
 
+// Ouvre le service d'impression système pour un PDF déjà écrit (Android PrintManager).
+bool platformPrintPdf(const QString& pdfPath);
+
 } // namespace app

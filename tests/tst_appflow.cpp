@@ -208,6 +208,66 @@ private slots:
         QCOMPARE(controller.grids()[0].toMap().value(QStringLiteral("cells")), cellsA);
     }
 
+    void togglePlayCellSyncsSameLabel()
+    {
+        // Style Colo : un cochage propage le même libellé à toutes les grilles.
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(controller.openProject(id));
+        controller.setTitle(QStringLiteral("Film sync"));
+        controller.setGridSize(3);
+        controller.setFreeCenter(false);
+        controller.setGageMode(true);
+        while (controller.players().size() > 2)
+            controller.removePlayer(controller.players().size() - 1);
+        while (controller.players().size() < 2)
+            controller.addPlayer();
+        controller.setPlayerName(0, QStringLiteral("Alice"));
+        controller.setPlayerName(1, QStringLiteral("Bob"));
+        while (controller.gages().size() > 0)
+            controller.removeGage(0);
+        controller.addGage(QStringLiteral("Boire une gorgée"), 1);
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        // 9 cases identiques pour forcer le même texte partout
+        for (int i = 0; i < 9; ++i)
+            controller.addCase(QStringLiteral("Explosion"), 1, 100);
+        QVERIFY2(!controller.generateAll().contains(QStringLiteral("Aucun")), "generate");
+        QCOMPARE(controller.grids().size(), 2);
+
+        const QString alice = QStringLiteral("Alice");
+        const QString bob = QStringLiteral("Bob");
+        const auto result = controller.togglePlayCell(alice, 0, 0);
+        QVERIFY(result.value(QStringLiteral("checked")).toBool());
+        QVERIFY(!result.value(QStringLiteral("overlays")).toList().isEmpty());
+
+        auto countChecked = [](const QVariantList& checks) {
+            int n = 0;
+            for (const auto& rowV : checks) {
+                for (const auto& cell : rowV.toList())
+                    if (cell.toBool()) ++n;
+            }
+            return n;
+        };
+        // Toutes les cases « Explosion » cochées chez Alice et Bob
+        QCOMPARE(countChecked(controller.loadPlayChecks(alice)), 9);
+        QCOMPARE(countChecked(controller.loadPlayChecks(bob)), 9);
+
+        // Décocher propage aussi
+        const auto off = controller.togglePlayCell(alice, 1, 1);
+        QVERIFY(!off.value(QStringLiteral("checked")).toBool());
+        QCOMPARE(countChecked(controller.loadPlayChecks(alice)), 0);
+        QCOMPARE(countChecked(controller.loadPlayChecks(bob)), 0);
+    }
+
     void generateAllRequiresCases()
     {
         QTemporaryDir tmp;

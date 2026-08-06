@@ -140,6 +140,11 @@ public:
 
     Q_INVOKABLE QVariantList loadPlayChecks(const QString& playerName);
     Q_INVOKABLE void savePlayChecks(const QString& playerName, const QVariantList& checks);
+    // Cochage style Colo Courses/Tâches : source de vérité locale, vibration côté UI.
+    // Coche/décoche (row,col) puis propage le même libellé à toutes les grilles
+    // (tout le monde regarde le même film). Renvoie checks + overlays gages à enfiler.
+    Q_INVOKABLE QVariantMap togglePlayCell(const QString& playerName, int row, int col);
+    Q_INVOKABLE void resetPlayChecks(const QString& playerName);
     Q_INVOKABLE int computeScore(const QString& playerName, const QVariantList& checks);
     Q_INVOKABLE QVariantList detectBingoLines(const QVariantList& checks);
 
@@ -151,9 +156,12 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString& text);
     Q_INVOKABLE QString detectLineType(const QVariantList& lineCoords, int gridSize) const;
     Q_INVOKABLE bool shareText(const QString& text);
-    // Export PDF A4 (2 grilles/page) — pas de QPrintDialog (crash sous QML / Android).
+    // Impression A4 : aperçu + service d'impression (2 grilles/page, gages, points).
     Q_INVOKABLE bool exportPdf(const QString& filePath);
-    Q_INVOKABLE bool printPreview();
+    Q_INVOKABLE bool savePdf();
+    Q_INVOKABLE bool printGrids();
+    // Alias UI historique.
+    Q_INVOKABLE bool printPreview() { return printGrids(); }
     Q_INVOKABLE bool saveScreenshot(const QString& filePath);
     Q_INVOKABLE void notify(const QString& message);
 
@@ -170,6 +178,7 @@ signals:
     void pendingChangesChanged();
     void editorOpened(const QString& projectId);
     void toast(const QString& message);
+    void playChecksChanged();
 
 private:
     void touchProject();

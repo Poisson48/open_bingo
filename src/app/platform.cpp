@@ -150,6 +150,19 @@ bool platformAddCalendarEvent(const QString& title, const QString& description,
         static_cast<jlong>(startMs));
 }
 
+bool platformPrintPdf(const QString& pdfPath)
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid() || pdfPath.isEmpty())
+        return false;
+
+    const QJniObject jPath = QJniObject::fromString(pdfPath);
+    return QJniObject::callStaticMethod<jboolean>(
+        kPlatformClass, "printPdf",
+        "(Landroid/content/Context;Ljava/lang/String;)Z",
+        ctx.object(), jPath.object<jstring>());
+}
+
 #else // !Q_OS_ANDROID
 
 void initNotifications() {}
@@ -171,6 +184,8 @@ bool platformUnlockOrientation() { return false; }
 void platformSetImmersive(bool) {}
 
 bool platformAddCalendarEvent(const QString&, const QString&, qint64) { return false; }
+
+bool platformPrintPdf(const QString&) { return false; }
 
 #endif
 
