@@ -149,6 +149,8 @@ ScrollView {
                 }
             }
         }
+
+        Item { Layout.preferredHeight: Theme.pad * 2 }
     }
 
     CellPicker { id: cellPicker }

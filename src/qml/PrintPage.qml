@@ -58,5 +58,7 @@ ScrollView {
                 }
             }
         }
+
+        Item { Layout.preferredHeight: Theme.pad * 2 }
     }
 }

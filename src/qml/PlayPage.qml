@@ -199,6 +199,9 @@ Item {
                 onClicked: page.openFullscreen()
             }
 
+            // Marge au-dessus de la barre de geste Android.
+            Item { Layout.preferredHeight: Theme.pad * 2 }
+
             Connections {
                 target: playerBox
                 function onCurrentIndexChanged() { playRoot.reloadChecks() }

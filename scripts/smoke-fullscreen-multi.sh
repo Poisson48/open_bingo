@@ -51,7 +51,11 @@ for size in "${SIZES[@]}"; do
 
   if ! python3 - "$shot" "$w" "$h" <<'PY'
 import sys
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    print("FAIL: module PIL manquant (installer python3-pil)", file=sys.stderr)
+    sys.exit(2)
 path, ew, eh = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 im = Image.open(path).convert("RGB")
 w, h = im.size

@@ -32,11 +32,32 @@ ScrollView {
                     hint: "Titre"
                     onEditingFinished: AppController.title = text
                 }
-                ColoTextField {
+                // TextArea : une ligne unique tronquait le début de la description.
+                TextArea {
+                    id: descField
                     Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(72, contentHeight + topPadding + bottomPadding)
                     text: AppController.description
-                    hint: "Description (optionnel)"
-                    onEditingFinished: AppController.description = text
+                    placeholderText: activeFocus || length > 0 ? "" : "Description (optionnel)"
+                    color: Theme.text
+                    placeholderTextColor: Theme.textDim
+                    font.pixelSize: 14
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    leftPadding: 12
+                    rightPadding: 12
+                    topPadding: 10
+                    bottomPadding: 10
+                    background: Rectangle {
+                        radius: Theme.radius
+                        color: Theme.inputBg
+                        border.width: descField.activeFocus ? 2 : 1
+                        border.color: descField.activeFocus ? Theme.accent : Theme.outlineLight
+                    }
+                    onActiveFocusChanged: {
+                        if (!activeFocus)
+                            AppController.description = text
+                    }
                 }
 
                 Label { text: "Grille"; color: Theme.text; font.weight: Font.DemiBold; font.pixelSize: 14 }
@@ -160,5 +181,7 @@ ScrollView {
                 }
             }
         }
+
+        Item { Layout.preferredHeight: Theme.pad * 2 }
     }
 }

@@ -9,25 +9,23 @@ Item {
     property string deleteTargetId: ""
     property string deleteTargetTitle: ""
 
-    property Component actions: Row {
-        spacing: 6
-        BingoButton {
-            text: "Exporter"
-            onClicked: AppController.pickExportAllJson()
-        }
-        BingoButton {
-            text: "Importer"
-            onClicked: AppController.pickImportAllJson()
-        }
-        IconButton {
-            iconName: "menu"
-            iconColor: Theme.text
-            onClicked: overflowMenu.popup()
-        }
+    // Actions dans le menu : laisse la place au titre « Open Bingo ».
+    property Component actions: IconButton {
+        iconName: "menu"
+        iconColor: Theme.text
+        onClicked: overflowMenu.popup()
     }
 
     ColoMenu {
         id: overflowMenu
+        MenuItem {
+            text: "Exporter tout"
+            onTriggered: AppController.pickExportAllJson()
+        }
+        MenuItem {
+            text: "Importer"
+            onTriggered: AppController.pickImportAllJson()
+        }
         MenuItem {
             text: "Notes de version"
             onTriggered: {
@@ -185,6 +183,9 @@ Item {
                     AppController.openProject(id)
             }
         }
+
+        // Marge au-dessus de la barre de geste Android.
+        Item { Layout.preferredHeight: Theme.pad * 2 }
     }
 
     ColoDialog {
