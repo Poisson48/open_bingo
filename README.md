@@ -22,31 +22,33 @@ Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez 
 ## Aperçu
 
 <p align="center">
-  <img src="docs/assets/screenshots/phone/05-play.png" alt="Mode play" width="280">
+  <img src="docs/assets/screenshots/phone/06-play.png" alt="Mode play" width="260">
   &nbsp;
-  <img src="docs/assets/screenshots/phone/01-projects.png" alt="Projets" width="280">
+  <img src="docs/assets/screenshots/phone/01-projects.png" alt="Projets" width="260">
   &nbsp;
-  <img src="docs/assets/screenshots/phone/04-grids.png" alt="Grilles" width="280">
+  <img src="docs/assets/screenshots/phone/04-gages.png" alt="Gages" width="260">
 </p>
 
 <p align="center">
-  <img src="docs/assets/screenshots/phone/02-config.png" alt="Configuration" width="220">
+  <img src="docs/assets/screenshots/phone/02-config.png" alt="Configuration" width="200">
   &nbsp;
-  <img src="docs/assets/screenshots/phone/03-cases.png" alt="Phrases" width="220">
+  <img src="docs/assets/screenshots/phone/03-cases.png" alt="Phrases" width="200">
+  &nbsp;
+  <img src="docs/assets/screenshots/phone/05-grids.png" alt="Grilles" width="200">
 </p>
 
-<p align="center"><em>Interface sombre indigo — responsive mobile & desktop · <a href="https://poisson48.github.io/open_bingo/#screenshots">plus de captures</a></em></p>
+<p align="center"><em>Captures à jour — portable Linux & Android · <a href="https://poisson48.github.io/open_bingo/#screenshots">plus d’images</a></em></p>
 
 ## Télécharger
 
-**[→ Page de téléchargement](https://poisson48.github.io/open_bingo/#download)** · **[Releases GitHub](https://github.com/Poisson48/open_bingo/releases/latest)**
+**[→ Site web (téléchargements)](https://poisson48.github.io/open_bingo/#download)** · **[Releases GitHub](https://github.com/Poisson48/open_bingo/releases/latest)**
 
 | Plateforme | Fichier | Installation |
 |---|---|---|
-| **PC / Linux** (x86-64) | `OpenBingo-*-x86_64.AppImage` | `chmod +x OpenBingo-*.AppImage && ./OpenBingo-*.AppImage` |
+| **Portable Linux** (x86-64) | `OpenBingo-*-x86_64.AppImage` | `chmod +x OpenBingo-*.AppImage && ./OpenBingo-*.AppImage` |
 | **Android** (arm64) | `openbingo-*-arm64.apk` | Ouvrez l'APK sur le téléphone, ou `adb install -r openbingo-*-arm64.apk` |
 
-L'AppImage embarque Qt : un seul fichier, aucune dépendance système.
+L'AppImage est **portable** (Qt embarqué) : un seul fichier, aucune dépendance système.
 
 Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les releases signées s'installent **par-dessus** la version précédente.
 
@@ -54,10 +56,10 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 
 - **Projets multiples** — créer, cloner, rechercher, supprimer ; métadonnées titre/description
 - **Configuration** — taille de grille (2–12), joueurs, HP de départ, case FREE au centre, mode gage
-- **Phrases & gages** — pool de cases avec points et taux d'inclusion (0–100 %)
+- **Phrases & gages** — phrases avec n° de gage ; onglet Gages dédié + combinaisons
 - **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle
-- **Impression** — aperçu A4 (2 grilles/page) + page gages
-- **Sans papier** — cocher les cases, score en direct, plein écran paysage, persistance des checks
+- **Impression** — A4, 2 grilles/page, trait de découpe, feuille gages
+- **Sans papier** — cocher, overlay gage perso, sync du même texte entre joueurs
 - **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
 

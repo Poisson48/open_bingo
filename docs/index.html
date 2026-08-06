@@ -2,118 +2,145 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Open Bingo — Générateur de cartes bingo pour soirées jeux</title>
-  <meta name="description" content="Créez des grilles bingo uniques, jouez sans papier sur téléphone, partagez et synchronisez vos projets. Gratuit, open source, Linux & Android.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Open Bingo — Portable Linux & Android</title>
+  <meta name="description" content="Bingo pour soirées jeux : AppImage portable Linux et APK Android. Grilles uniques, impression A4, mode play, sync chiffrée. Gratuit et open source.">
   <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <img class="logo" src="assets/logo.png" width="96" height="96" alt="Open Bingo">
-      <h1>Open <span>Bingo</span></h1>
-      <p class="tagline">
-        Générateur de cartes bingo pour soirées jeux — natif, gratuit, sans serveur.
-        Grilles uniques par joueur, mode play sur téléphone, sync chiffrée entre appareils.
-      </p>
-
-      <div class="downloads">
-        <a id="dl-appimage" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
-          ⬇ Télécharger pour Linux
-        </a>
-        <a id="dl-apk" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
-          ⬇ Télécharger pour Android
-        </a>
-        <a class="btn btn-secondary" href="https://github.com/Poisson48/open_bingo">Code source</a>
-      </div>
-      <p class="hint">
-        AppImage x86-64 · APK arm64 ·
-        <a href="https://github.com/Poisson48/open_bingo/releases/latest">Toutes les releases</a>
-      </p>
-
-      <figure class="hero-shot">
-        <img src="assets/screenshots/phone/05-play.png" alt="Mode play — cocher les cases en direct" width="390" height="844">
-      </figure>
-    </div>
+  <header class="topbar">
+    <a class="brand" href="#">
+      <img src="assets/logo.png" width="36" height="36" alt="">
+      <span>Open Bingo</span>
+    </a>
+    <nav>
+      <a href="#download">Télécharger</a>
+      <a href="#screenshots">Aperçu</a>
+      <a href="https://github.com/Poisson48/open_bingo">GitHub</a>
+    </nav>
   </header>
 
-  <section id="screenshots">
-    <h2>L'app en images</h2>
-    <p class="subtitle">Interface sombre indigo, pensée pour mobile et tablette</p>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow" id="version-badge">v2 · Qt 6 native</p>
+      <h1>Open <em>Bingo</em></h1>
+      <p class="lede">
+        Cartes bingo pour vos soirées — version <strong>portable Linux</strong> (AppImage)
+        et <strong>Android</strong>. Sans serveur à héberger, sync optionnelle entre appareils.
+      </p>
+      <div class="cta-row" id="hero-downloads">
+        <a id="dl-appimage" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
+          <span class="btn-kicker">Linux x86-64</span>
+          <span class="btn-label">Portable · AppImage</span>
+        </a>
+        <a id="dl-apk" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
+          <span class="btn-kicker">Android arm64</span>
+          <span class="btn-label">Installer · APK</span>
+        </a>
+      </div>
+      <p class="hint">
+        Un fichier = tout inclus ·
+        <a href="https://github.com/Poisson48/open_bingo/releases/latest">Toutes les versions</a>
+      </p>
+    </div>
+    <figure class="hero-visual">
+      <img src="assets/screenshots/phone/06-play.png" alt="Mode play sur téléphone" width="390" height="844">
+    </figure>
+  </section>
 
-    <div class="gallery">
-      <figure class="shot">
-        <img src="assets/screenshots/phone/01-projects.png" alt="Liste des projets" loading="lazy">
-        <figcaption><strong>Mes projets</strong>Créez, clonez et retrouvez vos soirées bingo.</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="assets/screenshots/phone/02-config.png" alt="Configuration du projet" loading="lazy">
-        <figcaption><strong>Configuration</strong>Grille, joueurs, HP, case FREE, mode gage.</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="assets/screenshots/phone/03-cases.png" alt="Phrases et gages" loading="lazy">
-        <figcaption><strong>Phrases</strong>Pool de cases avec points et taux d'inclusion.</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="assets/screenshots/phone/04-grids.png" alt="Grilles générées" loading="lazy">
-        <figcaption><strong>Grilles</strong>Une carte unique par joueur, prête à imprimer.</figcaption>
-      </figure>
-      <figure class="shot">
-        <img src="assets/screenshots/phone/05-play.png" alt="Mode play" loading="lazy">
-        <figcaption><strong>Play</strong>Cochez les cases, score en direct, plein écran paysage.</figcaption>
-      </figure>
+  <section id="download" class="download">
+    <h2>Télécharger</h2>
+    <p class="subtitle">Deux builds officiels — choisissez selon votre appareil</p>
+
+    <div class="platforms">
+      <article class="platform">
+        <h3>Portable Linux</h3>
+        <p class="platform-meta">AppImage · x86-64 · Qt embarqué</p>
+        <p>Rien à installer : téléchargez, rendez exécutable, lancez. Idéal USB / PC sans droits admin.</p>
+        <pre class="shell">chmod +x OpenBingo-*.AppImage
+./OpenBingo-*.AppImage</pre>
+        <a id="dl-appimage-2" class="btn btn-primary btn-block" href="https://github.com/Poisson48/open_bingo/releases/latest">
+          Télécharger l’AppImage
+        </a>
+      </article>
+      <article class="platform">
+        <h3>Android</h3>
+        <p class="platform-meta">APK · arm64 · mises à jour in-app</p>
+        <p>Ouvrez l’APK sur le téléphone (autorisez la source) ou installez via ADB. Les releases se mettent à jour par-dessus.</p>
+        <pre class="shell">adb install -r openbingo-*-arm64.apk</pre>
+        <a id="dl-apk-2" class="btn btn-primary btn-block" href="https://github.com/Poisson48/open_bingo/releases/latest">
+          Télécharger l’APK
+        </a>
+      </article>
     </div>
   </section>
 
-  <section id="download">
-    <h2>Télécharger</h2>
-    <p class="subtitle">Choisissez votre plateforme — aucune inscription requise</p>
+  <section id="screenshots">
+    <h2>L’app en images</h2>
+    <p class="subtitle">Captures à jour — téléphone et bureau</p>
 
-    <div class="downloads" style="margin-bottom: 1.5rem;">
-      <a id="dl-appimage-2" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
-        🖥 Linux — AppImage
-      </a>
-      <a id="dl-apk-2" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
-        📱 Android — APK
-      </a>
+    <h3 class="gallery-label">Téléphone</h3>
+    <div class="gallery gallery-phone">
+      <figure class="shot">
+        <img src="assets/screenshots/phone/01-projects.png" alt="Liste des projets" loading="lazy" width="390" height="844">
+        <figcaption><strong>Projets</strong>Créez et retrouvez vos soirées.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/screenshots/phone/02-config.png" alt="Configuration" loading="lazy" width="390" height="844">
+        <figcaption><strong>Config</strong>Grille, joueurs, mode gage.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/screenshots/phone/03-cases.png" alt="Phrases" loading="lazy" width="390" height="844">
+        <figcaption><strong>Phrases</strong>Cases + n° de gage.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/screenshots/phone/04-gages.png" alt="Gages" loading="lazy" width="390" height="844">
+        <figcaption><strong>Gages</strong>Tableau et combinaisons.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/screenshots/phone/05-grids.png" alt="Grilles" loading="lazy" width="390" height="844">
+        <figcaption><strong>Grilles</strong>Une carte par joueur.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/screenshots/phone/06-play.png" alt="Play" loading="lazy" width="390" height="844">
+        <figcaption><strong>Play</strong>Cochez, score, overlays gage.</figcaption>
+      </figure>
     </div>
 
-    <div class="features">
-      <div class="feature">
-        <h3>Linux (AppImage)</h3>
-        <p><code>chmod +x OpenBingo-*.AppImage && ./OpenBingo-*.AppImage</code><br>Un seul fichier, Qt embarqué.</p>
-      </div>
-      <div class="feature">
-        <h3>Android (APK arm64)</h3>
-        <p>Ouvrez l'APK sur le téléphone ou <code>adb install -r openbingo-*-arm64.apk</code>. Mises à jour proposées dans l'app.</p>
-      </div>
-      <div class="feature">
-        <h3>Sync & partage</h3>
-        <p>QR code ou lien <code>openbingo://join/…</code> — chiffrement bout en bout via relais Nostr.</p>
-      </div>
+    <h3 class="gallery-label">Bureau</h3>
+    <div class="gallery gallery-desktop">
+      <figure class="shot shot-wide">
+        <img src="assets/screenshots/desktop/05-grids.png" alt="Grilles sur bureau" loading="lazy" width="1200" height="720">
+        <figcaption><strong>Grilles</strong>Édition confortable sur grand écran.</figcaption>
+      </figure>
+      <figure class="shot shot-wide">
+        <img src="assets/screenshots/desktop/07-play-fullscreen.png" alt="Play plein écran" loading="lazy" width="1200" height="720">
+        <figcaption><strong>Plein écran</strong>Mode soirée paysage.</figcaption>
+      </figure>
     </div>
   </section>
 
   <section id="features">
     <h2>Fonctionnalités</h2>
-    <p class="subtitle">Tout ce qu'il faut pour animer une soirée</p>
-
     <div class="features">
-      <div class="feature"><h3>Projets multiples</h3><p>Titre, description, recherche, export JSON.</p></div>
-      <div class="feature"><h3>Grilles 2×2 à 12×12</h3><p>Génération aléatoire, reshuffle, édition manuelle.</p></div>
-      <div class="feature"><h3>Impression A4</h3><p>Aperçu 2 grilles par page + feuille gages.</p></div>
-      <div class="feature"><h3>Sans papier</h3><p>Checks persistants, score live, vibration, BINGO.</p></div>
-      <div class="feature"><h3>Hors ligne</h3><p>SQLite local, file d'attente sync au retour réseau.</p></div>
-      <div class="feature"><h3>Open source</h3><p>GPLv3 — contributions bienvenues sur GitHub.</p></div>
+      <div class="feature"><h3>Projets multiples</h3><p>Titre, clone, export / import JSON.</p></div>
+      <div class="feature"><h3>Grilles 2×2 à 12×12</h3><p>Génération, reshuffle, édition manuelle.</p></div>
+      <div class="feature"><h3>Impression A4</h3><p>2 grilles par page, trait de découpe, feuille gages.</p></div>
+      <div class="feature"><h3>Sans papier</h3><p>Play plein écran, sync des coches au même texte.</p></div>
+      <div class="feature"><h3>Sync optionnelle</h3><p>QR / lien chiffré via relais Nostr.</p></div>
+      <div class="feature"><h3>Open source</h3><p>GPLv3 — code sur GitHub.</p></div>
     </div>
   </section>
 
   <footer>
     <p>
       <a href="https://github.com/Poisson48/open_bingo">GitHub</a> ·
-      <a href="https://github.com/Poisson48/open_bingo/blob/main/LICENSE">Licence GPLv3</a> ·
-      Open Bingo — Qt 6 native
+      <a href="https://github.com/Poisson48/open_bingo/blob/main/LICENSE">GPLv3</a> ·
+      <a href="https://poisson48.github.io/open_bingo/">poisson48.github.io/open_bingo</a>
     </p>
   </footer>
 
@@ -124,22 +151,29 @@
         if (!release || !release.assets) return;
         let appimage = null, apk = null;
         for (const a of release.assets) {
-          if (a.name.endsWith('.AppImage')) appimage = a.browser_download_url;
-          if (a.name.endsWith('.apk')) apk = a.browser_download_url;
+          const n = a.name.toLowerCase();
+          if (n.endsWith('.appimage')) appimage = a.browser_download_url;
+          if (n.endsWith('.apk')) apk = a.browser_download_url;
         }
         const ver = release.tag_name || '';
-        if (appimage) {
-          for (const id of ['dl-appimage', 'dl-appimage-2']) {
+        const badge = document.getElementById('version-badge');
+        if (badge && ver) badge.textContent = ver + ' · Qt 6 native';
+
+        function wire(ids, url, label) {
+          if (!url) return;
+          for (const id of ids) {
             const el = document.getElementById(id);
-            if (el) { el.href = appimage; el.textContent = el.textContent.replace('Linux', 'Linux ' + ver); }
+            if (!el) continue;
+            el.href = url;
+            const lab = el.querySelector('.btn-label');
+            if (lab) lab.textContent = label;
+            else if (el.classList.contains('btn-block')) el.textContent = label;
           }
         }
-        if (apk) {
-          for (const id of ['dl-apk', 'dl-apk-2']) {
-            const el = document.getElementById(id);
-            if (el) { el.href = apk; el.textContent = el.textContent.replace('Android', 'Android ' + ver); }
-          }
-        }
+        wire(['dl-appimage'], appimage, 'Portable · AppImage ' + ver);
+        wire(['dl-apk'], apk, 'Installer · APK ' + ver);
+        wire(['dl-appimage-2'], appimage, 'Télécharger l’AppImage ' + ver);
+        wire(['dl-apk-2'], apk, 'Télécharger l’APK ' + ver);
       })
       .catch(() => {});
   </script>

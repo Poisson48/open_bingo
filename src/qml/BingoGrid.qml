@@ -229,8 +229,8 @@ Item {
                              && Math.min(cellRect.width, cellRect.height) >= 40
                     text: {
                         if (!cell) return ""
-                        if (root.gageMode && cell.gage)
-                            return "Gage #" + cell.points
+                        if (root.gageMode)
+                            return "Gage #" + (cell.points || 0)
                         if (cell.points !== undefined)
                             return cell.points + " pt"
                         return ""

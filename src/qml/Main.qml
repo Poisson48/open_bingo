@@ -374,17 +374,20 @@ ApplicationWindow {
             else
                 console.warn("Screenshot failed:", path)
             step++
-            if (step >= 12)
+            if (step >= 14)
                 Qt.quit()
             else
                 schedule(400)
         }
 
         function runStep() {
+            // 0 projects → 1 open → 2 config → 3 phrases → 4 gages
+            // → 5 grilles → 6 play → 7 fullscreen → quit
             if (step === 0) {
                 capture("01-projects.png")
             } else if (step === 1) {
                 AppController.openProject(demoId)
+                AppController.gageMode = true
                 AppController.lastTab = 0
                 step = 2
                 schedule(700)
@@ -397,18 +400,24 @@ ApplicationWindow {
             } else if (step === 4) {
                 capture("03-cases.png")
             } else if (step === 5) {
-                AppController.lastTab = 3 // Grilles
+                AppController.lastTab = 2 // Gages
                 step = 6
-                schedule(500)
+                schedule(450)
             } else if (step === 6) {
-                capture("04-grids.png")
+                capture("04-gages.png")
             } else if (step === 7) {
-                AppController.lastTab = 5 // Play
+                AppController.lastTab = 3 // Grilles
                 step = 8
-                schedule(550)
+                schedule(500)
             } else if (step === 8) {
-                capture("05-play.png")
+                capture("05-grids.png")
             } else if (step === 9) {
+                AppController.lastTab = 5 // Play
+                step = 10
+                schedule(550)
+            } else if (step === 10) {
+                capture("06-play.png")
+            } else if (step === 11) {
                 const ed = stack.currentItem
                 if (ed && typeof ed.openPlayFullscreen === "function")
                     ed.openPlayFullscreen()
@@ -417,10 +426,10 @@ ApplicationWindow {
                     const g = AppController.grids[0]
                     window.openPlayGame(g.player, 0, g.cells, [])
                 }
-                step = 10
+                step = 12
                 schedule(900)
-            } else if (step === 10) {
-                capture("06-play-fullscreen.png")
+            } else if (step === 12) {
+                capture("07-play-fullscreen.png")
             } else {
                 Qt.quit()
             }
