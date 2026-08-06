@@ -15,13 +15,18 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFile>
+#include <QFont>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QPainter>
+#include <QPen>
 #include <QPrinter>
-#include <QPrintDialog>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QTextOption>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -1033,13 +1038,141 @@ bool AppController::shareText(const QString& text)
     return true;
 }
 
+namespace {
+
+void drawPlayerGrid(QPainter& p, const QRectF& area, const QString& heading,
+                    const core::PlayerGrid& grid)
+{
+    const qreal titleH = qMin(28.0, area.height() * 0.08);
+    p.setPen(QColor(QStringLiteral("#111827")));
+    QFont titleFont(QStringLiteral("Sans Serif"));
+    titleFont.setBold(true);
+    titleFont.setPixelSize(qMax(10, int(titleH * 0.7)));
+    p.setFont(titleFont);
+    p.drawText(QRectF(area.left(), area.top(), area.width(), titleH),
+               Qt::AlignLeft | Qt::AlignVCenter, heading);
+
+    const QRectF gridArea(area.left(), area.top() + titleH + 4,
+                          area.width(), area.height() - titleH - 4);
+    if (grid.cells.empty() || gridArea.height() < 20)
+        return;
+
+    const int N = static_cast<int>(grid.cells.size());
+    const qreal cellW = gridArea.width() / N;
+    const qreal cellH = gridArea.height() / N;
+    const qreal fontPx = qMax(7.0, qMin(cellW, cellH) * 0.22);
+
+    QFont cellFont(QStringLiteral("Sans Serif"));
+    cellFont.setPixelSize(int(fontPx));
+    p.setFont(cellFont);
+
+    QTextOption opt;
+    opt.setWrapMode(QTextOption::WordWrap);
+    opt.setAlignment(Qt::AlignCenter);
+
+    for (int r = 0; r < N; ++r) {
+        const auto& row = grid.cells[static_cast<size_t>(r)];
+        for (int c = 0; c < N && c < static_cast<int>(row.size()); ++c) {
+            const auto& cell = row[static_cast<size_t>(c)];
+            const QRectF rect(gridArea.left() + c * cellW,
+                              gridArea.top() + r * cellH,
+                              cellW, cellH);
+            if (cell.isFree)
+                p.fillRect(rect, QColor(QStringLiteral("#e5e7eb")));
+            else
+                p.fillRect(rect, Qt::white);
+            p.setPen(QPen(QColor(QStringLiteral("#1f2937")), 1.2));
+            p.drawRect(rect);
+
+            const QString label = cell.isFree
+                ? QStringLiteral("FREE")
+                : QString::fromStdString(cell.label);
+            p.setPen(QColor(QStringLiteral("#111827")));
+            p.drawText(rect.adjusted(3, 2, -3, -2), label, opt);
+        }
+    }
+}
+
+} // namespace
+
+bool AppController::exportPdf(const QString& filePath)
+{
+    if (!m_hasCurrent || m_current.grids.empty())
+        return false;
+    if (filePath.isEmpty())
+        return false;
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(filePath);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setPageOrientation(QPageLayout::Portrait);
+    printer.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
+
+    QPainter painter;
+    if (!painter.begin(&printer))
+        return false;
+
+    const QRectF page = printer.pageRect(QPrinter::DevicePixel);
+    const QString projectTitle = QString::fromStdString(m_current.title);
+    const int perPage = 2;
+    const qreal gap = 16;
+    const qreal halfH = (page.height() - gap) / perPage;
+
+    int slot = 0;
+    for (size_t i = 0; i < m_current.grids.size(); ++i) {
+        if (slot == perPage) {
+            if (!printer.newPage()) {
+                painter.end();
+                return false;
+            }
+            slot = 0;
+        }
+        const auto& grid = m_current.grids[i];
+        const QRectF area(page.left(),
+                          page.top() + slot * (halfH + gap),
+                          page.width(),
+                          halfH);
+        const QString heading = projectTitle + QStringLiteral(" — ")
+            + QString::fromStdString(grid.player);
+        drawPlayerGrid(painter, area, heading, grid);
+        ++slot;
+    }
+
+    painter.end();
+    return QFile::exists(filePath);
+}
+
 bool AppController::printPreview()
 {
-    QPrinter printer(QPrinter::HighResolution);
-    QPrintDialog dialog(&printer);
-    if (dialog.exec() != QDialog::Accepted)
+    if (!m_hasCurrent || m_current.grids.empty()) {
+        emit toast(QStringLiteral("Générez des grilles d'abord"));
         return false;
-    emit toast(QStringLiteral("Impression lancée"));
+    }
+
+    const QString suggested = QDir(
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+        .filePath(QString::fromStdString(m_current.title)
+                      .replace(QLatin1Char('/'), QLatin1Char('-'))
+                  + QStringLiteral("-bingo.pdf"));
+
+    QString path = QFileDialog::getSaveFileName(
+        nullptr,
+        QStringLiteral("Exporter les grilles en PDF"),
+        suggested,
+        QStringLiteral("PDF (*.pdf)"));
+    if (path.isEmpty())
+        return false;
+    if (!path.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+        path += QStringLiteral(".pdf");
+
+    if (!exportPdf(path)) {
+        emit toast(QStringLiteral("Échec de l'export PDF"));
+        return false;
+    }
+
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    emit toast(QStringLiteral("PDF enregistré"));
     return true;
 }
 

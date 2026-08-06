@@ -13,12 +13,13 @@ ScrollView {
 
         Label {
             Layout.fillWidth: true
-            text: "Aperçu impression A4 (2 grilles/page)"
+            text: "Export PDF A4 — 2 grilles par page (ouvrez le fichier pour imprimer)."
             color: Theme.textDim
             font.pixelSize: 13
+            wrapMode: Text.WordWrap
         }
         BingoButton {
-            text: "Imprimer / PDF"
+            text: "Exporter PDF"
             primary: true
             enabled: AppController.grids.length > 0
             onClicked: AppController.printPreview()
@@ -53,7 +54,8 @@ ScrollView {
                         Layout.fillWidth: true
                         availableWidth: parent.width - Theme.pad * 2
                         rows: modelData.cells
-                    }                }
+                    }
+                }
             }
         }
     }

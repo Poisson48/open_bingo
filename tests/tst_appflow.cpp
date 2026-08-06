@@ -1,5 +1,6 @@
 #include "../src/app/appcontroller.h"
 
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -107,6 +108,22 @@ private slots:
 
         controller.moveGrid(0, 1);
         QCOMPARE(controller.grids().size(), controller.players().size());
+    }
+
+    void pdfExportProducesFile()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        QVERIFY(controller.grids().size() >= 1);
+
+        const QString pdfPath = tmp.path() + QStringLiteral("/grilles.pdf");
+        QVERIFY2(controller.exportPdf(pdfPath), "exportPdf");
+        QVERIFY(QFileInfo::exists(pdfPath));
+        QVERIFY(QFileInfo(pdfPath).size() > 500);
     }
 
     void generateAllRequiresCases()

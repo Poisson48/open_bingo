@@ -1,6 +1,5 @@
-#include <QCoreApplication>
+#include <QApplication>
 #include <QDesktopServices>
-#include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -17,7 +16,8 @@
 
 int main(int argc, char* argv[])
 {
-    QGuiApplication app(argc, argv);
+    // QApplication (pas QGuiApplication) : QFileDialog / export PDF ont besoin des widgets.
+    QApplication app(argc, argv);
     app.setOrganizationName(QStringLiteral("OpenBingo"));
     app.setApplicationName(QStringLiteral("OpenBingo"));
     app.setWindowIcon(QIcon(QStringLiteral("qrc:/icons/openbingo.png")));

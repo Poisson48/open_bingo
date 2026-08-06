@@ -146,6 +146,8 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString& text);
     Q_INVOKABLE QString detectLineType(const QVariantList& lineCoords, int gridSize) const;
     Q_INVOKABLE bool shareText(const QString& text);
+    // Export PDF A4 (2 grilles/page) — pas de QPrintDialog (crash sous QML / Android).
+    Q_INVOKABLE bool exportPdf(const QString& filePath);
     Q_INVOKABLE bool printPreview();
     Q_INVOKABLE bool saveScreenshot(const QString& filePath);
     Q_INVOKABLE void notify(const QString& message);
