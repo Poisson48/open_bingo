@@ -7,11 +7,19 @@ ScrollView {
     clip: true
     contentWidth: availableWidth
 
-    // Forcer le rebind quand les grilles changent (swap / move / generate).
+    // Forcer le rebind quand les grilles changent (swap / assign / generate).
     readonly property int gridsRev: AppController.gridsRevision
     readonly property var gridList: {
         void gridsRev
         return AppController.grids
+    }
+    readonly property var playerNames: {
+        void AppController.currentProjectId
+        const list = AppController.players
+        var names = []
+        for (var i = 0; i < list.length; ++i)
+            names.push(list[i].name)
+        return names
     }
 
     ColumnLayout {
@@ -46,7 +54,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: page.gridList.length > 0
-            text: "Glisser une case pour l'échanger. Toucher pour éditer le texte ou choisir une phrase. Boutons pour réordonner les joueurs."
+            text: "Assignez chaque grille à un joueur. Glisser une case pour l'échanger, toucher pour éditer."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 12
@@ -80,35 +88,45 @@ ScrollView {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 6
-                        Column {
-                            spacing: 2
-                            IconButton {
-                                iconName: "up"
-                                bordered: true
-                                enabled: index > 0
-                                implicitWidth: 40
-                                implicitHeight: 36
-                                onClicked: AppController.moveGrid(index, index - 1)
-                            }
-                            IconButton {
-                                iconName: "down"
-                                bordered: true
-                                enabled: index < page.gridList.length - 1
-                                implicitWidth: 40
-                                implicitHeight: 36
-                                onClicked: AppController.moveGrid(index, index + 1)
-                            }
-                        }
+                        spacing: 8
+
                         Label {
-                            Layout.fillWidth: true
-                            text: "#" + (index + 1) + "  " + modelData.player
-                            color: Theme.text
+                            text: "#" + (index + 1)
+                            color: Theme.textDim
+                            font.pixelSize: 13
                             font.weight: Font.DemiBold
-                            font.pixelSize: 15
-                            elide: Text.ElideRight
-                            maximumLineCount: 1
                         }
+
+                        Label {
+                            text: "Joueur"
+                            color: Theme.textDim
+                            font.pixelSize: 12
+                        }
+
+                        ComboBox {
+                            id: playerCombo
+                            Layout.fillWidth: true
+                            model: {
+                                // Inclure le nom actuel s'il n'est plus dans la liste joueurs.
+                                var names = page.playerNames.slice()
+                                const cur = modelData.player || ""
+                                if (cur.length && names.indexOf(cur) < 0)
+                                    names.push(cur)
+                                return names
+                            }
+                            currentIndex: {
+                                const cur = modelData.player || ""
+                                const i = model.indexOf(cur)
+                                return i >= 0 ? i : 0
+                            }
+                            onActivated: function(i) {
+                                const name = model[i]
+                                if (!name || name === modelData.player)
+                                    return
+                                AppController.assignGridToPlayer(index, name)
+                            }
+                        }
+
                         BingoButton {
                             text: "Reshuffle"
                             onClicked: AppController.reshuffleGrid(index)

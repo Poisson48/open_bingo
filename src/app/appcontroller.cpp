@@ -796,6 +796,61 @@ void AppController::moveGrid(int fromIdx, int toIdx)
     emit currentProjectChanged();
 }
 
+void AppController::assignGridToPlayer(int gridIdx, const QString& playerName)
+{
+    if (!m_hasCurrent || !m_db || gridIdx < 0
+        || gridIdx >= static_cast<int>(m_current.grids.size()))
+        return;
+    const QString wanted = playerName.trimmed();
+    if (wanted.isEmpty())
+        return;
+
+    auto& grid = m_current.grids[static_cast<size_t>(gridIdx)];
+    const QString previous = QString::fromStdString(grid.player);
+    if (previous == wanted)
+        return;
+
+    int otherIdx = -1;
+    for (int i = 0; i < static_cast<int>(m_current.grids.size()); ++i) {
+        if (i == gridIdx)
+            continue;
+        if (QString::fromStdString(m_current.grids[static_cast<size_t>(i)].player) == wanted) {
+            otherIdx = i;
+            break;
+        }
+    }
+
+    const std::string projectId = m_current.id;
+    auto checksPrev = m_db->getPlayChecks(projectId, previous.toStdString());
+    auto checksWanted = m_db->getPlayChecks(projectId, wanted.toStdString());
+
+    if (otherIdx >= 0) {
+        // Échange des libellés : chaque feuille garde ses cases, les noms basculent.
+        m_current.grids[static_cast<size_t>(otherIdx)].player = previous.toStdString();
+        grid.player = wanted.toStdString();
+        // Les cochages suivent la feuille (contenu), pas le nom : on échange les blobs.
+        if (checksPrev)
+            m_db->savePlayChecks(projectId, wanted.toStdString(), *checksPrev);
+        else
+            m_db->savePlayChecks(projectId, wanted.toStdString(), "[]");
+        if (checksWanted)
+            m_db->savePlayChecks(projectId, previous.toStdString(), *checksWanted);
+        else
+            m_db->savePlayChecks(projectId, previous.toStdString(), "[]");
+    } else {
+        grid.player = wanted.toStdString();
+        if (checksPrev)
+            m_db->savePlayChecks(projectId, wanted.toStdString(), *checksPrev);
+        m_db->savePlayChecks(projectId, previous.toStdString(), "[]");
+    }
+
+    persistCurrent();
+    ++m_gridsRevision;
+    emit gridsChanged();
+    emit currentProjectChanged();
+    emit toast(QStringLiteral("Grille assignée à %1").arg(wanted));
+}
+
 static bool writeFile(const QString& path, const std::string& content)
 {
     QFile f(path);

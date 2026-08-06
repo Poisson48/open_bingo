@@ -184,6 +184,30 @@ private slots:
         QCOMPARE(controller.detectBingoLines(checks).size(), 0);
     }
 
+    void assignGridSwapsPlayers()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        QVERIFY(controller.grids().size() >= 2);
+
+        const QString a = controller.grids()[0].toMap().value(QStringLiteral("player")).toString();
+        const QString b = controller.grids()[1].toMap().value(QStringLiteral("player")).toString();
+        QVERIFY(!a.isEmpty());
+        QVERIFY(!b.isEmpty());
+        QVERIFY(a != b);
+
+        const auto cellsA = controller.grids()[0].toMap().value(QStringLiteral("cells"));
+        controller.assignGridToPlayer(0, b);
+        QCOMPARE(controller.grids()[0].toMap().value(QStringLiteral("player")).toString(), b);
+        QCOMPARE(controller.grids()[1].toMap().value(QStringLiteral("player")).toString(), a);
+        // Le contenu de la feuille 0 ne bouge pas.
+        QCOMPARE(controller.grids()[0].toMap().value(QStringLiteral("cells")), cellsA);
+    }
+
     void generateAllRequiresCases()
     {
         QTemporaryDir tmp;

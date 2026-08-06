@@ -117,6 +117,8 @@ public:
     Q_INVOKABLE void setGridCellLabel(int playerIdx, int row, int col,
                                       const QString& label, int points = -1);
     Q_INVOKABLE void moveGrid(int fromIdx, int toIdx);
+    // Assigne une grille à un joueur (échange si le nom est déjà pris).
+    Q_INVOKABLE void assignGridToPlayer(int gridIdx, const QString& playerName);
 
     Q_INVOKABLE bool exportCurrentJson(const QString& filePath);
     Q_INVOKABLE bool importJsonFile(const QString& filePath);
