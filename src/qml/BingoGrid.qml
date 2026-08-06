@@ -58,9 +58,10 @@ Item {
     readonly property real gridPixelH: n > 0 ? n * cellH + gap * (n - 1) : cellH
 
     // Hors fillBounds : taille intrinsèque pour ScrollView / cartes.
-    // En fillBounds : width/height imposés par les anchors du parent.
-    implicitWidth: gridPixelW
-    implicitHeight: fillBounds && availableHeight > 0 ? availableHeight : gridPixelH
+    // En fillBounds : ne pas lier implicit* à width/height (boucle de binding
+    // après rotation Android → taille incorrecte / crop).
+    implicitWidth: fillBounds ? 0 : gridPixelW
+    implicitHeight: fillBounds ? 0 : gridPixelH
 
     property int dragFromRow: -1
     property int dragFromCol: -1

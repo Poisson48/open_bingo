@@ -13,15 +13,24 @@ ApplicationWindow {
     readonly property string screenshotDir: typeof bingoScreenshotDir !== "undefined"
                                             ? bingoScreenshotDir : ""
     readonly property bool screenshotMode: screenshotDir.length > 0
-    width: forcedW > 0 ? forcedW : Screen.width
-    height: forcedH > 0 ? forcedH : Screen.height
+    readonly property bool isAndroid: Qt.platform.os === "android"
+    // Pas de binding width/height → Screen.* : sur Android, Screen inclut l'encoche
+    // alors que la frame visible est inset → bande noire + UI coupée à droite.
+    // La taille est posée une fois dans onCompleted (casse le binding).
     minimumWidth: 320
     minimumHeight: 480
     color: Theme.background
 
     Component.onCompleted: {
-        if (Qt.platform.os === "android")
+        if (forcedW > 0 && forcedH > 0) {
+            width = forcedW
+            height = forcedH
+        } else if (window.isAndroid) {
             window.showMaximized()
+        } else {
+            width = Screen.width
+            height = Screen.height
+        }
         if (window.screenshotMode)
             screenshotRunner.start()
     }
