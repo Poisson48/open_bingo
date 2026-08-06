@@ -1,42 +1,19 @@
-# Build Windows (.exe NSIS) et copie dans releases\vX.Y.Z\
-# Usage : .\scripts\build-windows.ps1 [version]
-# Prérequis : Rust (rustup), Node.js — executer sur Windows
-
-param([string]$Version = "")
+# Build Open Bingo on Windows (MinGW + Qt 6).
+# Prérequis : Qt 6.8 MinGW, CMake, Ninja, libsodium/secp256k1 (vcpkg ou MSYS2).
+param(
+    [string]$QtPath = $env:QT_DIR,
+    [string]$BuildType = "Release"
+)
 
 $ErrorActionPreference = "Stop"
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $RepoRoot
+if (-not $QtPath) { throw "Set QT_DIR to your Qt 6 MinGW install (e.g. C:\Qt\6.8.2\mingw_64)" }
 
-$Conf = "src-tauri\tauri.conf.json"
-$Current = (Get-Content $Conf | ConvertFrom-Json).version
+$repo = Split-Path -Parent $MyInvocation.MyCommand.Path | Split-Path -Parent
+$build = Join-Path $repo "build-win"
 
-if ($Version -eq "") {
-    $Parts = $Current -split "\."
-    $Version = "$($Parts[0]).$($Parts[1]).$([int]$Parts[2] + 1)"
-}
-
-$Dest = "releases\v$Version"
-
-if (Test-Path "$Dest\*.exe") {
-    Write-Host "⚠  Un .exe existe deja dans $Dest"
-    exit 1
-}
-
-Write-Host "→ Version : $Current  ➜  $Version"
-
-# Patch version + targets
-$c = Get-Content $Conf | ConvertFrom-Json
-$c.version = $Version
-$c.bundle.targets = @("nsis")
-$c | ConvertTo-Json -Depth 10 | Set-Content $Conf
-
-Write-Host "→ Build Windows..."
-npm run build
-
-New-Item -ItemType Directory -Force -Path $Dest | Out-Null
-Get-ChildItem "src-tauri\target\release\bundle\nsis\*.exe" | Copy-Item -Destination $Dest
-
-Write-Host ""
-Write-Host "✓  releases\v$Version :"
-Get-ChildItem $Dest
+$env:PATH = "$QtPath\bin;$env:PATH"
+cmake -S $repo -B $build -G Ninja `
+    -DCMAKE_BUILD_TYPE=$BuildType `
+    -DCMAKE_PREFIX_PATH=$QtPath
+cmake --build $build
+Write-Host "Binary: $build\src\openbingo.exe"

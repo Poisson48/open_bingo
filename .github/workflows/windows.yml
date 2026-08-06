@@ -1,0 +1,42 @@
+name: Windows
+
+on:
+  workflow_call:
+    inputs:
+      version_name:
+        type: string
+        default: "2.0.0"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.2"
+          arch: win64_mingw
+          modules: "qtwebsockets qtmultimedia"
+
+      - name: Install deps (vcpkg)
+        run: |
+          git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+          & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat"
+          & "$env:USERPROFILE\vcpkg\vcpkg.exe" install libsodium libsecp256k1 --triplet x64-mingw-dynamic
+
+      - name: Configure
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
+          VCPKG_ROOT: ${{ env.USERPROFILE }}/vcpkg
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbingo-windows-x64
+          path: build/src/openbingo.exe

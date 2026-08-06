@@ -1,33 +1,5 @@
-# Node
-node_modules/
-bingo-app/node_modules/
-npm-debug.log*
-
-# Rust / Cargo
-src-tauri/target/
-src-tauri/gen/android/.gradle/
-src-tauri/gen/android/app/build/
-src-tauri/gen/android/build/
-src-tauri/gen/ios/
-
-# Builds locaux (artefacts dans releases/ — télécharger depuis GitHub Releases)
-releases/
-
-# Tauri artefacts
-*.AppImage
-*.deb
-*.rpm
-*.exe
-*.msi
-*.dmg
-*.pkg
-*.apk
-*.aab
-
-# Signing keys
-*.keystore
-*.jks
-
-# OS
-.DS_Store
-Thumbs.db
+/build/
+/.claude/
+*.user
+*.autosave
+CMakeUserPresets.json
