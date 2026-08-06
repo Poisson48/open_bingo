@@ -18,7 +18,9 @@ struct Case {
 
 struct Gage {
     std::string description;
-    int         hp = 5;
+    int         hp     = 5;
+    int         number = 1;   // n° assigné (plusieurs gages peuvent partager le même)
+    int         rate   = 100; // poids relatif (%) au tirage parmi ceux du même n°
 };
 
 struct ComboGages {

@@ -34,7 +34,7 @@ Item {
             BingoTabBar {
                 id: tabBar
                 anchors.fill: parent
-                labels: ["Config", "Phrases", "Gages", "Grilles", "Impression", "Play"]
+                labels: ["Config", "Phrases", "Gages", "Grilles", "Impression", "Play", "Scores"]
                 currentIndex: AppController.lastTab
                 onCurrentIndexChanged: {
                     if (AppController.lastTab !== currentIndex)
@@ -60,6 +60,7 @@ Item {
             GridsPage {}
             PrintPage {}
             PlayPage { id: playTab }
+            ScoresPage {}
         }
     }
 

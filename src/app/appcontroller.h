@@ -101,9 +101,12 @@ public:
     Q_INVOKABLE void updateCase(int index, const QString& label, int points, int rate);
     Q_INVOKABLE void removeCase(int index);
 
-    Q_INVOKABLE void addGage(const QString& description, int hp);
-    Q_INVOKABLE void updateGage(int index, const QString& description, int hp);
+    Q_INVOKABLE void addGage(const QString& description, int hp, int number = 1, int rate = 100);
+    Q_INVOKABLE void updateGage(int index, const QString& description, int hp,
+                                int number = 1, int rate = 100);
     Q_INVOKABLE void removeGage(int index);
+    // Plus grand n° de gage défini (pour le SpinBox Phrases).
+    Q_INVOKABLE int maxGageNumber() const;
 
     Q_INVOKABLE void setMultiplier(const QString& key, int value);
     Q_INVOKABLE void setComboGage(const QString& key, const QString& value);
@@ -147,6 +150,10 @@ public:
     Q_INVOKABLE void resetPlayChecks(const QString& playerName);
     Q_INVOKABLE int computeScore(const QString& playerName, const QVariantList& checks);
     Q_INVOKABLE QVariantList detectBingoLines(const QVariantList& checks);
+    // Classement live (tous joueurs) — rafraîchi via playChecksChanged.
+    Q_INVOKABLE QVariantList playScoreboard() const;
+    Q_INVOKABLE bool exportScoreboardPng(const QString& filePath);
+    Q_INVOKABLE bool saveScoreboardPng();
 
     Q_INVOKABLE void setKeepScreenOn(bool on);
     Q_INVOKABLE void lockLandscape();

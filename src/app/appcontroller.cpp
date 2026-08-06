@@ -17,7 +17,12 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
+#include <QFontMetrics>
+#include <QImage>
 #include <QJsonArray>
+#include <QLinearGradient>
+#include <QLocale>
+#include <QRadialGradient>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPageLayout>
@@ -30,7 +35,9 @@
 #include <QTextOption>
 #include <QUrl>
 #include <QtGlobal>
+#include <algorithm>
 #include <set>
+#include <random>
 #ifndef Q_OS_ANDROID
 #  include <QPrintPreviewDialog>
 #endif
@@ -104,11 +111,46 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
         return m;
     QString desc;
     int num = cell.points;
+    int rateShown = 100;
     if (!cell.gage.empty()) {
         desc = QString::fromStdString(cell.gage);
-    } else if (project.gageMode && num > 0
-               && num <= static_cast<int>(project.gages.size())) {
-        desc = QString::fromStdString(project.gages[static_cast<size_t>(num - 1)].description);
+    } else if (project.gageMode && num > 0) {
+        // Tirage pondéré parmi les gages partageant ce n°.
+        std::vector<size_t> idxs;
+        int total = 0;
+        for (size_t i = 0; i < project.gages.size(); ++i) {
+            const auto& g = project.gages[i];
+            if (g.number != num)
+                continue;
+            idxs.push_back(i);
+            total += qMax(0, g.rate);
+        }
+        if (idxs.empty())
+            return m;
+        size_t pick = idxs[0];
+        if (idxs.size() > 1) {
+            thread_local std::mt19937 eng{ std::random_device{}() };
+            if (total <= 0) {
+                std::uniform_int_distribution<size_t> dist(0, idxs.size() - 1);
+                pick = idxs[dist(eng)];
+            } else {
+                std::uniform_int_distribution<int> dist(1, total);
+                int roll = dist(eng);
+                int acc = 0;
+                for (size_t i : idxs) {
+                    acc += qMax(0, project.gages[i].rate);
+                    if (roll <= acc) {
+                        pick = i;
+                        break;
+                    }
+                }
+            }
+        }
+        const auto& g = project.gages[pick];
+        desc = QString::fromStdString(g.description);
+        rateShown = g.rate;
+        // Compter combien de variantes pour ce n°
+        m.insert(QStringLiteral("variants"), static_cast<int>(idxs.size()));
     }
     if (desc.isEmpty())
         return m;
@@ -117,6 +159,7 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
     m.insert(QStringLiteral("label"), QString::fromStdString(cell.label));
     m.insert(QStringLiteral("desc"), desc);
     m.insert(QStringLiteral("player"), playerName);
+    m.insert(QStringLiteral("rate"), rateShown);
     return m;
 }
 
@@ -149,6 +192,64 @@ std::set<QString> bingoTypeSet(const core::Project& project,
             types.insert(QStringLiteral("diagonal"));
     }
     return types;
+}
+
+bool isGridFull(const std::vector<std::vector<bool>>& checks, int N)
+{
+    if (N <= 0 || static_cast<int>(checks.size()) < N)
+        return false;
+    for (int r = 0; r < N; ++r) {
+        if (static_cast<int>(checks[static_cast<size_t>(r)].size()) < N)
+            return false;
+        for (int c = 0; c < N; ++c) {
+            if (!checks[static_cast<size_t>(r)][static_cast<size_t>(c)])
+                return false;
+        }
+    }
+    return true;
+}
+
+int countChecked(const std::vector<std::vector<bool>>& checks)
+{
+    int n = 0;
+    for (const auto& row : checks)
+        for (bool v : row)
+            if (v) ++n;
+    return n;
+}
+
+QVariantList buildScoreboard(const core::Project& project, store::Database* db)
+{
+    QVariantList board;
+    if (!db)
+        return board;
+    const int N = project.gridSize;
+    for (const auto& grid : project.grids) {
+        auto checks = emptyChecks(N, project.freeCenter);
+        if (const auto json = db->getPlayChecks(project.id, grid.player)) {
+            const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
+            checks = checksFromVariant(doc.array().toVariantList(), N);
+            if (project.freeCenter && N % 2 == 1) {
+                const int mid = N / 2;
+                checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+            }
+        }
+        const bool full = isGridFull(checks, N);
+        board.append(QVariantMap{
+            { QStringLiteral("player"), QString::fromStdString(grid.player) },
+            { QStringLiteral("score"), core::computeScore(grid, checks) },
+            { QStringLiteral("checked"), countChecked(checks) },
+            { QStringLiteral("full"), full },
+        });
+    }
+    std::sort(board.begin(), board.end(), [](const QVariant& a, const QVariant& b) {
+        const auto ma = a.toMap();
+        const auto mb = b.toMap();
+        if (ma.value(QStringLiteral("full")).toBool() != mb.value(QStringLiteral("full")).toBool())
+            return ma.value(QStringLiteral("full")).toBool();
+        return ma.value(QStringLiteral("score")).toInt() > mb.value(QStringLiteral("score")).toInt();
+    });
+    return board;
 }
 
 } // namespace
@@ -232,9 +333,11 @@ bool AppController::init()
         }
     }
 
-    // Migration 5 → 6 onglets (insertion de « Gages » après Phrases).
+    // Migration onglets éditeur.
+    // v6 : insertion de « Gages » après Phrases (indices ≥ 2 décalés).
+    // v7 : append « Scores » (pas de décalage).
     const auto tabsVer = m_db->getSetting("editor_tabs_v");
-    if (!tabsVer || *tabsVer != "6") {
+    if (!tabsVer || (*tabsVer != "6" && *tabsVer != "7")) {
         if (auto lastTab = m_db->getSetting("last_tab")) {
             int t = QString::fromStdString(*lastTab).toInt();
             if (t >= 2)
@@ -242,9 +345,12 @@ bool AppController::init()
             m_lastTab = t;
             m_db->setSetting("last_tab", std::to_string(t));
         }
-        m_db->setSetting("editor_tabs_v", "6");
-    } else if (auto lastTab = m_db->getSetting("last_tab")) {
-        m_lastTab = QString::fromStdString(*lastTab).toInt();
+        m_db->setSetting("editor_tabs_v", "7");
+    } else {
+        if (*tabsVer != "7")
+            m_db->setSetting("editor_tabs_v", "7");
+        if (auto lastTab = m_db->getSetting("last_tab"))
+            m_lastTab = qBound(0, QString::fromStdString(*lastTab).toInt(), 6);
     }
 
     const auto currentId = m_db->getSetting("current_project_id");
@@ -378,7 +484,7 @@ void AppController::setGageMode(bool v)
 
 void AppController::setLastTab(int v)
 {
-    m_lastTab = qBound(0, v, 5);
+    m_lastTab = qBound(0, v, 6);
     if (m_db)
         m_db->setSetting("last_tab", QString::number(m_lastTab).toStdString());
     emit lastTabChanged();
@@ -417,6 +523,8 @@ QVariantList AppController::gages() const
         out.append(QVariantMap{
             { QStringLiteral("description"), QString::fromStdString(g.description) },
             { QStringLiteral("hp"), g.hp },
+            { QStringLiteral("number"), g.number },
+            { QStringLiteral("rate"), g.rate },
         });
     return out;
 }
@@ -654,7 +762,7 @@ void AppController::removeCase(int index)
     scheduleAutoSave();
 }
 
-void AppController::addGage(const QString& description, int hp)
+void AppController::addGage(const QString& description, int hp, int number, int rate)
 {
     if (!m_hasCurrent)
         return;
@@ -663,12 +771,18 @@ void AppController::addGage(const QString& description, int hp)
         emit toast(QStringLiteral("Écrivez la description du gage"));
         return;
     }
-    m_current.gages.push_back({ trimmed.toStdString(), hp });
+    core::Gage g;
+    g.description = trimmed.toStdString();
+    g.hp = qMax(0, hp);
+    g.number = qMax(1, number);
+    g.rate = qBound(0, rate, 100);
+    m_current.gages.push_back(std::move(g));
     emit currentProjectChanged();
     scheduleAutoSave();
 }
 
-void AppController::updateGage(int index, const QString& description, int hp)
+void AppController::updateGage(int index, const QString& description, int hp,
+                               int number, int rate)
 {
     if (!m_hasCurrent || index < 0 || index >= static_cast<int>(m_current.gages.size()))
         return;
@@ -677,7 +791,11 @@ void AppController::updateGage(int index, const QString& description, int hp)
         emit toast(QStringLiteral("Écrivez la description du gage"));
         return;
     }
-    m_current.gages[static_cast<size_t>(index)] = { trimmed.toStdString(), hp };
+    auto& g = m_current.gages[static_cast<size_t>(index)];
+    g.description = trimmed.toStdString();
+    g.hp = qMax(0, hp);
+    g.number = qMax(1, number);
+    g.rate = qBound(0, rate, 100);
     emit currentProjectChanged();
     scheduleAutoSave();
 }
@@ -689,6 +807,16 @@ void AppController::removeGage(int index)
     m_current.gages.erase(m_current.gages.begin() + index);
     emit currentProjectChanged();
     scheduleAutoSave();
+}
+
+int AppController::maxGageNumber() const
+{
+    if (!m_hasCurrent || m_current.gages.empty())
+        return 1;
+    int m = 1;
+    for (const auto& g : m_current.gages)
+        m = qMax(m, g.number);
+    return m;
 }
 
 void AppController::setMultiplier(const QString& key, int value)
@@ -754,12 +882,15 @@ QString AppController::seedDemoProject()
     p.gageMode = false;
     p.players = { { "Léa" }, { "Max" }, { "Sam" }, { "Chloé" } };
     // Gages prêts si on active le mode gage (points des cases = n° de gage).
+    // Plusieurs gages peuvent partager un n° avec des % de tirage.
     p.gages = {
-        { "Imite la voix du personnage", 5 },
-        { "Mime la scène en 10 secondes", 5 },
-        { "Inventez la réplique suivante", 5 },
-        { "Change de place avec ton voisin", 3 },
-        { "Raconte la scène en chuchotant", 3 },
+        { "Imite la voix du personnage", 5, 1, 60 },
+        { "Chante la réplique en mode opéra", 5, 1, 40 },
+        { "Mime la scène en 10 secondes", 5, 2, 100 },
+        { "Inventez la réplique suivante", 5, 3, 70 },
+        { "Fais un bruitage live", 5, 3, 30 },
+        { "Change de place avec ton voisin", 3, 4, 100 },
+        { "Raconte la scène en chuchotant", 3, 5, 100 },
     };
     p.comboGages.line = "Toute la table boit une gorgée";
     p.comboGages.column = "Le joueur à ta gauche invente un titre alternatif";
@@ -794,10 +925,13 @@ QString AppController::seedDemoProject()
         "Le vrai méchant était un allié",
     };
     p.cases.clear();
-    const int gageCount = static_cast<int>(p.gages.size());
+    // N° max parmi les gages (pas l'index) pour assigner les phrases.
+    int maxNum = 1;
+    for (const auto& g : p.gages)
+        maxNum = std::max(maxNum, g.number);
     int i = 0;
     for (const auto* label : phrases) {
-        const int gageNum = (i % gageCount) + 1; // 1-based index dans p.gages
+        const int gageNum = (i % maxNum) + 1;
         p.cases.push_back({ label, gageNum, 100 });
         ++i;
     }
@@ -1293,10 +1427,22 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
         pushCombo("diagonal", combos.diagonal);
     }
 
+    const auto board = buildScoreboard(m_current, m_db.get());
+    bool viewerFull = false;
+    for (const QVariant& row : board) {
+        const auto m = row.toMap();
+        if (m.value(QStringLiteral("player")).toString() == playerName) {
+            viewerFull = m.value(QStringLiteral("full")).toBool();
+            break;
+        }
+    }
     result.insert(QStringLiteral("checked"), newChecked);
     result.insert(QStringLiteral("checks"), viewerChecksOut);
     result.insert(QStringLiteral("overlays"), overlays);
     result.insert(QStringLiteral("label"), label);
+    result.insert(QStringLiteral("gridFull"), viewerFull);
+    result.insert(QStringLiteral("justCompleted"), newChecked && viewerFull);
+    result.insert(QStringLiteral("scoreboard"), board);
     emit playChecksChanged();
     return result;
 }
@@ -1353,6 +1499,225 @@ QVariantList AppController::detectBingoLines(const QVariantList& checks)
         out.append(QVariant(coords));
     }
     return out;
+}
+
+QVariantList AppController::playScoreboard() const
+{
+    if (!m_hasCurrent || !m_db)
+        return {};
+    return buildScoreboard(m_current, m_db.get());
+}
+
+bool AppController::exportScoreboardPng(const QString& filePath)
+{
+    if (!m_hasCurrent || !m_db) {
+        emit toast(QStringLiteral("Aucun projet ouvert"));
+        return false;
+    }
+    const QVariantList board = buildScoreboard(m_current, m_db.get());
+    if (board.isEmpty()) {
+        emit toast(QStringLiteral("Aucun joueur — générez des grilles d'abord"));
+        return false;
+    }
+
+    const int W = 920;
+    const int pad = 36;
+    const int headerH = 132;
+    const int rowH = 76;
+    const int footerH = 52;
+    const int H = headerH + board.size() * rowH + footerH;
+
+    QImage img(W, H, QImage::Format_ARGB32_Premultiplied);
+    img.fill(QColor(QStringLiteral("#0f1623")));
+
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+
+    // Bandeau accent
+    QLinearGradient bar(0, 0, W, 0);
+    bar.setColorAt(0.0, QColor(QStringLiteral("#4f46e5")));
+    bar.setColorAt(1.0, QColor(QStringLiteral("#818cf8")));
+    p.fillRect(0, 0, W, 7, bar);
+
+    // Halo doux en haut à droite
+    QRadialGradient glow(W - 80, 40, 220);
+    glow.setColorAt(0.0, QColor(99, 102, 241, 55));
+    glow.setColorAt(1.0, QColor(99, 102, 241, 0));
+    p.fillRect(0, 0, W, headerH, glow);
+
+    const QString title = QString::fromStdString(m_current.title).trimmed();
+    QFont titleFont(QStringLiteral("Sans Serif"));
+    titleFont.setPixelSize(30);
+    titleFont.setBold(true);
+    p.setFont(titleFont);
+    p.setPen(QColor(QStringLiteral("#f1f5f9")));
+    const QFontMetrics titleFm(titleFont);
+    const QString titleElided = titleFm.elidedText(
+        title.isEmpty() ? QStringLiteral("Bingo") : title, Qt::ElideRight, W - 2 * pad);
+    p.drawText(QRect(pad, 28, W - 2 * pad, 40), Qt::AlignLeft | Qt::AlignVCenter, titleElided);
+
+    QFont subFont(QStringLiteral("Sans Serif"));
+    subFont.setPixelSize(15);
+    p.setFont(subFont);
+    p.setPen(QColor(QStringLiteral("#7c8fa6")));
+    p.drawText(QRect(pad, 74, W / 2, 28), Qt::AlignLeft | Qt::AlignVCenter,
+               QStringLiteral("Classement · Open Bingo"));
+    p.drawText(QRect(W / 2, 74, W / 2 - pad, 28), Qt::AlignRight | Qt::AlignVCenter,
+               QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy  HH:mm")));
+
+    // En-tête colonnes
+    QFont colFont(QStringLiteral("Sans Serif"));
+    colFont.setPixelSize(11);
+    colFont.setBold(true);
+    p.setFont(colFont);
+    p.setPen(QColor(QStringLiteral("#5b6b82")));
+    p.drawText(QRect(pad + 68, 108, 200, 18), Qt::AlignLeft, QStringLiteral("JOUEUR"));
+    p.drawText(QRect(W - pad - 200, 108, 200, 18), Qt::AlignRight, QStringLiteral("SCORE"));
+
+    int y = headerH;
+    for (int i = 0; i < board.size(); ++i) {
+        const auto m = board[i].toMap();
+        const QString name = m.value(QStringLiteral("player")).toString();
+        const int score = m.value(QStringLiteral("score")).toInt();
+        const int checked = m.value(QStringLiteral("checked")).toInt();
+        const bool full = m.value(QStringLiteral("full")).toBool();
+        const int rank = i + 1;
+
+        const QRectF rowRect(pad, y, W - 2 * pad, rowH - 10);
+        QColor rowBg = (i % 2 == 0) ? QColor(QStringLiteral("#1a2235"))
+                                    : QColor(QStringLiteral("#151c2c"));
+        if (rank == 1)
+            rowBg = QColor(QStringLiteral("#232f45"));
+        p.setPen(Qt::NoPen);
+        p.setBrush(rowBg);
+        p.drawRoundedRect(rowRect, 14, 14);
+        if (rank == 1) {
+            p.setPen(QPen(QColor(99, 102, 241, 90), 1.5));
+            p.setBrush(Qt::NoBrush);
+            p.drawRoundedRect(rowRect.adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+        }
+
+        QColor medal = QColor(QStringLiteral("#3d5270"));
+        if (rank == 1)
+            medal = QColor(QStringLiteral("#fbbf24"));
+        else if (rank == 2)
+            medal = QColor(QStringLiteral("#e2e8f0"));
+        else if (rank == 3)
+            medal = QColor(QStringLiteral("#d97706"));
+        const QRectF medalRect(pad + 18, y + 16, 38, 38);
+        p.setPen(Qt::NoPen);
+        p.setBrush(medal);
+        p.drawEllipse(medalRect);
+        QFont rankFont(QStringLiteral("Sans Serif"));
+        rankFont.setPixelSize(15);
+        rankFont.setBold(true);
+        p.setFont(rankFont);
+        p.setPen(rank <= 3 ? QColor(QStringLiteral("#0f1623"))
+                           : QColor(QStringLiteral("#f1f5f9")));
+        p.drawText(medalRect.toRect(), Qt::AlignCenter, QString::number(rank));
+
+        const int nameX = pad + 72;
+        const int scoreColW = 180;
+        const int nameW = W - 2 * pad - 72 - scoreColW - 20;
+
+        QFont nameFont(QStringLiteral("Sans Serif"));
+        nameFont.setPixelSize(rank <= 3 ? 19 : 17);
+        nameFont.setBold(rank <= 3);
+        p.setFont(nameFont);
+        p.setPen(QColor(QStringLiteral("#f1f5f9")));
+        const QFontMetrics nameFm(nameFont);
+        p.drawText(QRect(nameX, y + 10, nameW, 30), Qt::AlignLeft | Qt::AlignVCenter,
+                   nameFm.elidedText(name, Qt::ElideRight, nameW));
+
+        QFont metaFont(QStringLiteral("Sans Serif"));
+        metaFont.setPixelSize(12);
+        p.setFont(metaFont);
+        p.setPen(QColor(QStringLiteral("#7c8fa6")));
+        QString meta = QStringLiteral("%1 case%2 cochée%2")
+                           .arg(checked)
+                           .arg(checked > 1 ? QStringLiteral("s") : QString());
+        if (full) {
+            const QFontMetrics metaFm(metaFont);
+            const int metaW = metaFm.horizontalAdvance(meta);
+            p.drawText(QRect(nameX, y + 40, metaW + 4, 20), Qt::AlignLeft | Qt::AlignVCenter, meta);
+            const int badgeX = nameX + metaW + 12;
+            const QRect badge(badgeX, y + 40, 52, 20);
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(34, 197, 94, 40));
+            p.drawRoundedRect(badge, 6, 6);
+            p.setPen(QColor(QStringLiteral("#22c55e")));
+            QFont badgeFont(QStringLiteral("Sans Serif"));
+            badgeFont.setPixelSize(11);
+            badgeFont.setBold(true);
+            p.setFont(badgeFont);
+            p.drawText(badge, Qt::AlignCenter, QStringLiteral("FULL"));
+        } else {
+            p.drawText(QRect(nameX, y + 40, nameW, 20), Qt::AlignLeft | Qt::AlignVCenter, meta);
+        }
+
+        QFont scoreFont(QStringLiteral("Sans Serif"));
+        scoreFont.setPixelSize(24);
+        scoreFont.setBold(true);
+        p.setFont(scoreFont);
+        p.setPen(full ? QColor(QStringLiteral("#22c55e"))
+                      : QColor(QStringLiteral("#818cf8")));
+        // Gros scores : formatage lisible (12 345)
+        QString scoreText = QLocale(QLocale::French).toString(score) + QStringLiteral(" pts");
+        p.drawText(QRect(W - pad - scoreColW - 12, y, scoreColW, rowH - 10),
+                   Qt::AlignRight | Qt::AlignVCenter, scoreText);
+
+        y += rowH;
+    }
+
+    p.setPen(QColor(QStringLiteral("#5b6b82")));
+    QFont foot(QStringLiteral("Sans Serif"));
+    foot.setPixelSize(12);
+    p.setFont(foot);
+    p.drawText(QRect(pad, H - footerH, W - 2 * pad, footerH - 16), Qt::AlignCenter,
+               QStringLiteral("Open Bingo  ·  %1 joueur%2")
+                   .arg(board.size())
+                   .arg(board.size() > 1 ? QStringLiteral("s") : QString()));
+    p.end();
+
+    QString path = filePath;
+    if (!path.endsWith(QLatin1String(".png"), Qt::CaseInsensitive))
+        path += QStringLiteral(".png");
+    if (!img.save(path, "PNG")) {
+        emit toast(QStringLiteral("Échec de l'export PNG"));
+        return false;
+    }
+    return QFileInfo::exists(path) && QFileInfo(path).size() > 200;
+}
+
+bool AppController::saveScoreboardPng()
+{
+    if (!m_hasCurrent || m_current.grids.empty()) {
+        emit toast(QStringLiteral("Générez des grilles d'abord"));
+        return false;
+    }
+
+    const QString suggested = QDir(
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+        .filePath(QString::fromStdString(m_current.title)
+                      .replace(QLatin1Char('/'), QLatin1Char('-'))
+                  + QStringLiteral("-scores.png"));
+
+    QString path = QFileDialog::getSaveFileName(
+        nullptr,
+        QStringLiteral("Exporter le classement en PNG"),
+        suggested,
+        QStringLiteral("Images PNG (*.png)"));
+    if (path.isEmpty())
+        return false;
+    if (!path.endsWith(QLatin1String(".png"), Qt::CaseInsensitive))
+        path += QStringLiteral(".png");
+
+    if (!exportScoreboardPng(path))
+        return false;
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    emit toast(QStringLiteral("Classement exporté"));
+    return true;
 }
 
 void AppController::setKeepScreenOn(bool on) { platformKeepScreenOn(on); }
@@ -1648,8 +2013,8 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
     p.setFont(bodyItalic);
     p.setPen(QColor(QStringLiteral("#333333")));
     const QString intro = project.gageMode
-        ? QStringLiteral("Le numéro sur chaque case de la grille renvoie au gage "
-                         "correspondant. Effectuez-le quand vous tombez dessus !")
+        ? QStringLiteral("Le n° sur chaque case tire un gage parmi ceux qui portent "
+                         "ce numéro (selon le %). Effectuez-le quand vous tombez dessus !")
         : QStringLiteral("Accomplissez n'importe quel gage pour récupérer des points "
                          "de vie. Une fois accompli, cochez-le.");
     QTextOption introOpt;
@@ -1659,9 +2024,11 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
     y += introH + 8;
 
     const bool showHp = !project.gageMode;
-    const qreal colNum = w * 0.08;
-    const qreal colHp = showHp ? w * 0.18 : 0;
-    const qreal colDesc = w - colNum - colHp;
+    const bool showRate = project.gageMode;
+    const qreal colNum = w * 0.10;
+    const qreal colRate = showRate ? w * 0.12 : 0;
+    const qreal colHp = showHp ? w * 0.16 : 0;
+    const qreal colDesc = w - colNum - colRate - colHp;
     const qreal rowH = qMax(18.0, body.pixelSize() * 2.0);
 
     auto drawHeaderCell = [&](const QRectF& r, const QString& text) {
@@ -1676,8 +2043,11 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
 
     drawHeaderCell(QRectF(left, y, colNum, rowH), QStringLiteral("#"));
     drawHeaderCell(QRectF(left + colNum, y, colDesc, rowH), QStringLiteral("Gage"));
+    if (showRate)
+        drawHeaderCell(QRectF(left + colNum + colDesc, y, colRate, rowH),
+                       QStringLiteral("%"));
     if (showHp)
-        drawHeaderCell(QRectF(left + colNum + colDesc, y, colHp, rowH),
+        drawHeaderCell(QRectF(left + colNum + colDesc + colRate, y, colHp, rowH),
                        QStringLiteral("PV"));
     y += rowH;
 
@@ -1688,15 +2058,20 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
         const auto& g = project.gages[i];
         const QRectF rNum(left, y, colNum, rowH);
         const QRectF rDesc(left + colNum, y, colDesc, rowH);
-        const QRectF rHp(left + colNum + colDesc, y, colHp, rowH);
+        const QRectF rRate(left + colNum + colDesc, y, colRate, rowH);
+        const QRectF rHp(left + colNum + colDesc + colRate, y, colHp, rowH);
         p.setPen(QPen(Qt::black, 1));
         p.drawRect(rNum);
         p.drawRect(rDesc);
+        if (showRate)
+            p.drawRect(rRate);
         if (showHp)
             p.drawRect(rHp);
-        p.drawText(rNum, Qt::AlignCenter, QString::number(i + 1));
+        p.drawText(rNum, Qt::AlignCenter, QString::number(g.number));
         p.drawText(rDesc.adjusted(6, 2, -4, -2), Qt::AlignVCenter | Qt::AlignLeft,
                    QString::fromStdString(g.description));
+        if (showRate)
+            p.drawText(rRate, Qt::AlignCenter, QString::number(g.rate) + QLatin1Char('%'));
         if (showHp)
             p.drawText(rHp, Qt::AlignCenter,
                        QStringLiteral("+%1 PV").arg(g.hp));

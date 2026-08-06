@@ -374,7 +374,7 @@ ApplicationWindow {
             else
                 console.warn("Screenshot failed:", path)
             step++
-            if (step >= 14)
+            if (step >= 16)
                 Qt.quit()
             else
                 schedule(400)
@@ -382,7 +382,7 @@ ApplicationWindow {
 
         function runStep() {
             // 0 projects → 1 open → 2 config → 3 phrases → 4 gages
-            // → 5 grilles → 6 play → 7 fullscreen → quit
+            // → 5 grilles → 6 play → 7 fullscreen → 8 scores → quit
             if (step === 0) {
                 capture("01-projects.png")
             } else if (step === 1) {
@@ -430,6 +430,14 @@ ApplicationWindow {
                 schedule(900)
             } else if (step === 12) {
                 capture("07-play-fullscreen.png")
+            } else if (step === 13) {
+                if (playGame.visible)
+                    playGame.close()
+                AppController.lastTab = 6 // Scores
+                step = 14
+                schedule(500)
+            } else if (step === 14) {
+                capture("08-scores.png")
             } else {
                 Qt.quit()
             }

@@ -99,7 +99,12 @@ json projectToJsonObj(const Project& p)
 
     json gages = json::array();
     for (const auto& g : p.gages)
-        gages.push_back(json{ { "description", g.description }, { "hp", g.hp } });
+        gages.push_back(json{
+            { "description", g.description },
+            { "hp", g.hp },
+            { "number", g.number },
+            { "rate", g.rate },
+        });
 
     json grids = json::array();
     for (const auto& gr : p.grids)
@@ -161,11 +166,20 @@ Project projectFromJsonObj(const json& j)
 
     if (j.contains("gages") && j["gages"].is_array()) {
         p.gages.clear();
+        int idx = 0;
         for (const auto& g : j["gages"]) {
             Gage ga;
             if (g.contains("description")) ga.description = g["description"].get<std::string>();
             if (g.contains("hp")) ga.hp = g["hp"].get<int>();
+            // Anciens exports : number = rang 1-based, rate = 100.
+            if (g.contains("number")) ga.number = g["number"].get<int>();
+            else ga.number = idx + 1;
+            if (g.contains("rate")) ga.rate = g["rate"].get<int>();
+            else ga.rate = 100;
+            if (ga.number < 1) ga.number = 1;
+            if (ga.rate < 0) ga.rate = 0;
             p.gages.push_back(std::move(ga));
+            ++idx;
         }
     }
 

@@ -66,7 +66,7 @@ if(BINGO_HAS_CAMERA)
     target_compile_definitions(applib PUBLIC BINGO_HAS_CAMERA)
 endif()
 
-set(BINGO_VERSION_NAME "2.0.25" CACHE STRING "android:versionName")
+set(BINGO_VERSION_NAME "2.0.26" CACHE STRING "android:versionName")
 set(BINGO_VERSION_CODE "1" CACHE STRING "android:versionCode")
 target_compile_definitions(applib PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")
 
@@ -89,6 +89,7 @@ set(BINGO_QML_FILES
     qml/GridsPage.qml
     qml/PrintPage.qml
     qml/PlayPage.qml
+    qml/ScoresPage.qml
     qml/ColoDialog.qml
     qml/ColoTextField.qml
     qml/ColoMenu.qml

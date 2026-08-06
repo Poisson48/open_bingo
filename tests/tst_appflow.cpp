@@ -2,6 +2,7 @@
 
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QImage>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -298,6 +299,118 @@ private slots:
             controller.removeCase(0);
         const QString msg = controller.generateAll();
         QVERIFY2(msg.contains(QStringLiteral("case")), qPrintable(msg));
+    }
+
+    void scoreboardExportStress()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(controller.openProject(id));
+        controller.setTitle(QStringLiteral("Soirée marathon des noms interminables"));
+        controller.setGridSize(3);
+        controller.setFreeCenter(true);
+
+        while (controller.players().size() > 0)
+            controller.removePlayer(controller.players().size() - 1);
+
+        const QStringList names = {
+            QStringLiteral("Jean-Baptiste de la Fontaine-des-Prés"),
+            QStringLiteral("Marie-Christine Élizabeth von Habsbourg-Lorraine"),
+            QStringLiteral("Alexandre-Maximilien Quatresous-Longnom"),
+            QStringLiteral("Bob"),
+            QStringLiteral("Charlotte-Amélie du Château-Neuf-sur-Loire"),
+            QStringLiteral("Dimitri « Le Magnifique » Petrovitch"),
+            QStringLiteral("Éléonore-Françoise de Montmorency-Luxembourg"),
+            QStringLiteral("Félix"),
+            QStringLiteral("Gwendoline Aphrodite Supercalifragilistic"),
+            QStringLiteral("Henriette-Victoire de Saint-Germain-des-Prés"),
+            QStringLiteral("Isidore le Très Très Long Nom Qui Déborde"),
+            QStringLiteral("Jeanne d'Arc-en-ciel-multicolore"),
+        };
+        for (const QString& n : names) {
+            controller.addPlayer();
+            controller.setPlayerName(controller.players().size() - 1, n);
+        }
+        QCOMPARE(controller.players().size(), names.size());
+
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        // Gros points pour des scores absurdes
+        const int pts[] = { 1000, 2500, 5000, 7500, 9999, 12000, 15000, 20000, 1 };
+        for (int p : pts)
+            controller.addCase(QStringLiteral("Phrase %1").arg(p), p, 100);
+
+        const QString genMsg = controller.generateAll();
+        QVERIFY2(!genMsg.contains(QStringLiteral("Aucun")), qPrintable(genMsg));
+        QCOMPARE(controller.grids().size(), names.size());
+
+        const int N = controller.gridSize();
+        auto makeChecks = [N](int checkedTarget) {
+            QVariantList checks;
+            int left = checkedTarget;
+            for (int r = 0; r < N; ++r) {
+                QVariantList row;
+                for (int c = 0; c < N; ++c) {
+                    const bool mark = left > 0;
+                    if (mark)
+                        --left;
+                    row.append(mark);
+                }
+                checks.append(QVariant(row));
+            }
+            return checks;
+        };
+
+        // Scores croissants + un FULL en tête
+        for (int i = 0; i < names.size(); ++i) {
+            const int checked = (i == 0) ? N * N : qMin(N * N - 1, i + 1);
+            // Booster les points des cases du joueur i pour un score énorme
+            for (int r = 0; r < N; ++r) {
+                for (int c = 0; c < N; ++c) {
+                    if (r == N / 2 && c == N / 2 && controller.freeCenter() && N % 2 == 1)
+                        continue;
+                    controller.setGridCellLabel(i, r, c,
+                        QStringLiteral("Mega %1-%2-%3").arg(i).arg(r).arg(c),
+                        100000 + i * 7777 + r * 100 + c);
+                }
+            }
+            controller.savePlayChecks(names[i], makeChecks(checked));
+        }
+
+        const QVariantList board = controller.playScoreboard();
+        QCOMPARE(board.size(), names.size());
+        // Le premier (FULL) doit être en tête
+        QCOMPARE(board[0].toMap().value(QStringLiteral("player")).toString(), names[0]);
+        QVERIFY(board[0].toMap().value(QStringLiteral("full")).toBool());
+        QVERIFY(board[0].toMap().value(QStringLiteral("score")).toInt() > 100000);
+        // Tri : full d'abord, puis score décroissant
+        for (int i = 1; i < board.size(); ++i) {
+            const auto a = board[i - 1].toMap();
+            const auto b = board[i].toMap();
+            if (a.value(QStringLiteral("full")).toBool() == b.value(QStringLiteral("full")).toBool())
+                QVERIFY(a.value(QStringLiteral("score")).toInt()
+                        >= b.value(QStringLiteral("score")).toInt());
+        }
+
+        const QString pngPath = qEnvironmentVariableIsSet("BINGO_SCOREBOARD_OUT")
+            ? QString::fromLocal8Bit(qgetenv("BINGO_SCOREBOARD_OUT"))
+            : (tmp.path() + QStringLiteral("/scores-stress.png"));
+        QVERIFY2(controller.exportScoreboardPng(pngPath), "exportScoreboardPng");
+        QVERIFY(QFileInfo::exists(pngPath));
+        QVERIFY(QFileInfo(pngPath).size() > 2000);
+
+        QImage img(pngPath);
+        QVERIFY2(!img.isNull(), "PNG lisible");
+        QCOMPARE(img.width(), 920);
+        QVERIFY(img.height() > 500);
     }
 };
 

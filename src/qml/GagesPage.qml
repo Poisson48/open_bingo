@@ -112,7 +112,7 @@ ScrollView {
                     anchors.margins: 10
                     spacing: 8
                     Label {
-                        text: "#" + (index + 1)
+                        text: "#" + (modelData.number || (index + 1))
                         color: Theme.accent
                         font.weight: Font.DemiBold
                         font.pixelSize: 14
@@ -197,11 +197,15 @@ ScrollView {
             acceptText: "Enregistrer"
             acceptEnabled: editGageDesc.text.trim().length > 0
             property int gageIndex: -1
+            property int editGageNumber: 1
+            property int editGageRate: 100
 
             function openFor(idx, data) {
                 gageIndex = idx
                 editGageDesc.text = data.description || ""
                 editGageHp.value = data.hp !== undefined ? data.hp : 5
+                editGageNumber = data.number !== undefined ? data.number : (idx + 1)
+                editGageRate = data.rate !== undefined ? data.rate : 100
                 open()
                 editGageDesc.forceActiveFocus()
             }
@@ -221,7 +225,8 @@ ScrollView {
             onAccepted: {
                 if (gageIndex < 0) return
                 AppController.updateGage(gageIndex, editGageDesc.text.trim(),
-                                         AppController.gageMode ? 0 : editGageHp.value)
+                                         AppController.gageMode ? 0 : editGageHp.value,
+                                         editGageNumber, editGageRate)
             }
         }
 
