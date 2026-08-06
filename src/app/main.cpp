@@ -11,7 +11,6 @@
 #include "platform.h"
 #include "qrimageprovider.h"
 #include "theme.h"
-#include "updater.h"
 #ifdef BINGO_HAS_CAMERA
 #  include "qrscanner.h"
 #endif
@@ -48,14 +47,13 @@ int main(int argc, char* argv[])
 #endif
 
     app::Theme theme;
-    app::Updater updater;
-    updater.check();
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("qr"), new app::QrImageProvider());
     engine.rootContext()->setContextProperty(QStringLiteral("AppController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
-    engine.rootContext()->setContextProperty(QStringLiteral("Updater"), &updater);
+    // Un seul Updater (celui d'AppController) — comme Colo Tâches.
+    engine.rootContext()->setContextProperty(QStringLiteral("Updater"), controller.updater());
     engine.rootContext()->setContextProperty(QStringLiteral("bingoForcedW"),
         qEnvironmentVariableIntValue("BINGO_TEST_W"));
     engine.rootContext()->setContextProperty(QStringLiteral("bingoForcedH"),

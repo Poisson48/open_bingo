@@ -49,8 +49,8 @@ Popup {
                 font.pixelSize: 16
                 font.weight: Font.DemiBold
             }
-            ToolButton {
-                text: "✕"
+            IconButton {
+                iconName: "close"
                 onClicked: picker.close()
             }
         }

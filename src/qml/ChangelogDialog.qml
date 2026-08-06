@@ -2,15 +2,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Historique des notes de version (releases GitHub). Utilisé avant une maj, après
-// une maj (« quoi de neuf »), ou depuis le menu pour feuilleter le passé.
+// Notes de version — comme Colo Tâches : modal avant téléchargement + « quoi de neuf » après maj.
 ColoDialog {
     id: dlg
 
-    // "pending" = versions plus récentes (avant téléchargement)
-    // "whatsNew" = versions installées pas encore lues (après maj)
-    // "history"  = tout l'historique
-    property string mode: "history"
+    property string mode: "history" // pending | whatsNew | history
 
     title: mode === "pending" ? ("Nouveautés — " + Updater.latestVersion)
          : mode === "whatsNew" ? ("Quoi de neuf — " + Updater.currentVersion)
@@ -20,13 +16,13 @@ ColoDialog {
               : "Fermer"
     showCancel: mode === "pending"
     destructive: false
+    width: Math.min(Overlay.overlay ? Overlay.overlay.width - 40 : 400, 440)
 
     readonly property string bodyText: {
         if (mode === "pending")
             return Updater.releaseNotes
         if (mode === "whatsNew")
             return Updater.whatsNewNotes
-        // Historique : on assemble depuis la liste structurée.
         let blocks = []
         for (let i = 0; i < Updater.changelog.length; ++i) {
             const e = Updater.changelog[i]
@@ -47,6 +43,15 @@ ColoDialog {
 
     Label {
         Layout.fillWidth: true
+        visible: mode === "pending"
+        text: "Vous avez la " + Updater.currentVersion + ". Notes de la nouvelle version :"
+        color: Theme.textDim
+        font.pixelSize: 13
+        wrapMode: Text.WordWrap
+    }
+
+    Label {
+        Layout.fillWidth: true
         visible: dlg.bodyText.length === 0
         text: mode === "history"
               ? "Aucune note de version pour l'instant."
@@ -56,24 +61,36 @@ ColoDialog {
         wrapMode: Text.WordWrap
     }
 
-    Flickable {
+    Rectangle {
         Layout.fillWidth: true
-        Layout.preferredHeight: visible
-            ? Math.min(Math.max(notes.implicitHeight, 80), 360) : 0
         visible: dlg.bodyText.length > 0
-        contentHeight: notes.implicitHeight
+        implicitHeight: Math.min(Math.max(notesCol.implicitHeight + 24, 100), 360)
+        radius: Theme.radiusLg
+        color: Theme.inputBg
+        border.color: Theme.outline
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        ScrollIndicator.vertical: ScrollIndicator {}
 
-        Label {
-            id: notes
-            width: parent.width
-            text: dlg.bodyText
-            color: Theme.textDim
-            font.pixelSize: 14
-            wrapMode: Text.WordWrap
-            lineHeight: 1.3
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: 12
+            contentHeight: notesCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollIndicator.vertical: ScrollIndicator {}
+
+            Column {
+                id: notesCol
+                width: parent.width
+                spacing: 8
+                Label {
+                    width: parent.width
+                    text: dlg.bodyText
+                    color: Theme.text
+                    font.pixelSize: 14
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.35
+                }
+            }
         }
     }
 
@@ -82,8 +99,5 @@ ColoDialog {
             Updater.download()
         else if (mode === "whatsNew")
             Updater.acknowledgeNotes()
-    }
-    onRejected: {
-        // Fermer sans télécharger / sans marquer comme lu.
     }
 }

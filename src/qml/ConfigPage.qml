@@ -139,8 +139,9 @@ ScrollView {
                             hint: "Nom du joueur"
                             onEditingFinished: AppController.setPlayerName(index, text)
                         }
-                        ToolButton {
-                            text: "✕"
+                        IconButton {
+                            iconName: "trash"
+                            danger: true
                             onClicked: AppController.removePlayer(index)
                         }
                     }

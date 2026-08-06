@@ -82,7 +82,7 @@ Popup {
                     font.pixelSize: 12
                 }
                 BingoButton {
-                    text: "✕ Quitter"
+                    text: "Quitter"
                     onClicked: fs.close()
                 }
             }

@@ -147,14 +147,11 @@ Item {
             anchors.leftMargin: 4
             spacing: 4
 
-            ToolButton {
+            IconButton {
                 Layout.preferredWidth: Theme.touchTarget
                 Layout.preferredHeight: Theme.touchTarget
-                contentItem: Icon {
-                    name: "close"
-                    color: "white"
-                    size: 17
-                }
+                iconName: "close"
+                iconColor: "white"
                 onClicked: root.closeRequested()
             }
 

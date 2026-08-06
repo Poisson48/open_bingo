@@ -46,7 +46,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: page.gridList.length > 0
-            text: "Glisser une case pour l'échanger · Toucher pour remplacer une phrase · ↑↓ pour réordonner les joueurs."
+            text: "Glisser une case pour l'échanger. Toucher pour remplacer. Boutons pour réordonner les joueurs."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 12
@@ -82,21 +82,27 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 6
                         Column {
-                            spacing: 4
-                            BingoButton {
-                                text: "Monter"
+                            spacing: 2
+                            IconButton {
+                                iconName: "up"
+                                bordered: true
                                 enabled: index > 0
+                                implicitWidth: 40
+                                implicitHeight: 36
                                 onClicked: AppController.moveGrid(index, index - 1)
                             }
-                            BingoButton {
-                                text: "Descendre"
+                            IconButton {
+                                iconName: "down"
+                                bordered: true
                                 enabled: index < page.gridList.length - 1
+                                implicitWidth: 40
+                                implicitHeight: 36
                                 onClicked: AppController.moveGrid(index, index + 1)
                             }
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: "#" + (index + 1) + " · " + modelData.player
+                            text: "#" + (index + 1) + "  " + modelData.player
                             color: Theme.text
                             font.weight: Font.DemiBold
                             font.pixelSize: 15

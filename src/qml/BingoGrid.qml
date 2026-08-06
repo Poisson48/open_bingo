@@ -52,22 +52,23 @@ Column {
 
     function cellFontSize(label, free) {
         if (free)
-            return Math.min(9, Math.max(7, cellH * 0.18))
+            return Math.min(10, Math.max(8, cellH * 0.2))
         const len = label ? label.length : 0
-        let base = Math.max(7, Math.min(cellW, cellH) * 0.22)
-        if (len > 50)
-            base *= 0.65
-        else if (len > 30)
-            base *= 0.75
+        let base = Math.max(8, Math.min(cellW, cellH) * 0.26)
+        if (len > 40)
+            base *= 0.72
+        else if (len > 28)
+            base *= 0.82
         else if (len > 18)
-            base *= 0.85
-        return Math.min(base, 13)
+            base *= 0.9
+        return Math.min(base, 14)
     }
 
     function maxLabelLines(fsz) {
-        const lineH = fsz * 1.2
-        const budget = cellH - (cellH > 36 ? fsz * 0.85 : 0) - 8
-        return Math.max(1, Math.floor(budget / lineH))
+        const lineH = fsz * 1.15
+        const ptsReserve = cellH > 40 ? fsz * 0.9 : fsz * 0.75
+        const budget = cellH - ptsReserve - 6
+        return Math.max(2, Math.min(4, Math.floor(budget / lineH)))
     }
 
     Repeater {

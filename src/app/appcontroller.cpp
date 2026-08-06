@@ -632,39 +632,39 @@ QString AppController::seedDemoProject()
 
     auto p = core::JsonCodec::defaultProject();
     p.title = "Soirée Cinéma (démo)";
-    p.description = "Bingo des clichés à cocher pendant le film — 4 joueurs, grille 5×5.";
+    p.description = "Bingo des clichés qui arrivent dans le film — 4 joueurs, grille 5×5.";
     p.gridSize = 5;
     p.startHP = 20;
     p.freeCenter = true;
     p.gageMode = false;
     p.players = { { "Léa" }, { "Max" }, { "Sam" }, { "Chloé" } };
 
-    // Événements / clichés DANS le film (pas pendant la séance).
+    // Clichés / événements DANS le film (pas pendant la séance). Phrases courtes pour mobile.
     static const char* phrases[] = {
         "Le héros se réveille en sursaut",
         "Flashback en noir et blanc",
-        "Le méchant monologue trop longtemps",
+        "Le méchant monologue",
         "Course-poursuite en voiture",
-        "Explosion inutilement spectaculaire",
-        "Révélation : c'était un traître",
+        "Explosion spectaculaire",
+        "Révélation : un traître",
         "Baiser sous la pluie",
         "Le mentor meurt",
         "Montage entraînement",
         "Le chien survit",
-        "Twist prévisible à 20 minutes de la fin",
-        "Scène de bagarre au ralenti",
-        "Le héros refuse d'abord la quête",
-        "Vilain qui tombe d'un immeuble",
-        "Réplique culte répétée deux fois",
-        "Personnage qui se déguise mal",
-        "Fin ouverte ambiguë",
-        "Apparition surprise d'une star",
+        "Twist prévisible",
+        "Bagarre au ralenti",
+        "Il refuse d'abord la quête",
+        "Vilain qui tombe",
+        "Réplique culte répétée",
+        "Se déguise mal",
+        "Fin ouverte",
+        "Caméo surprise",
         "Plan produit trop long",
-        "Le couple se sépare puis se retrouve",
-        "Apparition d'un fantôme / vision",
-        "Compte à rebours digital",
-        "Le héros sauve quelqu'un in extremis",
-        "Générique final avec gag",
+        "Ils se séparent puis se retrouvent",
+        "Vision / fantôme",
+        "Compte à rebours",
+        "Sauvetage in extremis",
+        "Gag après le générique",
         "Le vrai méchant était un allié",
     };
     p.cases.clear();

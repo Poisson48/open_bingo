@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
 Item {
     id: page
@@ -17,6 +18,23 @@ Item {
         BingoButton {
             text: "Importer"
             onClicked: AppController.pickImportAllJson()
+        }
+        IconButton {
+            iconName: "menu"
+            iconColor: Theme.text
+            onClicked: overflowMenu.popup()
+        }
+    }
+
+    ColoMenu {
+        id: overflowMenu
+        MenuItem {
+            text: "Notes de version"
+            onTriggered: {
+                const w = page.Window.window
+                if (w && typeof w.openChangelog === "function")
+                    w.openChangelog()
+            }
         }
     }
 
@@ -43,7 +61,7 @@ Item {
         BingoButton {
             Layout.fillWidth: true
             visible: AppController.projects.count === 0
-            text: "▶ Charger le projet démo"
+            text: "Charger le projet démo"
             primary: true
             onClicked: {
                 const id = AppController.seedDemoProject()
@@ -116,9 +134,9 @@ Item {
                                 }
                                 Label {
                                     Layout.fillWidth: true
-                                    text: gridSize + "×" + gridSize + " · "
-                                          + playerCount + " j · " + caseCount + " phrases"
-                                          + (gridCount > 0 ? (" · " + gridCount + " grilles") : " · pas de grille")
+                                    text: gridSize + "x" + gridSize + "  "
+                                          + playerCount + " joueurs  " + caseCount + " phrases"
+                                          + (gridCount > 0 ? ("  " + gridCount + " grilles") : "  — pas de grille")
                                     color: gridCount > 0 ? Theme.textDim : Theme.warning
                                     font.pixelSize: 12
                                     elide: Text.ElideRight
@@ -153,14 +171,14 @@ Item {
 
         BingoButton {
             Layout.fillWidth: true
-            text: "+ Nouveau projet (avec grilles)"
+            text: "+ Nouveau projet"
             primary: true
             onClicked: AppController.createProject()
         }
 
         BingoButton {
             Layout.fillWidth: true
-            text: "Charger un autre projet démo"
+            text: "Charger un projet démo cinéma"
             onClicked: {
                 const id = AppController.seedDemoProject()
                 if (id.length)

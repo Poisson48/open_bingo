@@ -173,7 +173,7 @@ ScrollView {
         BingoButton {
             Layout.fillWidth: true
             visible: playerBox.count > 0
-            text: "▶ Commencer la partie (plein écran)"
+            text: "Commencer la partie (plein écran)"
             primary: true
             onClicked: {
                 fullscreen.playerName = AppController.grids[playerBox.currentIndex].player

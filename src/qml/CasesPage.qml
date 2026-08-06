@@ -22,7 +22,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: AppController.gridsDirty
-            text: "⚠ Les grilles ne reflètent plus les cases — regénérez-les."
+            text: "Les grilles ne reflètent plus les cases — regénérez-les."
             color: Theme.warning
             wrapMode: Text.WordWrap
         }
@@ -138,8 +138,9 @@ ScrollView {
                         elide: Text.ElideRight
                         horizontalAlignment: Text.AlignRight
                     }
-                    ToolButton {
-                        text: "✕"
+                    IconButton {
+                        iconName: "trash"
+                        danger: true
                         onClicked: AppController.removeCase(index)
                     }
                 }
@@ -168,7 +169,7 @@ ScrollView {
                     }
                     SpinBox { id: gageHp; from: 0; to: 100; value: 5 }
                     BingoButton {
-                        text: "+"
+                        text: "Ajouter"
                         primary: true
                         onClicked: AppController.addGage(gageDesc.text, gageHp.value)
                     }

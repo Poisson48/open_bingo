@@ -8,8 +8,9 @@ Item {
 
     property Component actions: Row {
         spacing: 4
-        ToolButton {
-            contentItem: Icon { name: "menu"; color: Theme.text; size: 20 }
+        IconButton {
+            iconName: "menu"
+            iconColor: Theme.text
             onClicked: editorMenu.open()
         }
         Menu {
