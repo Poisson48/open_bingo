@@ -119,6 +119,96 @@ private slots:
         QVERIFY(p);
         QCOMPARE(p->updatedAt, int64_t(0));
     }
+
+    void contentfulRemoteBeatsHorodatedEmptyStub()
+    {
+        // Autosave après jointure horodate le stub vide → l'hôte (plus ancien) était rejeté.
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        auto key = net::generateListKey();
+        const std::string id = "proj_empty_beats";
+        const auto tag = net::deriveChannelTag(key);
+
+        core::Project host = core::JsonCodec::defaultProject();
+        host.id = id;
+        host.title = "Soirée";
+        host.updatedAt = 1'000;
+        host.cases = { { "Phrase A", 2, 100 } };
+        host.players = { { "Alice" } };
+
+        core::Project stub;
+        stub.id = id;
+        stub.title = "Soirée";
+        stub.updatedAt = 9'999'999'999; // plus récent que l'hôte
+        db.upsertProject(stub);
+        db.setSyncKey(id, key);
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+
+        net::NostrEvent ev;
+        ev.kind = 4545;
+        ev.created_at = 42;
+        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        ev.content = QString::fromStdString(
+            net::encryptPayload(key, tag, core::JsonCodec::projectToJson(host, false)));
+        QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
+
+        sync.handleRelayEvent(ev);
+
+        const auto got = db.getProject(id);
+        QVERIFY(got);
+        QCOMPARE(got->cases.size(), size_t(1));
+        QCOMPARE(got->players.size(), size_t(1));
+        QCOMPARE(got->updatedAt, int64_t(1'000));
+        QVERIFY(db.isEventSeen(ev.id.toStdString()));
+    }
+
+    void lwwRejectDoesNotMarkEventSeen()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        auto key = net::generateListKey();
+        const std::string id = "proj_lww_seen";
+        const auto tag = net::deriveChannelTag(key);
+
+        core::Project local = core::JsonCodec::defaultProject();
+        local.id = id;
+        local.title = "Local plein";
+        local.updatedAt = 5'000;
+        local.cases = { { "Chez moi", 1, 100 } };
+        local.players = { { "Bob" } };
+        db.upsertProject(local);
+        db.setSyncKey(id, key);
+
+        core::Project remote = local;
+        remote.updatedAt = 1'000; // plus ancien → rejet LWW
+        remote.cases = { { "Chez l'hôte", 1, 100 } };
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+
+        net::NostrEvent ev;
+        ev.kind = 4545;
+        ev.created_at = 42;
+        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        ev.content = QString::fromStdString(
+            net::encryptPayload(key, tag, core::JsonCodec::projectToJson(remote, false)));
+        QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
+
+        sync.handleRelayEvent(ev);
+
+        QCOMPARE(db.getProject(id)->cases[0].label, std::string("Chez moi"));
+        QVERIFY(!db.isEventSeen(ev.id.toStdString()));
+    }
 };
 
 int main(int argc, char* argv[])

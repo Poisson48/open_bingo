@@ -481,7 +481,10 @@ void AppController::setTitle(const QString& v)
 {
     if (!m_hasCurrent)
         return;
-    m_current.title = v.toStdString();
+    const std::string next = v.toStdString();
+    if (m_current.title == next)
+        return;
+    m_current.title = next;
     touchProject();
     emit currentProjectChanged();
     scheduleAutoSave();

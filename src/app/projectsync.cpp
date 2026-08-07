@@ -24,6 +24,12 @@ core::Project makeJoinStub(const std::string& id, const std::string& title)
     return p;
 }
 
+// Projet sans phrases / joueurs / grilles = stub d'invitation (ou poison publié par erreur).
+bool isContentEmpty(const core::Project& p)
+{
+    return p.cases.empty() && p.grids.empty() && p.players.empty();
+}
+
 } // namespace
 
 namespace app {
@@ -128,7 +134,8 @@ QString ProjectSync::joinFromUri(const QString& uri)
     subscribeAll(0);
     const QString id = QString::fromStdString(info->listId);
     emit remoteProjectUpdated(id);
-    emit toast(QStringLiteral("Projet rejoint : %1").arg(QString::fromStdString(info->title)));
+    emit toast(QStringLiteral("Projet rejoint : %1 — sync du contenu…")
+                   .arg(QString::fromStdString(info->title)));
     return id;
 }
 
@@ -186,7 +193,6 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
 
     if (m_db->isEventSeen(ev.id.toStdString()))
         return;
-    m_db->markEventSeen(ev.id.toStdString());
 
     for (const auto& projectId : m_db->sharedProjectIds()) {
         const auto tag = channelTagFor(projectId);
@@ -207,13 +213,18 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         remote.id = projectId;
 
         auto local = m_db->getProject(projectId);
+        // Stub / projet vide local : toujours prendre un snapshot qui a du contenu,
+        // même si un autosave a horodaté le stub après la jointure (sinon seul le titre URI reste).
         const bool accept = !local
             || local->updatedAt == 0
+            || (isContentEmpty(*local) && !isContentEmpty(remote))
             || remote.updatedAt >= local->updatedAt;
         if (accept) {
+            m_db->markEventSeen(ev.id.toStdString());
             m_db->upsertProject(remote);
             emit remoteProjectUpdated(QString::fromStdString(projectId));
         }
+        // Rejet LWW : ne pas marquer vu — un reset de stub / rejoin pourra réappliquer.
         return;
     }
 }
@@ -256,6 +267,9 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     const auto key = keyFor(projectId);
     const auto tag = channelTagFor(projectId);
     if (!project || !key || !tag)
+        return;
+    // Ne jamais publier un stub d'invitation vide : ça écraserait le contenu hôte chez les pairs.
+    if (isContentEmpty(*project))
         return;
 
     const std::string json = core::JsonCodec::projectToJson(*project, false);
