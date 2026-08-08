@@ -234,6 +234,8 @@ std::vector<std::string> Database::sharedProjectIds()
 bool Database::outboxPush(const std::string& projectId, const std::string& eventId,
                           const std::string& content)
 {
+    // Une seule snapshot en attente par projet (évite les orphelins si re-sign change l'id).
+    outboxRemoveForProject(projectId);
     QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "INSERT OR REPLACE INTO outbox (event_id, project_id, content) VALUES (?, ?, ?)"));
@@ -248,6 +250,14 @@ bool Database::outboxRemoveForEvent(const std::string& eventId)
     QSqlQuery q(m_db);
     q.prepare(QStringLiteral("DELETE FROM outbox WHERE event_id = ?"));
     q.addBindValue(QString::fromStdString(eventId));
+    return q.exec();
+}
+
+bool Database::outboxRemoveForProject(const std::string& projectId)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral("DELETE FROM outbox WHERE project_id = ?"));
+    q.addBindValue(QString::fromStdString(projectId));
     return q.exec();
 }
 

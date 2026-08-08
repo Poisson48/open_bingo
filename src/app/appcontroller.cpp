@@ -433,6 +433,30 @@ void AppController::persistCurrent()
 {
     if (!m_hasCurrent || !m_db)
         return;
+    // Stub d'invitation encore en mémoire alors que le snapshot distant est déjà en DB :
+    // ne pas l'écraser (sinon l'invité revoit un projet vide après la sync).
+    const bool memEmpty = m_current.cases.empty() && m_current.grids.empty()
+                          && m_current.players.empty();
+    if (memEmpty) {
+        if (auto dbp = m_db->getProject(m_current.id)) {
+            const bool dbFull = !dbp->cases.empty() || !dbp->grids.empty()
+                                || !dbp->players.empty();
+            if (dbFull) {
+                m_current = *dbp;
+                emit currentProjectChanged();
+                ++m_gridsRevision;
+                emit gridsChanged();
+                return;
+            }
+        }
+        // Stub partagé : pas d'horodatage ni de publish Nostr.
+        if (m_db->getSyncKey(m_current.id)) {
+            m_db->upsertProject(m_current);
+            m_db->setSetting("current_project_id", m_current.id);
+            reloadProjects();
+            return;
+        }
+    }
     touchProject();
     m_db->upsertProject(m_current);
     m_db->setSetting("current_project_id", m_current.id);
@@ -757,6 +781,11 @@ void AppController::saveConfig()
 
 void AppController::scheduleAutoSave()
 {
+    // Ne pas autosauvegarder un stub d'invitation vide (horodate + course avec le snapshot).
+    if (m_hasCurrent && m_db && m_db->getSyncKey(m_current.id)
+        && m_current.cases.empty() && m_current.grids.empty()
+        && m_current.players.empty())
+        return;
     m_autoSaveTimer.start();
 }
 
@@ -1922,6 +1951,9 @@ void AppController::vibrate() { platformVibrate(35); }
 
 void AppController::copyToClipboard(const QString& text)
 {
+    // Écriture explicite uniquement (bouton Copier). Ne jamais lire le presse-papiers
+    // au démarrage / ouverture de projet : Android 12+ affiche alors une notif système
+    // du type « a collé depuis le presse-papiers ».
     if (auto* cb = QGuiApplication::clipboard())
         cb->setText(text);
 }

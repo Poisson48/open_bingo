@@ -1,8 +1,9 @@
 #include "qrimageprovider.h"
 #include "qrcodegen.hpp"
 
-#include <QImage>
 #include <QColor>
+#include <QImage>
+#include <QUrl>
 
 namespace app {
 
@@ -14,7 +15,9 @@ QImage QrImageProvider::requestImage(const QString& id, QSize* size, const QSize
 {
     Q_UNUSED(requestedSize)
 
-    std::string uri = id.toStdString();
+    // ShareSheet passe encodeURIComponent(uri) ; Qt peut laisser l'id encodé.
+    const QString decoded = QUrl::fromPercentEncoding(id.toUtf8());
+    std::string uri = decoded.toStdString();
     if (uri.empty()) {
         QImage img(1, 1, QImage::Format_RGB32);
         img.fill(Qt::white);

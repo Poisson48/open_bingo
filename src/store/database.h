@@ -42,6 +42,7 @@ public:
     bool outboxPush(const std::string& projectId, const std::string& eventId,
                     const std::string& content);
     bool outboxRemoveForEvent(const std::string& eventId);
+    bool outboxRemoveForProject(const std::string& projectId);
     int outboxCount();
     struct OutboxRow { std::string projectId; std::string eventId; std::string content; };
     std::vector<OutboxRow> outboxPeekAll();

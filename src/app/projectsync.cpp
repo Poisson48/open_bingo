@@ -131,11 +131,37 @@ QString ProjectSync::joinFromUri(const QString& uri)
         m_db->upsertProject(makeJoinStub(info->listId, info->title));
     }
 
+    // Forcer un (re)abonnement même si on avait déjà ce canal (rejoin / relais flaky).
+    const auto tag = channelTagFor(info->listId);
+    if (tag) {
+        const QString qtag = QString::fromStdString(*tag);
+        m_subscribed.remove(qtag);
+    }
     subscribeAll(0);
+
     const QString id = QString::fromStdString(info->listId);
     emit remoteProjectUpdated(id);
     emit toast(QStringLiteral("Projet rejoint : %1 — sync du contenu…")
                    .arg(QString::fromStdString(info->title)));
+
+    // Si le snapshot hôte n'arrive pas (relais down / hôte hors ligne), le prévenir.
+    QTimer::singleShot(10000, this, [this, id]() {
+        if (!m_db)
+            return;
+        const auto p = m_db->getProject(id.toStdString());
+        if (!p || !isContentEmpty(*p))
+            return;
+        emit toast(QStringLiteral(
+            "Contenu toujours vide — demandez à l'hôte de rouvrir « Partager » "
+            "(QR / lien) pendant que vous restez dans le projet."));
+        // Nouvel essai d'abonnement + flush côté hôte ne dépend que de l'hôte ;
+        // ici on force juste le REQ à nouveau.
+        const auto tag = channelTagFor(id.toStdString());
+        if (tag) {
+            m_subscribed.remove(QString::fromStdString(*tag));
+            subscribeAll(0);
+        }
+    });
     return id;
 }
 
@@ -223,6 +249,10 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
             m_db->markEventSeen(ev.id.toStdString());
             m_db->upsertProject(remote);
             emit remoteProjectUpdated(QString::fromStdString(projectId));
+            if (!isContentEmpty(remote) && local && isContentEmpty(*local)) {
+                emit toast(QStringLiteral("Contenu synchronisé : %1")
+                               .arg(QString::fromStdString(remote.title)));
+            }
         }
         // Rejet LWW : ne pas marquer vu — un reset de stub / rejoin pourra réappliquer.
         return;
@@ -231,24 +261,38 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
 
 void ProjectSync::onRelayOnline(bool online)
 {
-    Q_UNUSED(online);
     emit onlineChanged();
-    if (online) {
-        flushOutbox();
-        subscribeAll(0);
+    if (!online)
+        return;
+    flushOutbox();
+    // Republier les projets partagés : rattrape les invités si l'EVENT précédent
+    // a été droppé par un relais (publication « online » sans ACK).
+    if (m_db) {
+        for (const auto& id : m_db->sharedProjectIds()) {
+            if (auto p = m_db->getProject(id)) {
+                if (!isContentEmpty(*p))
+                    publishSnapshot(id);
+            }
+        }
     }
+    subscribeAll(0);
 }
 
 void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QString& msg)
 {
     Q_UNUSED(msg);
-    if (!accepted || !m_db)
+    if (!m_db)
         return;
     const auto it = m_pendingAcks.find(eventId);
     if (it == m_pendingAcks.end())
         return;
-    m_db->outboxRemoveForEvent(eventId.toStdString());
+    const std::string projectId = it->second;
     m_pendingAcks.erase(it);
+    if (accepted) {
+        // ACK peut porter un nouvel id après re-sign : nettoyer par projet.
+        m_db->outboxRemoveForProject(projectId);
+        m_db->outboxRemoveForEvent(eventId.toStdString());
+    }
     emit pendingChangesChanged();
 }
 
@@ -284,13 +328,13 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     if (!net::signEvent(ev, seed))
         return;
 
-    if (m_pool->isOnline()) {
+    // Toujours en outbox jusqu'à ACK : « isOnline » ne garantit pas que l'EVENT
+    // a été accepté (relais qui droppe / déconnecte juste après l'envoi).
+    m_db->outboxPush(projectId, ev.id.toStdString(), ev.content.toStdString());
+    emit pendingChangesChanged();
+    m_pendingAcks[ev.id] = projectId;
+    if (m_pool->isOnline())
         m_pool->publishToAll(ev);
-        m_pendingAcks[ev.id] = projectId;
-    } else {
-        m_db->outboxPush(projectId, ev.id.toStdString(), ev.content.toStdString());
-        emit pendingChangesChanged();
-    }
 }
 
 std::optional<std::string> ProjectSync::channelTagFor(const std::string& projectId)
@@ -326,9 +370,12 @@ void ProjectSync::flushOutbox()
         const auto seed = net::deriveNostrSeed(*key);
         if (!net::signEvent(ev, seed))
             continue;
+        // Remplace l'entrée outbox avec le nouvel event id (re-sign).
+        m_db->outboxPush(row.projectId, ev.id.toStdString(), row.content);
         m_pool->publishToAll(ev);
         m_pendingAcks[ev.id] = row.projectId;
     }
+    emit pendingChangesChanged();
 }
 
 } // namespace app

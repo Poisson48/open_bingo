@@ -64,7 +64,8 @@ Popup {
                 anchors.centerIn: parent
                 width: parent.width - 20
                 height: parent.height - 20
-                source: uri.length > 0 ? "image://qr/" + uri : ""
+                // encodeURIComponent : sinon openbingo://… casse le parsing image://
+                source: uri.length > 0 ? "image://qr/" + encodeURIComponent(uri) : ""
                 fillMode: Image.PreserveAspectFit
                 smooth: false
             }
