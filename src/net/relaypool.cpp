@@ -11,12 +11,13 @@ RelayPool::RelayPool(QObject* parent)
 // static
 QList<QUrl> RelayPool::defaultRelays()
 {
-    // Relais publics stables pour kind 4545 (damus / nostr.band sont souvent 503 / timeout).
+    // Identique à Colo Course / Colo Tâches — les deux apps doivent partager
+    // au moins un relais commun pour que l'invité récupère l'historique.
     return {
+        QUrl("wss://relay.damus.io"),
         QUrl("wss://nos.lol"),
+        QUrl("wss://relay.nostr.band"),
         QUrl("wss://offchain.pub"),
-        QUrl("wss://relay.primal.net"),
-        QUrl("wss://nostr.bitcoiner.social"),
     };
 }
 

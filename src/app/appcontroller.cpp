@@ -357,7 +357,8 @@ bool AppController::init()
                 [this](const QString& id) {
                     reloadProjects();
                     if (m_hasCurrent && m_current.id == id.toStdString()) {
-                        openProject(id);
+                        // Ne pas forcer l'onglet Play : l'utilisateur peut être en Config.
+                        openProject(id, false);
                         // grids NOTIFY gridsChanged seulement — sans ça l'UI garde l'ancien aperçu.
                         ++m_gridsRevision;
                         emit gridsChanged();
@@ -689,7 +690,7 @@ QString AppController::createProject()
     return id;
 }
 
-bool AppController::openProject(const QString& id)
+bool AppController::openProject(const QString& id, bool toPlay)
 {
     const auto p = m_db->getProject(id.toStdString());
     if (!p)
@@ -698,6 +699,11 @@ bool AppController::openProject(const QString& id)
     m_hasCurrent = true;
     clearGridsDirtyFlag();
     m_db->setSetting("current_project_id", m_current.id);
+    if (toPlay) {
+        m_lastTab = 5; // Play
+        m_db->setSetting("last_tab", "5");
+        emit lastTabChanged();
+    }
     emit currentProjectChanged();
     emit editorOpened(id);
     return true;

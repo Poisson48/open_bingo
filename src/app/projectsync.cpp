@@ -8,11 +8,10 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QJsonArray>
+#include <QJsonDocument>
 
 namespace {
 
-// Stub local créé à la jointure : updatedAt=0 pour que tout snapshot distant gagne le LWW.
-// (Un stub horodaté « maintenant » rejetait le contenu hôte — seul le titre URI restait.)
 core::Project makeJoinStub(const std::string& id, const std::string& title)
 {
     core::Project p;
@@ -24,7 +23,6 @@ core::Project makeJoinStub(const std::string& id, const std::string& title)
     return p;
 }
 
-// Projet sans phrases / joueurs / grilles = stub d'invitation (ou poison publié par erreur).
 bool isContentEmpty(const core::Project& p)
 {
     return p.cases.empty() && p.grids.empty() && p.players.empty();
@@ -40,6 +38,11 @@ ProjectSync::ProjectSync(QObject* parent)
     m_debounce.setSingleShot(true);
     m_debounce.setInterval(300);
     connect(&m_debounce, &QTimer::timeout, this, &ProjectSync::onDebounce);
+
+    // Comme Colo : si aucun OK n'arrive, on ne laisse pas le bandeau bloqué.
+    m_ackWatchdog.setSingleShot(true);
+    m_ackWatchdog.setInterval(12000);
+    connect(&m_ackWatchdog, &QTimer::timeout, this, &ProjectSync::onAckWatchdog);
 }
 
 void ProjectSync::init(store::Database* db, net::RelayPool* pool, const QString& deviceId)
@@ -73,14 +76,12 @@ void ProjectSync::enableSharing(const QString& projectId)
 {
     if (!m_db || projectId.isEmpty())
         return;
-    // Ne jamais régénérer la clé : sinon les participants déjà joints sont exclus.
     if (!m_db->getSyncKey(projectId.toStdString())) {
         auto key = net::generateListKey();
         if (key.size() != 32)
             return;
         m_db->setSyncKey(projectId.toStdString(), key);
     }
-    // Horodater avant publish pour que les invités (même avec un vieux stub) acceptent.
     if (auto p = m_db->getProject(projectId.toStdString())) {
         p->updatedAt = QDateTime::currentMSecsSinceEpoch();
         m_db->upsertProject(*p);
@@ -93,10 +94,11 @@ QString ProjectSync::joinUri(const QString& projectId, const QString& title)
 {
     if (projectId.isEmpty())
         return {};
+    // Colo : le QR ne porte que la clé. On republie quand même un snapshot pour
+    // que l'invité trouve l'historique (bingo = un gros event, pas un flux de deltas).
     if (!keyFor(projectId.toStdString()))
         enableSharing(projectId);
     else {
-        // Republier à chaque ouverture du partage : rattrape les invités qui ont manqué l'event.
         if (auto p = m_db->getProject(projectId.toStdString())) {
             p->updatedAt = QDateTime::currentMSecsSinceEpoch();
             m_db->upsertProject(*p);
@@ -119,8 +121,6 @@ QString ProjectSync::joinFromUri(const QString& uri)
     m_db->setSyncKey(info->listId, info->key);
 
     if (auto existing = m_db->getProject(info->listId)) {
-        // Projet déjà connu : si c'est un stub (ou quasi vide), forcer updatedAt=0
-        // pour accepter le prochain snapshot même après un ancien bug LWW.
         if (existing->cases.empty() && existing->grids.empty()
             && existing->updatedAt > 0) {
             existing->updatedAt = 0;
@@ -131,12 +131,9 @@ QString ProjectSync::joinFromUri(const QString& uri)
         m_db->upsertProject(makeJoinStub(info->listId, info->title));
     }
 
-    // Forcer un (re)abonnement même si on avait déjà ce canal (rejoin / relais flaky).
     const auto tag = channelTagFor(info->listId);
-    if (tag) {
-        const QString qtag = QString::fromStdString(*tag);
-        m_subscribed.remove(qtag);
-    }
+    if (tag)
+        m_subscribed.remove(QString::fromStdString(*tag));
     subscribeAll(0);
 
     const QString id = QString::fromStdString(info->listId);
@@ -144,18 +141,15 @@ QString ProjectSync::joinFromUri(const QString& uri)
     emit toast(QStringLiteral("Projet rejoint : %1 — sync du contenu…")
                    .arg(QString::fromStdString(info->title)));
 
-    // Si le snapshot hôte n'arrive pas (relais down / hôte hors ligne), le prévenir.
-    QTimer::singleShot(10000, this, [this, id]() {
+    QTimer::singleShot(12000, this, [this, id]() {
         if (!m_db)
             return;
         const auto p = m_db->getProject(id.toStdString());
         if (!p || !isContentEmpty(*p))
             return;
         emit toast(QStringLiteral(
-            "Contenu toujours vide — demandez à l'hôte de rouvrir « Partager » "
-            "(QR / lien) pendant que vous restez dans le projet."));
-        // Nouvel essai d'abonnement + flush côté hôte ne dépend que de l'hôte ;
-        // ici on force juste le REQ à nouveau.
+            "Toujours vide — l'hôte doit rouvrir « Partager » (en ligne) "
+            "pour renvoyer le contenu via les relais."));
         const auto tag = channelTagFor(id.toStdString());
         if (tag) {
             m_subscribed.remove(QString::fromStdString(*tag));
@@ -235,12 +229,9 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         if (!ok)
             continue;
 
-        // Toujours rattacher l'id local (le JSON distant doit coïncider, mais on force).
         remote.id = projectId;
 
         auto local = m_db->getProject(projectId);
-        // Stub / projet vide local : toujours prendre un snapshot qui a du contenu,
-        // même si un autosave a horodaté le stub après la jointure (sinon seul le titre URI reste).
         const bool accept = !local
             || local->updatedAt == 0
             || (isContentEmpty(*local) && !isContentEmpty(remote))
@@ -254,7 +245,6 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
                                .arg(QString::fromStdString(remote.title)));
             }
         }
-        // Rejet LWW : ne pas marquer vu — un reset de stub / rejoin pourra réappliquer.
         return;
     }
 }
@@ -265,35 +255,36 @@ void ProjectSync::onRelayOnline(bool online)
     if (!online)
         return;
     flushOutbox();
-    // Republier les projets partagés : rattrape les invités si l'EVENT précédent
-    // a été droppé par un relais (publication « online » sans ACK).
-    if (m_db) {
-        for (const auto& id : m_db->sharedProjectIds()) {
-            if (auto p = m_db->getProject(id)) {
-                if (!isContentEmpty(*p))
-                    publishSnapshot(id);
-            }
-        }
-    }
     subscribeAll(0);
 }
 
 void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QString& msg)
 {
     Q_UNUSED(msg);
-    if (!m_db)
+    if (!accepted || !m_db)
         return;
     const auto it = m_pendingAcks.find(eventId);
     if (it == m_pendingAcks.end())
         return;
-    const std::string projectId = it->second;
+    // Comme Colo : retirer l'entrée outbox dont l'event id correspond.
+    m_db->outboxRemoveForEvent(eventId.toStdString());
     m_pendingAcks.erase(it);
-    if (accepted) {
-        // ACK peut porter un nouvel id après re-sign : nettoyer par projet.
-        m_db->outboxRemoveForProject(projectId);
-        m_db->outboxRemoveForEvent(eventId.toStdString());
-    }
+    if (m_pendingAcks.empty() && m_db->outboxCount() == 0)
+        m_ackWatchdog.stop();
     emit pendingChangesChanged();
+}
+
+void ProjectSync::onAckWatchdog()
+{
+    // Ne vide plus l'outbox (Colo garde jusqu'à OK). On coupe juste le bandeau UI
+    // en émettant un changement factice si besoin — pendingChanges reste exact.
+    // Le bandeau QML s'auto-masque ; ici on relance un flush au cas où.
+    flushOutbox();
+}
+
+void ProjectSync::armAckWatchdog()
+{
+    m_ackWatchdog.start();
 }
 
 void ProjectSync::onDebounce()
@@ -312,7 +303,6 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     const auto tag = channelTagFor(projectId);
     if (!project || !key || !tag)
         return;
-    // Ne jamais publier un stub d'invitation vide : ça écraserait le contenu hôte chez les pairs.
     if (isContentEmpty(*project))
         return;
 
@@ -325,16 +315,23 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     ev.content = QString::fromStdString(net::encryptPayload(*key, *tag, json));
 
     const auto seed = net::deriveNostrSeed(*key);
-    if (!net::signEvent(ev, seed))
+    if (!net::signEvent(ev, seed)) {
+        qWarning() << "[ProjectSync] signEvent failed — not publishing";
         return;
+    }
 
-    // Toujours en outbox jusqu'à ACK : « isOnline » ne garantit pas que l'EVENT
-    // a été accepté (relais qui droppe / déconnecte juste après l'envoi).
-    m_db->outboxPush(projectId, ev.id.toStdString(), ev.content.toStdString());
+    // Comme Colo SyncEngine : outbox = event JSON complet, retiré seulement à l'OK.
+    // Un seul snapshot en attente par projet (LWW document entier).
+    const std::string eventJson =
+        QJsonDocument(ev.toJson()).toJson(QJsonDocument::Compact).toStdString();
+    m_db->outboxPush(projectId, ev.id.toStdString(), eventJson);
+    m_db->markEventSeen(ev.id.toStdString()); // ne pas se ré-appliquer notre echo
     emit pendingChangesChanged();
     m_pendingAcks[ev.id] = projectId;
+
     if (m_pool->isOnline())
         m_pool->publishToAll(ev);
+    armAckWatchdog();
 }
 
 std::optional<std::string> ProjectSync::channelTagFor(const std::string& projectId)
@@ -354,28 +351,27 @@ std::optional<std::vector<uint8_t>> ProjectSync::keyFor(const std::string& proje
 
 void ProjectSync::flushOutbox()
 {
-    if (!m_db || !m_pool)
+    if (!m_db || !m_pool || !m_pool->isOnline())
         return;
+    // Republier le MÊME event (même id) — pas de re-sign (sinon l'ACK ne matche plus).
     for (const auto& row : m_db->outboxPeekAll()) {
-        const auto key = keyFor(row.projectId);
-        const auto tag = channelTagFor(row.projectId);
-        if (!key || !tag)
+        const QJsonDocument doc = QJsonDocument::fromJson(
+            QByteArray::fromStdString(row.content));
+        if (!doc.isObject()) {
+            m_db->outboxRemoveForEvent(row.eventId);
             continue;
-
-        net::NostrEvent ev;
-        ev.kind = 4545;
-        ev.created_at = QDateTime::currentSecsSinceEpoch();
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(*tag) } };
-        ev.content = QString::fromStdString(row.content);
-        const auto seed = net::deriveNostrSeed(*key);
-        if (!net::signEvent(ev, seed))
+        }
+        auto evOpt = net::NostrEvent::fromJson(doc.object());
+        if (!evOpt) {
+            m_db->outboxRemoveForEvent(row.eventId);
             continue;
-        // Remplace l'entrée outbox avec le nouvel event id (re-sign).
-        m_db->outboxPush(row.projectId, ev.id.toStdString(), row.content);
-        m_pool->publishToAll(ev);
-        m_pendingAcks[ev.id] = row.projectId;
+        }
+        m_pool->publishToAll(*evOpt);
+        m_pendingAcks[evOpt->id] = row.projectId;
     }
     emit pendingChangesChanged();
+    if (!m_pendingAcks.empty())
+        armAckWatchdog();
 }
 
 } // namespace app

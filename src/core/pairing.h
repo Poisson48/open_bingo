@@ -13,6 +13,7 @@ struct JoinInfo {
 };
 
 // Build openbingo://join/1/<listId>/<base64url(key)>/<urlencode(title)>
+// (même modèle que Colo Course : pas de contenu dans l'URI — sync via Nostr.)
 std::string buildJoinUri(const std::string& listId,
                          const std::vector<uint8_t>& key,
                          const std::string& title);

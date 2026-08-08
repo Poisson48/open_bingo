@@ -44,12 +44,24 @@ ApplicationWindow {
     readonly property bool pending: AppController.pendingChanges > 0
     readonly property bool onProjects: stack.depth <= 1
 
-    // Comme Colo : confirmation brève « synchronisé » sans bandeau permanent.
-    onPendingChanged: {
-        if (!pending && !offline)
-            syncedTimer.restart()
-    }
+    // Comme Colo : bandeaux brefs. Pending se masque tout seul (relais sans ACK).
+    property bool showPendingBanner: false
     property bool showSynced: false
+    onPendingChanged: {
+        if (pending) {
+            showPendingBanner = true
+            pendingHideTimer.restart()
+        } else {
+            showPendingBanner = false
+            if (!offline)
+                syncedTimer.restart()
+        }
+    }
+    Timer {
+        id: pendingHideTimer
+        interval: 3500
+        onTriggered: window.showPendingBanner = false
+    }
     Timer {
         id: syncedTimer
         interval: 2200
@@ -140,31 +152,14 @@ ApplicationWindow {
                 }
             }
         }
-    }
 
-    StackView {
-        id: stack
-        anchors.fill: parent
-        initialItem: projectsPage
-    }
-
-    // Bandeaux en overlay (fix Colo Tâches/Courses) : ne poussent plus le contenu.
-    Column {
-        id: bannerOverlay
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        z: 10
-        spacing: 0
-        visible: !playGame.visible && !window.screenshotMode
-
+        // Dans le header (pas en overlay sur les onglets éditeur).
         Rectangle {
-            id: offlineBanner
             width: parent.width
             height: window.offline ? 32 : 0
             color: Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.92)
             clip: true
-            visible: height > 0
+            visible: height > 0 && !window.screenshotMode
             Behavior on height { NumberAnimation { duration: 160 } }
 
             Label {
@@ -181,9 +176,10 @@ ApplicationWindow {
         Rectangle {
             width: parent.width
             height: visible ? 26 : 0
-            visible: !window.offline && (window.pending || window.showSynced)
+            visible: !window.offline && !window.screenshotMode
+                     && (window.showPendingBanner || window.showSynced)
             clip: true
-            color: window.pending
+            color: window.showPendingBanner
                    ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.92)
                    : Qt.rgba(Theme.accentSoft.r, Theme.accentSoft.g, Theme.accentSoft.b, 0.92)
 
@@ -192,13 +188,30 @@ ApplicationWindow {
                 width: parent.width - 16
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
-                color: window.pending ? Theme.textDim : Theme.accent
+                color: window.showPendingBanner ? Theme.textDim : Theme.accent
                 font.pixelSize: 12
-                text: window.pending
+                text: window.showPendingBanner
                       ? "Envoi de " + AppController.pendingChanges + " modification(s)…"
                       : "Tout est synchronisé"
             }
         }
+    }
+
+    StackView {
+        id: stack
+        anchors.fill: parent
+        initialItem: projectsPage
+    }
+
+    // Bandeau MAJ seul en overlay (sous le header), pour ne pas pousser le layout.
+    Column {
+        id: bannerOverlay
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        z: 10
+        spacing: 0
+        visible: !playGame.visible && !window.screenshotMode
 
         Rectangle {
             id: updateBanner

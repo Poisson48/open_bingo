@@ -51,23 +51,21 @@ static std::optional<std::vector<uint8_t>> base64urlDecode(const std::string& s)
     std::vector<uint8_t> out;
     size_t i = 0;
     const size_t n = s.size();
-    // n must be divisible by 4 (with padding) or we handle no-padding
-    // For no-padding base64url: we process groups of 4 chars
     while (i < n) {
         int c0 = (i < n) ? b64urlCharToVal(s[i++]) : 0;
         int c1 = (i < n) ? b64urlCharToVal(s[i++]) : 0;
-        int c2 = (i < n) ? b64urlCharToVal(s[i++]) : -2; // -2 = absent
+        int c2 = (i < n) ? b64urlCharToVal(s[i++]) : -2;
         int c3 = (i < n) ? b64urlCharToVal(s[i++]) : -2;
 
         if (c0 < 0 || c1 < 0) return std::nullopt;
 
         out.push_back(static_cast<uint8_t>((c0 << 2) | (c1 >> 4)));
 
-        if (c2 == -2) break; // only 2 chars in last group → 1 byte output
+        if (c2 == -2) break;
         if (c2 < 0) return std::nullopt;
         out.push_back(static_cast<uint8_t>(((c1 & 0xf) << 4) | (c2 >> 2)));
 
-        if (c3 == -2) break; // 3 chars in last group → 2 bytes output
+        if (c3 == -2) break;
         if (c3 < 0) return std::nullopt;
         out.push_back(static_cast<uint8_t>(((c2 & 0x3) << 6) | c3));
     }
@@ -75,7 +73,7 @@ static std::optional<std::vector<uint8_t>> base64urlDecode(const std::string& s)
 }
 
 // ---------------------------------------------------------------------------
-// Percent-encoding (RFC 3986 unreserved chars not encoded)
+// Percent-encoding
 // ---------------------------------------------------------------------------
 
 static bool isUnreserved(char c)
@@ -125,7 +123,7 @@ static std::string percentDecode(const std::string& s)
 }
 
 // ---------------------------------------------------------------------------
-// buildJoinUri / parseJoinUri
+// buildJoinUri / parseJoinUri — même contrat que Colo Course
 // ---------------------------------------------------------------------------
 
 std::string buildJoinUri(const std::string& listId,
@@ -147,9 +145,12 @@ std::optional<JoinInfo> parseJoinUri(const std::string& uri)
     if (uri.size() <= scheme.size()) return std::nullopt;
     if (uri.substr(0, scheme.size()) != scheme) return std::nullopt;
 
+    // Ignorer un éventuel fragment (#…) d'anciennes builds expérimentales.
     std::string rest = uri.substr(scheme.size());
+    const auto hashPos = rest.find('#');
+    if (hashPos != std::string::npos)
+        rest = rest.substr(0, hashPos);
 
-    // Split on '/' — expect exactly 3 parts: listId, keyB64url, title
     auto pos1 = rest.find('/');
     if (pos1 == std::string::npos) return std::nullopt;
     std::string listId = rest.substr(0, pos1);
@@ -163,16 +164,13 @@ std::optional<JoinInfo> parseJoinUri(const std::string& uri)
 
     std::string titleEnc = rest.substr(pos2 + 1);
 
-    // Decode key
     auto keyOpt = base64urlDecode(keyB64);
     if (!keyOpt || keyOpt->size() != 32) return std::nullopt;
-
-    std::string title = percentDecode(titleEnc);
 
     JoinInfo info;
     info.listId = listId;
     info.key    = *keyOpt;
-    info.title  = title;
+    info.title  = percentDecode(titleEnc);
     return info;
 }
 

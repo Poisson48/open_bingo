@@ -84,7 +84,7 @@ public:
 
     Q_INVOKABLE void reloadProjects();
     Q_INVOKABLE QString createProject();
-    Q_INVOKABLE bool openProject(const QString& id);
+    Q_INVOKABLE bool openProject(const QString& id, bool toPlay = true);
     Q_INVOKABLE QString cloneProject(const QString& id);
     Q_INVOKABLE void deleteProject(const QString& id);
     Q_INVOKABLE void updateProjectMeta(const QString& id, const QString& title,

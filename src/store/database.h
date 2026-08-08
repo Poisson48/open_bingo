@@ -35,6 +35,7 @@ public:
     bool deletePlayChecksForProject(const std::string& projectId);
 
     // Sync Nostr (même stack que Colo) : clé stable une fois le partage activé.
+    // outbox.content = event JSON complet (NostrEvent), retiré à l'ACK OK.
     bool setSyncKey(const std::string& projectId, const std::vector<uint8_t>& key);
     std::optional<std::vector<uint8_t>> getSyncKey(const std::string& projectId);
     bool clearSyncKey(const std::string& projectId);

@@ -55,18 +55,21 @@ private slots:
     void onRelayOnline(bool online);
     void onPublishAck(const QString& eventId, bool accepted, const QString& msg);
     void onDebounce();
+    void onAckWatchdog();
 
 private:
     void publishSnapshot(const std::string& projectId);
     std::optional<std::string> channelTagFor(const std::string& projectId);
     std::optional<std::vector<uint8_t>> keyFor(const std::string& projectId);
     void flushOutbox();
+    void armAckWatchdog();
 
     store::Database* m_db   = nullptr;
     net::RelayPool*  m_pool = nullptr;
     QString          m_deviceId;
 
     QTimer           m_debounce;
+    QTimer           m_ackWatchdog;
     QSet<QString>    m_pendingProjects;
     QSet<QString>    m_subscribed;
     std::map<QString, std::string> m_pendingAcks;
