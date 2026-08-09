@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -658,6 +659,27 @@ private slots:
         QVERIFY(!off.value(QStringLiteral("gridFull")).toBool());
         QVERIFY(off.value(QStringLiteral("winners")).toList().isEmpty());
         QVERIFY(off.value(QStringLiteral("newWinners")).toList().isEmpty());
+
+        // Re-compléter : playWinnersTriggered (toast / panneau pour tout le monde).
+        QSignalSpy winSpy(&controller, &app::AppController::playWinnersTriggered);
+        QVariantMap again;
+        for (int r = 0; r < 2; ++r) {
+            for (int c = 0; c < 2; ++c) {
+                const auto cur = controller.loadPlayChecks(QStringLiteral("Alice"));
+                if (cur.size() > r && cur[r].toList().size() > c
+                        && cur[r].toList()[c].toBool())
+                    continue;
+                again = controller.togglePlayCell(QStringLiteral("Alice"), r, c);
+            }
+        }
+        QVERIFY(again.value(QStringLiteral("justCompleted")).toBool());
+        QVERIFY2(winSpy.count() >= 1, "playWinnersTriggered");
+        const auto winArgs = winSpy.takeLast();
+        QCOMPARE(winArgs.size(), 2);
+        QCOMPARE(winArgs[0].toList().size(), 1);
+        QCOMPARE(winArgs[0].toList()[0].toMap().value(QStringLiteral("player")).toString(),
+                 QStringLiteral("Alice"));
+        QVERIFY(!winArgs[1].toList().isEmpty());
     }
 
     void joinAndLeaveSharedProject()

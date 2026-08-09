@@ -213,6 +213,8 @@ signals:
     void playChecksChanged();
     // Gages à afficher après un cochage distant (sync) — même file que togglePlayCell.
     void playOverlaysTriggered(const QVariantList& overlays);
+    // Nouveau(x) gagnant(s) : toast + panneau (local et sync distant).
+    void playWinnersTriggered(const QVariantList& winners, const QVariantList& scoreboard);
     void scoreboardPreviewChanged();
 
 private:
@@ -223,9 +225,12 @@ private:
     void markGridsDirty();
     void clearGridsDirtyFlag();
     void rememberPlayChecksSnapshot();
+    void announceWinners(const QVariantList& newWinners, const QVariantList& scoreboard);
     QVariantList overlaysForNewlyCheckedCells(
         const std::map<std::string, std::string>& before,
         const std::map<std::string, std::string>& after) const;
+    QSet<QString> fullPlayersFromChecksMap(
+        const std::map<std::string, std::string>& checksByPlayer) const;
     core::Project* current();
     const core::Project* current() const;
     QVariantList gridsToVariant() const;

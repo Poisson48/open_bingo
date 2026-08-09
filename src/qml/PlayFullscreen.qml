@@ -135,7 +135,22 @@ Item {
         function onPlayOverlaysTriggered(overlays) {
             if (!fs.visible)
                 return
-            fs.enqueueOverlays(overlays || [])
+            // Les overlays « winner » passent par playWinnersTriggered.
+            var gages = []
+            const list = overlays || []
+            for (var i = 0; i < list.length; ++i) {
+                const o = list[i]
+                if (o && o.kind === "winner")
+                    continue
+                gages.push(o)
+            }
+            fs.enqueueOverlays(gages)
+        }
+        function onPlayWinnersTriggered(winners, board) {
+            if (!fs.visible)
+                return
+            if (winners && winners.length > 0)
+                fs.showWinner(winners, board || [])
         }
     }
 

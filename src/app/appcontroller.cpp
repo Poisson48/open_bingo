@@ -484,12 +484,46 @@ bool AppController::init()
                             remoteOverlays =
                                 overlaysForNewlyCheckedCells(before, after);
                         }
+
+                        QVariantList gageOverlays;
+                        QVariantList newWinners;
+                        QVariantList winBoard;
+                        for (const QVariant& v : remoteOverlays) {
+                            const QVariantMap ov = v.toMap();
+                            if (ov.value(QStringLiteral("kind")).toString()
+                                == QLatin1String("winner")) {
+                                newWinners = ov.value(QStringLiteral("winners")).toList();
+                                winBoard = ov.value(QStringLiteral("scoreboard")).toList();
+                            } else {
+                                gageOverlays.append(v);
+                            }
+                        }
+                        // Fallback : détecter les grilles nouvellement pleines
+                        // (clients sans overlay winner, ou echo partiel).
+                        if (newWinners.isEmpty() && !skipRecompute) {
+                            const auto wasFull = fullPlayersFromChecksMap(before);
+                            const auto board = buildScoreboard(m_current, m_db.get());
+                            for (const QVariant& rowV : board) {
+                                const auto m = rowV.toMap();
+                                if (!m.value(QStringLiteral("full")).toBool())
+                                    continue;
+                                const QString pname =
+                                    m.value(QStringLiteral("player")).toString();
+                                if (!wasFull.contains(pname))
+                                    newWinners.append(m);
+                            }
+                            if (!newWinners.isEmpty())
+                                winBoard = board;
+                        }
+
                         m_playChecksSnapshot = after;
                         emit currentProjectChanged();
                         emit gridsChanged();
                         emit playChecksChanged();
-                        if (!remoteOverlays.isEmpty())
-                            emit playOverlaysTriggered(remoteOverlays);
+                        if (!newWinners.isEmpty())
+                            announceWinners(newWinners, winBoard);
+                        if (!gageOverlays.isEmpty())
+                            emit playOverlaysTriggered(gageOverlays);
                     }
                 });
         m_updater->check();
@@ -1903,15 +1937,8 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
             newWinners.append(m); // map complète (player, score, …)
     }
 
-    if (!newWinners.isEmpty()) {
-        QStringList names;
-        for (const QVariant& w : newWinners)
-            names << w.toMap().value(QStringLiteral("player")).toString();
-        const QString msg = names.size() == 1
-            ? (names[0] + QStringLiteral(" a gagné — grille complète !"))
-            : (names.join(QStringLiteral(", ")) + QStringLiteral(" ont gagné !"));
-        emit toast(msg);
-    }
+    if (!newWinners.isEmpty())
+        announceWinners(newWinners, board);
 
     result.insert(QStringLiteral("checked"), newChecked);
     result.insert(QStringLiteral("checks"), viewerChecksOut);
@@ -1924,16 +1951,74 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     result.insert(QStringLiteral("winners"), winners);
     result.insert(QStringLiteral("scoreboard"), board);
     rememberPlayChecksSnapshot();
-    // Publier les overlays avec les coches : les autres téléphones affichent
-    // exactement la même liste de noms (pas de recalcul local divergent).
+    // Publier overlays (+ gagnant) avec les coches : les autres appareils
+    // affichent les mêmes gages et la même annonce de victoire.
     if (m_projectSync && m_db && m_db->getSyncKey(m_current.id)) {
+        QVariantList outbound = groupedOverlays;
+        if (newChecked && !newWinners.isEmpty()) {
+            QVariantMap winOv;
+            winOv.insert(QStringLiteral("kind"), QStringLiteral("winner"));
+            winOv.insert(QStringLiteral("winners"), newWinners);
+            winOv.insert(QStringLiteral("scoreboard"), board);
+            outbound.prepend(winOv);
+        }
         m_projectSync->setOutboundPlayOverlays(
             QString::fromStdString(m_current.id),
-            newChecked ? groupedOverlays : QVariantList{});
+            newChecked ? outbound : QVariantList{});
     }
     emit playChecksChanged();
     publishPlayChecksIfShared();
     return result;
+}
+
+void AppController::announceWinners(const QVariantList& newWinners,
+                                    const QVariantList& scoreboard)
+{
+    if (newWinners.isEmpty())
+        return;
+    QStringList names;
+    for (const QVariant& w : newWinners)
+        names << w.toMap().value(QStringLiteral("player")).toString();
+    names.removeAll(QString());
+    if (names.isEmpty())
+        return;
+    const QString msg = names.size() == 1
+        ? (names[0] + QStringLiteral(" a gagné — grille complète !"))
+        : (names.join(QStringLiteral(", ")) + QStringLiteral(" ont gagné !"));
+    emit toast(msg);
+    platformNotify(QStringLiteral("Open Bingo"), msg);
+    emit playWinnersTriggered(newWinners, scoreboard);
+}
+
+QSet<QString> AppController::fullPlayersFromChecksMap(
+    const std::map<std::string, std::string>& checksByPlayer) const
+{
+    QSet<QString> out;
+    if (!m_hasCurrent)
+        return out;
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
+    if (rows <= 0 || cols <= 0)
+        return out;
+    for (const auto& grid : m_current.grids) {
+        auto checks = emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
+        const auto it = checksByPlayer.find(grid.player);
+        if (it != checksByPlayer.end()) {
+            const QJsonDocument doc =
+                QJsonDocument::fromJson(QByteArray::fromStdString(it->second));
+            checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
+            if (core::projectHasFreeCenter(m_current)) {
+                const int midR = rows / 2;
+                const int midC = cols / 2;
+                checks[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
+            }
+        }
+        const int total = countPlayableCells(grid);
+        const int checked = countCheckedPlayable(grid, checks);
+        if (total > 0 && checked >= total)
+            out.insert(QString::fromStdString(grid.player));
+    }
+    return out;
 }
 
 void AppController::rememberPlayChecksSnapshot()
