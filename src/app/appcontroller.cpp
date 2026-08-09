@@ -2105,20 +2105,6 @@ QImage AppController::renderScoreboardImage()
 
     const int W = 1000;
     const int pad = 40;
-    const int podiumH = board.size() >= 1 ? 220 : 0;
-    const int winnerBannerH = winnerNames.isEmpty() ? 0 : 72;
-    const int headerH = 110 + winnerBannerH;
-    const int rowH = 70;
-    const int footerH = 48;
-    const int listStart = headerH + podiumH;
-    const int H = listStart + board.size() * rowH + footerH;
-
-    QImage img(W, H, QImage::Format_RGB32);
-    img.fill(QColor(QStringLiteral("#0f1623")));
-
-    QPainter p(&img);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.setRenderHint(QPainter::TextAntialiasing, true);
 
     auto fontPx = [](int px, bool bold = false) {
         QFont f = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
@@ -2133,28 +2119,76 @@ QImage AppController::renderScoreboardImage()
         return QLocale(QLocale::French).toString(score) + QLatin1Char(' ') + unit;
     };
 
+    const QString title = QString::fromStdString(m_current.title).trimmed();
+    const QString description = QString::fromStdString(m_current.description).trimmed();
+
+    QFont titleFont = fontPx(32, true);
+    QFont subFont = fontPx(14);
+    QFont descFont = fontPx(15);
+
+    const int titleTop = 24;
+    const int titleH = 42;
+    int cursorY = titleTop + titleH;
+
+    QRect descRect;
+    if (!description.isEmpty()) {
+        cursorY += 4;
+        const int descMaxW = W - 2 * pad;
+        const QFontMetrics fm(descFont);
+        const QRect bounds = fm.boundingRect(QRect(0, 0, descMaxW, 80),
+                                             Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                                             description);
+        const int descBlockH = qBound(20, bounds.height() + 4, 72);
+        descRect = QRect(pad, cursorY, descMaxW, descBlockH);
+        cursorY += descBlockH + 6;
+    } else {
+        cursorY += 4;
+    }
+
+    const int metaY = cursorY;
+    const int metaH = 24;
+    cursorY += metaH + 10;
+
+    const int winnerBannerH = winnerNames.isEmpty() ? 0 : 72;
+    const int headerH = cursorY + (winnerNames.isEmpty() ? 0 : winnerBannerH);
+    const int podiumH = board.size() >= 1 ? 220 : 0;
+    const int rowH = 70;
+    const int footerH = 48;
+    const int listStart = headerH + podiumH;
+    const int H = listStart + board.size() * rowH + footerH;
+
+    QImage img(W, H, QImage::Format_RGB32);
+    img.fill(QColor(QStringLiteral("#0f1623")));
+
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+
     // Accent top
     QLinearGradient bar(0, 0, W, 0);
     bar.setColorAt(0.0, QColor(QStringLiteral("#4f46e5")));
     bar.setColorAt(1.0, QColor(QStringLiteral("#22c55e")));
     p.fillRect(0, 0, W, 8, bar);
 
-    const QString title = QString::fromStdString(m_current.title).trimmed();
-    QFont titleFont = fontPx(32, true);
     p.setFont(titleFont);
     p.setPen(QColor(QStringLiteral("#f1f5f9")));
-    p.drawText(QRect(pad, 24, W - 2 * pad, 42), Qt::AlignLeft | Qt::AlignVCenter,
+    p.drawText(QRect(pad, titleTop, W - 2 * pad, titleH), Qt::AlignLeft | Qt::AlignVCenter,
                elide(titleFont, title.isEmpty() ? QStringLiteral("Bingo") : title, W - 2 * pad));
 
-    QFont subFont = fontPx(14);
+    if (!description.isEmpty()) {
+        p.setFont(descFont);
+        p.setPen(QColor(QStringLiteral("#cbd5e1")));
+        p.drawText(descRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, description);
+    }
+
     p.setFont(subFont);
     p.setPen(QColor(QStringLiteral("#7c8fa6")));
-    p.drawText(QRect(pad, 70, W / 2, 24), Qt::AlignLeft | Qt::AlignVCenter,
+    p.drawText(QRect(pad, metaY, W / 2, metaH), Qt::AlignLeft | Qt::AlignVCenter,
                QStringLiteral("Classement · Open Bingo"));
-    p.drawText(QRect(W / 2, 70, W / 2 - pad, 24), Qt::AlignRight | Qt::AlignVCenter,
+    p.drawText(QRect(W / 2, metaY, W / 2 - pad, metaH), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy  HH:mm")));
 
-    int y = 104;
+    int y = metaY + metaH + 10;
     if (!winnerNames.isEmpty()) {
         const QRectF banner(pad, y, W - 2 * pad, 56);
         p.setPen(Qt::NoPen);

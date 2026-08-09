@@ -474,6 +474,7 @@ private slots:
         const QString id = controller.createProject();
         QVERIFY(controller.openProject(id));
         controller.setTitle(QStringLiteral("Soirée marathon des noms interminables"));
+        controller.setDescription(QStringLiteral("Description longue pour vérifier l'export PNG du classement."));
         controller.setGridSize(3);
         controller.setFreeCenter(true);
         controller.setGageMode(false); // score = points, pas n° de cases
