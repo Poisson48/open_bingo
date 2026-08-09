@@ -45,14 +45,7 @@ Item {
                 BingoButton {
                     visible: playerBox.count > 0
                     text: "Réinitialiser"
-                    onClicked: {
-                        AppController.resetPlayChecks(
-                            AppController.grids[playerBox.currentIndex].player)
-                        playRoot.reloadChecks()
-                        playRoot.lastGageR = -1
-                        playRoot.lastGageC = -1
-                        playRoot.bingoRevision++
-                    }
+                    onClicked: confirmResetPlay.open()
                 }
             }
 
@@ -88,8 +81,7 @@ Item {
 
                 function resetChecks() {
                     if (playerBox.count <= 0) return
-                    AppController.resetPlayChecks(
-                        AppController.grids[playerBox.currentIndex].player)
+                    AppController.resetPlayChecks("")
                     reloadChecks()
                     lastGageR = -1
                     lastGageC = -1
@@ -360,4 +352,19 @@ Item {
     }
 
     function openFullscreenForShot() { openFullscreen() }
+
+    ColoDialog {
+        id: confirmResetPlay
+        title: "Réinitialiser la partie ?"
+        destructive: true
+        acceptText: "Réinitialiser"
+        Label {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            color: Theme.text
+            text: "Effacer toutes les cases cochées de tous les joueurs ? "
+                  + "Cette action est synchronisée avec les autres appareils."
+        }
+        onAccepted: playRoot.resetChecks()
+    }
 }

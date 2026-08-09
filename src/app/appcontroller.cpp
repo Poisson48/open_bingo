@@ -1695,27 +1695,19 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     return result;
 }
 
-void AppController::resetPlayChecks(const QString& playerName)
+void AppController::resetPlayChecks(const QString& /*playerName*/)
 {
     if (!m_hasCurrent || !m_db)
         return;
     const int N = m_current.gridSize;
-    // Comme uncheckAll Colo : on remet la grille du joueur (et seulement lui) à zéro.
-    // Les libellés partagés se resynchroniseront au prochain cochage.
-    if (!playerName.isEmpty()) {
+    // Toujours toutes les grilles : un libellé coché l'est chez tous les joueurs,
+    // donc une remise à zéro partielle laisserait la partie incohérente.
+    for (const auto& g : m_current.grids) {
         const auto empty = checksToVariant(emptyChecks(N, m_current.freeCenter));
-        m_db->savePlayChecks(m_current.id, playerName.toStdString(),
+        m_db->savePlayChecks(m_current.id, g.player,
                              QJsonDocument(QJsonArray::fromVariantList(empty))
                                  .toJson(QJsonDocument::Compact)
                                  .toStdString());
-    } else {
-        for (const auto& g : m_current.grids) {
-            const auto empty = checksToVariant(emptyChecks(N, m_current.freeCenter));
-            m_db->savePlayChecks(m_current.id, g.player,
-                                 QJsonDocument(QJsonArray::fromVariantList(empty))
-                                     .toJson(QJsonDocument::Compact)
-                                     .toStdString());
-        }
     }
     emit playChecksChanged();
     publishPlayChecksIfShared();

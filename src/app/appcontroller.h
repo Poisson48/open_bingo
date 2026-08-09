@@ -151,6 +151,8 @@ public:
     // Coche/décoche (row,col) puis propage le même libellé à toutes les grilles
     // (tout le monde regarde le même film). Renvoie checks + overlays gages à enfiler.
     Q_INVOKABLE QVariantMap togglePlayCell(const QString& playerName, int row, int col);
+    // Remet à zéro les coches de TOUTES les grilles (libellés partagés).
+    // L'argument est ignoré (conservé pour compat QML).
     Q_INVOKABLE void resetPlayChecks(const QString& playerName);
     Q_INVOKABLE int computeScore(const QString& playerName, const QVariantList& checks);
     Q_INVOKABLE QVariantList detectBingoLines(const QVariantList& checks);
