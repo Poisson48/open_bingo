@@ -69,12 +69,30 @@ QVariantMap multToMap(const core::Multipliers& m)
 std::vector<std::vector<bool>> checksFromVariant(const QVariantList& checks, int rows, int cols)
 {
     std::vector<std::vector<bool>> out(rows, std::vector<bool>(cols, false));
+    // Grille à plat (bug / vieux JSON) : refuser plutôt que lire n'importe quoi.
+    if (!checks.isEmpty() && !checks[0].canConvert<QVariantList>())
+        return out;
     for (int r = 0; r < rows && r < checks.size(); ++r) {
         const QVariantList row = checks[r].toList();
         for (int c = 0; c < cols && c < row.size(); ++c)
             out[static_cast<size_t>(r)][static_cast<size_t>(c)] = row[c].toBool();
     }
     return out;
+}
+
+bool playChecksLookValid(const QVariantList& checks, int rows, int cols)
+{
+    if (rows <= 0 || cols <= 0)
+        return false;
+    if (checks.size() != rows)
+        return false;
+    for (int r = 0; r < rows; ++r) {
+        if (!checks[r].canConvert<QVariantList>())
+            return false;
+        if (checks[r].toList().size() != cols)
+            return false;
+    }
+    return true;
 }
 
 QVariantList checksToVariant(const std::vector<std::vector<bool>>& checks)
@@ -135,7 +153,6 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
         size_t pick = idxs[0];
         if (idxs.size() > 1) {
             const QByteArray seedBytes = (QString::fromStdString(project.id) + QLatin1Char('|')
-                                         + playerName + QLatin1Char('|')
                                          + QString::fromStdString(cell.label) + QLatin1Char('|')
                                          + QString::number(num))
                                             .toUtf8();
@@ -186,7 +203,8 @@ QString formatPlayerList(const QStringList& names)
     return head.join(QStringLiteral(", ")) + QStringLiteral(" et ") + names.last();
 }
 
-// Regroupe gages / combos identiques : « Léa, Max et Sam doivent : … »
+// Regroupe gages / combos : une notif par événement (libellé coché),
+// pas une par variante de tirage — sinon « moi » puis « les autres ».
 QVariantList groupPlayOverlays(const QVariantList& raw)
 {
     QList<QVariantMap> groups;
@@ -219,10 +237,11 @@ QVariantList groupPlayOverlays(const QVariantList& raw)
         const QString kind = ov.value(QStringLiteral("kind")).toString();
         const QString desc = ov.value(QStringLiteral("desc")).toString().trimmed();
         if (kind == QLatin1String("gage")) {
-            const int num = ov.value(QStringLiteral("num")).toInt();
-            appendPlayer(ov, QStringLiteral("gage\n") + QString::number(num)
-                                 + QLatin1Char('\n') + desc);
+            // Même case cochée (libellé) → une seule carte pour tout le monde.
+            const QString label = ov.value(QStringLiteral("label")).toString().trimmed();
+            appendPlayer(ov, QStringLiteral("gage\n") + label.toLower());
         } else if (kind == QLatin1String("combo")) {
+            // Même type de combo + même texte → une carte.
             appendPlayer(ov, QStringLiteral("combo\n")
                                  + ov.value(QStringLiteral("key")).toString()
                                  + QLatin1Char('\n') + desc);
@@ -455,8 +474,16 @@ bool AppController::init()
                         clearGridsDirtyFlag();
                         ++m_gridsRevision;
                         const auto after = m_db->getAllPlayChecks(m_current.id);
-                        const QVariantList remoteOverlays =
-                            overlaysForNewlyCheckedCells(before, after);
+                        // Priorité aux overlays du pair (mêmes noms partout).
+                        QVariantList remoteOverlays =
+                            m_projectSync->takeInboundPlayOverlays(id);
+                        const bool skipRecompute =
+                            m_projectSync->takeSkipOverlayRecompute(id);
+                        if (remoteOverlays.isEmpty() && !skipRecompute) {
+                            // Anciens clients sans playOverlays dans le snapshot.
+                            remoteOverlays =
+                                overlaysForNewlyCheckedCells(before, after);
+                        }
                         m_playChecksSnapshot = after;
                         emit currentProjectChanged();
                         emit gridsChanged();
@@ -1646,9 +1673,17 @@ void AppController::savePlayChecks(const QString& playerName, const QVariantList
 {
     if (!m_hasCurrent || !m_db)
         return;
+    core::normalizeGridDims(m_current);
+    // Évite d'écraser une grille valide avec un tableau à plat / mal formé (QML).
+    if (!playChecksLookValid(checks, m_current.gridRows, m_current.gridCols)) {
+        qWarning("savePlayChecks: matrice invalide (%d×%d attendu) — ignorée",
+                 m_current.gridRows, m_current.gridCols);
+        return;
+    }
     const QJsonDocument doc(QJsonArray::fromVariantList(checks));
     m_db->savePlayChecks(m_current.id, playerName.toStdString(),
                          doc.toJson(QJsonDocument::Compact).toStdString());
+    rememberPlayChecksSnapshot();
     publishPlayChecksIfShared();
 }
 
@@ -1694,9 +1729,14 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
         if (!json)
             return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
         const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
-        auto checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
-        if (static_cast<int>(checks.size()) != rows)
-            return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
+        const QVariantList raw = doc.array().toVariantList();
+        // Matrice corrompue / à plat : ne pas repartir de zéro (effacerait les coches).
+        if (!playChecksLookValid(raw, rows, cols)) {
+            qWarning("play checks invalides pour %s — conservation d'une grille vide non écrasante",
+                     pname.c_str());
+            // Tenter une lecture partielle plutôt qu'un wipe total.
+        }
+        auto checks = checksFromVariant(raw, rows, cols);
         if (core::projectHasFreeCenter(m_current)) {
             const int midR = rows / 2;
             const int midC = cols / 2;
@@ -1832,7 +1872,8 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
 
     result.insert(QStringLiteral("checked"), newChecked);
     result.insert(QStringLiteral("checks"), viewerChecksOut);
-    result.insert(QStringLiteral("overlays"), groupPlayOverlays(overlays));
+    const QVariantList groupedOverlays = groupPlayOverlays(overlays);
+    result.insert(QStringLiteral("overlays"), groupedOverlays);
     result.insert(QStringLiteral("label"), label);
     result.insert(QStringLiteral("gridFull"), viewerFull);
     result.insert(QStringLiteral("justCompleted"), !newWinners.isEmpty());
@@ -1840,6 +1881,13 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     result.insert(QStringLiteral("winners"), winners);
     result.insert(QStringLiteral("scoreboard"), board);
     rememberPlayChecksSnapshot();
+    // Publier les overlays avec les coches : les autres téléphones affichent
+    // exactement la même liste de noms (pas de recalcul local divergent).
+    if (m_projectSync && m_db && m_db->getSyncKey(m_current.id)) {
+        m_projectSync->setOutboundPlayOverlays(
+            QString::fromStdString(m_current.id),
+            newChecked ? groupedOverlays : QVariantList{});
+    }
     emit playChecksChanged();
     publishPlayChecksIfShared();
     return result;

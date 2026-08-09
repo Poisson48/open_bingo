@@ -55,12 +55,12 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 ## Fonctionnalités
 
 - **Projets multiples** — créer, cloner, rechercher, supprimer ; métadonnées titre/description
-- **Configuration** — taille de grille (2–12), joueurs, HP de départ, case FREE au centre, mode gage
+- **Configuration** — grille lignes × colonnes (2–12 chacune), joueurs, HP de départ, case FREE au centre, mode gage
 - **Phrases & gages** — phrases avec n° de gage ; onglet Gages dédié + combinaisons
 - **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle
 - **Impression** — A4, 2 grilles/page, trait de découpe, feuille gages
-- **Sans papier** — cocher, overlay gage perso, sync du même texte entre joueurs
-- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr
+- **Sans papier** — coches par joueur, overlay gage groupé (« Léa, Max… doivent : … »), sync du même texte entre grilles, notifs gage alignées entre appareils
+- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play)
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
 
 ## Comment ça marche (sync)

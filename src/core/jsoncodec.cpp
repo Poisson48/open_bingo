@@ -291,6 +291,10 @@ ProjectBundle bundleFromJsonObj(const json& j)
             b.hasPlayChecks = true;
             b.playChecks = playChecksFromJson(j["playChecks"]);
         }
+        if (j.contains("playOverlays") && j["playOverlays"].is_array()) {
+            b.hasPlayOverlays = true;
+            b.playOverlaysJson = j["playOverlays"].dump();
+        }
         return b;
     }
     // Projet nu ; playChecks optionnel au sommet (ignoré par projectFromJsonObj).
@@ -298,6 +302,10 @@ ProjectBundle bundleFromJsonObj(const json& j)
     if (j.contains("playChecks")) {
         b.hasPlayChecks = true;
         b.playChecks = playChecksFromJson(j["playChecks"]);
+    }
+    if (j.contains("playOverlays") && j["playOverlays"].is_array()) {
+        b.hasPlayOverlays = true;
+        b.playOverlaysJson = j["playOverlays"].dump();
     }
     return b;
 }
@@ -311,6 +319,13 @@ std::string JsonCodec::projectBundleToJson(const ProjectBundle& bundle, bool pre
         { "project", projectToJsonObj(bundle.project) },
         { "playChecks", playChecksToJson(bundle.playChecks) },
     };
+    if (bundle.hasPlayOverlays && !bundle.playOverlaysJson.empty()) {
+        try {
+            env["playOverlays"] = json::parse(bundle.playOverlaysJson);
+        } catch (...) {
+            env["playOverlays"] = json::array();
+        }
+    }
     return pretty ? env.dump(2) : env.dump();
 }
 

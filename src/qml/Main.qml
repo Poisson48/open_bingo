@@ -290,17 +290,19 @@ ApplicationWindow {
             visible: !window.offline && !window.screenshotMode
                      && (window.showPendingBanner || window.showSynced)
             clip: true
+            // Succès : fond vert lisible (pas accentSoft opaque → indigo saturé).
             color: window.showPendingBanner
                    ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.92)
-                   : Qt.rgba(Theme.accentSoft.r, Theme.accentSoft.g, Theme.accentSoft.b, 0.92)
+                   : Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.92)
 
             Label {
                 anchors.centerIn: parent
                 width: parent.width - 16
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
-                color: window.showPendingBanner ? Theme.textDim : Theme.accent
+                color: window.showPendingBanner ? Theme.textDim : "#052e16"
                 font.pixelSize: 12
+                font.weight: window.showPendingBanner ? Font.Normal : Font.DemiBold
                 text: window.showPendingBanner
                       ? "Envoi de " + AppController.pendingChanges + " modification(s)…"
                       : "Tout est synchronisé"
@@ -360,7 +362,7 @@ ApplicationWindow {
         onChecksUpdated: function(c) {
             const ed = stack.currentItem
             if (ed && typeof ed.applyPlayChecks === "function")
-                ed.applyPlayChecks(c)
+                ed.applyPlayChecks(playGame.playerName, c)
         }
     }
 

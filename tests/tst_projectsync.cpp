@@ -523,6 +523,9 @@ private slots:
         b.project.title = "Bundle";
         b.playChecks = { { "Léa", "[[true,false],[false,false]]" } };
         b.hasPlayChecks = true;
+        b.hasPlayOverlays = true;
+        b.playOverlaysJson =
+            R"([{"kind":"gage","players":["Léa","Max"],"prompt":"Léa et Max doivent :","desc":"Imite"}])";
         const std::string json = core::JsonCodec::projectBundleToJson(b, false);
         bool ok = false;
         const auto got = core::JsonCodec::projectBundleFromJson(json, &ok);
@@ -530,6 +533,10 @@ private slots:
         QCOMPARE(got.project.title, std::string("Bundle"));
         QVERIFY(got.hasPlayChecks);
         QCOMPARE(got.playChecks.at("Léa"), std::string("[[true,false],[false,false]]"));
+        QVERIFY(got.hasPlayOverlays);
+        QVERIFY(got.playOverlaysJson.find("Léa") != std::string::npos);
+        QVERIFY(got.playOverlaysJson.find("Max") != std::string::npos);
+        QVERIFY(got.playOverlaysJson.find("Imite") != std::string::npos);
 
         // Ancien format nu : pas de playChecks.
         bool ok2 = false;
@@ -537,6 +544,7 @@ private slots:
             core::JsonCodec::projectToJson(b.project, false), &ok2);
         QVERIFY(ok2);
         QVERIFY(!bare.hasPlayChecks);
+        QVERIFY(!bare.hasPlayOverlays);
     }
 };
 

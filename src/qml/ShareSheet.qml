@@ -63,11 +63,14 @@ Popup {
             Layout.fillWidth: true
             radius: Theme.radius
             color: sheet.offline
-                   ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2)
+                   ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.22)
                    : (sheet.pending > 0
-                      ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-                      : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08))
+                      ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.95)
+                      : Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.22))
             implicitHeight: syncLabel.implicitHeight + 16
+            border.width: 1
+            border.color: sheet.offline ? Theme.warning
+                         : (sheet.pending > 0 ? Theme.outline : Theme.success)
 
             Label {
                 id: syncLabel
@@ -77,7 +80,7 @@ Popup {
                 horizontalAlignment: Text.AlignHCenter
                 font.pixelSize: 13
                 color: sheet.offline ? Theme.warning
-                     : (sheet.pending > 0 ? Theme.text : Theme.accent)
+                     : (sheet.pending > 0 ? Theme.text : Theme.success)
                 text: {
                     if (sheet.offline)
                         return "Hors ligne — le QR est prêt, le contenu partira au retour du réseau."

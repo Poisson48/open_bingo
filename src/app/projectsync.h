@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QSet>
 #include <QString>
+#include <QVariantList>
 #include <map>
 #include <optional>
 #include <vector>
@@ -42,6 +43,13 @@ public:
     // Arrête la sync locale (clé + abonnement) sans toucher les autres appareils.
     Q_INVOKABLE void leaveSharing(const QString& projectId);
 
+    // Overlays à coller dans le prochain snapshot (cochage Play) — one-shot.
+    void setOutboundPlayOverlays(const QString& projectId, const QVariantList& overlays);
+    // Overlays reçus d'un pair (vidé après lecture). Vide si echo local / absent.
+    QVariantList takeInboundPlayOverlays(const QString& projectId);
+    // true une fois après un echo de notre propre publish (pas de rejeu notif).
+    bool takeSkipOverlayRecompute(const QString& projectId);
+
 public slots:
     void handleRelayEvent(const net::NostrEvent& ev);
 
@@ -73,6 +81,10 @@ private:
     QSet<QString>    m_pendingProjects;
     QSet<QString>    m_subscribed;
     std::map<QString, std::string> m_pendingAcks;
+    // projectId → JSON array overlays (sortie / entrée sync).
+    std::map<std::string, std::string> m_outboundPlayOverlays;
+    std::map<std::string, std::string> m_inboundPlayOverlays;
+    QSet<QString> m_skipOverlayRecompute;
 };
 
 } // namespace app

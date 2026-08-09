@@ -236,6 +236,44 @@ void ProjectSync::leaveSharing(const QString& projectId)
         if (m_pool)
             m_pool->unsubscribe(qtag);
     }
+    m_outboundPlayOverlays.erase(projectId.toStdString());
+    m_inboundPlayOverlays.erase(projectId.toStdString());
+}
+
+void ProjectSync::setOutboundPlayOverlays(const QString& projectId, const QVariantList& overlays)
+{
+    if (projectId.isEmpty())
+        return;
+    if (overlays.isEmpty()) {
+        m_outboundPlayOverlays.erase(projectId.toStdString());
+        return;
+    }
+    const QJsonDocument doc(QJsonArray::fromVariantList(overlays));
+    m_outboundPlayOverlays[projectId.toStdString()] =
+        doc.toJson(QJsonDocument::Compact).toStdString();
+}
+
+QVariantList ProjectSync::takeInboundPlayOverlays(const QString& projectId)
+{
+    const auto it = m_inboundPlayOverlays.find(projectId.toStdString());
+    if (it == m_inboundPlayOverlays.end())
+        return {};
+    const std::string json = it->second;
+    m_inboundPlayOverlays.erase(it);
+    if (json.empty())
+        return {};
+    const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
+    if (!doc.isArray())
+        return {};
+    return doc.array().toVariantList();
+}
+
+bool ProjectSync::takeSkipOverlayRecompute(const QString& projectId)
+{
+    if (!m_skipOverlayRecompute.contains(projectId))
+        return false;
+    m_skipOverlayRecompute.remove(projectId);
+    return true;
 }
 
 void ProjectSync::onLocalProjectChange(const QString& projectId)
@@ -314,7 +352,8 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
                 m_db->replaceAllPlayChecks(projectId, bundle.playChecks);
             // Echo de notre propre publish = confirmation relais (sans attendre OK).
             const auto ackIt = m_pendingAcks.find(ev.id);
-            if (ackIt != m_pendingAcks.end()) {
+            const bool ownEcho = ackIt != m_pendingAcks.end();
+            if (ownEcho) {
                 m_db->outboxRemoveForEvent(ev.id.toStdString());
                 m_pendingAcks.erase(ackIt);
                 if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
@@ -323,7 +362,17 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
                         "Contenu publié — les invités peuvent synchroniser."));
                 }
                 emit pendingChangesChanged();
+                // Pas de rejeu UI des overlays : déjà montrés localement au cochage.
+                m_inboundPlayOverlays.erase(projectId);
+            } else if (bundle.hasPlayOverlays && !bundle.playOverlaysJson.empty()) {
+                // Pair distant : mêmes noms/gages que l'appareil qui a coché.
+                m_inboundPlayOverlays[projectId] = bundle.playOverlaysJson;
+            } else {
+                m_inboundPlayOverlays.erase(projectId);
             }
+            // Marqueur : l'UI ne doit pas recalculer les overlays sur un echo local.
+            if (ownEcho)
+                m_skipOverlayRecompute.insert(QString::fromStdString(projectId));
             emit remoteProjectUpdated(QString::fromStdString(projectId));
             if (!isContentEmpty(remote) && local && isContentEmpty(*local)) {
                 emit toast(QStringLiteral("Contenu synchronisé : %1")
@@ -432,6 +481,13 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     core::ProjectBundle bundle;
     bundle.project = *project;
     bundle.playChecks = m_db->getAllPlayChecks(projectId);
+    bundle.hasPlayChecks = true;
+    const auto ovIt = m_outboundPlayOverlays.find(projectId);
+    if (ovIt != m_outboundPlayOverlays.end()) {
+        bundle.hasPlayOverlays = true;
+        bundle.playOverlaysJson = ovIt->second;
+        m_outboundPlayOverlays.erase(ovIt); // one-shot
+    }
     const std::string json = core::JsonCodec::projectBundleToJson(bundle, false);
     // Compresse avant chiffrement : grilles × joueurs font exploser le JSON.
     const std::string packed = core::ShareCodec::compress(json);

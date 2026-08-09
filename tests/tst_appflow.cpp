@@ -62,12 +62,14 @@ private slots:
         QVERIFY(cellRows.size() >= controller.gridSize());
 
         QVariantList checks;
-        const int n = controller.gridSize();
-        for (int r = 0; r < n; ++r) {
+        const int rowsN = controller.gridRows();
+        const int colsN = controller.gridCols();
+        for (int r = 0; r < rowsN; ++r) {
             QVariantList row;
-            for (int c = 0; c < n; ++c)
+            for (int c = 0; c < colsN; ++c)
                 row.append(false);
-            checks.append(row);
+            // append(QVariantList) aplatit — encapsuler comme checksToVariant.
+            checks.append(QVariant(row));
         }
         controller.savePlayChecks(player, checks);
         QVERIFY(!controller.loadPlayChecks(player).isEmpty());
@@ -253,22 +255,22 @@ private slots:
         const auto overlays = result.value(QStringLiteral("overlays")).toList();
         QVERIFY(!overlays.isEmpty());
         // Même gage pour Alice et Bob → un overlay groupé « Alice et Bob doivent : … »
-        bool foundGroupedGage = false;
+        // (des combos peuvent aussi partir si toute la grille se coche d'un coup)
+        QVariantList gageOverlays;
         for (const auto& ovV : overlays) {
-            const auto ov = ovV.toMap();
-            if (ov.value(QStringLiteral("kind")).toString() != QLatin1String("gage"))
-                continue;
-            const auto players = ov.value(QStringLiteral("players")).toStringList();
-            QVERIFY(players.contains(alice));
-            QVERIFY(players.contains(bob));
-            QCOMPARE(players.size(), 2);
-            const QString prompt = ov.value(QStringLiteral("prompt")).toString();
-            QVERIFY(prompt.contains(QStringLiteral("doivent")));
-            QVERIFY(prompt.contains(alice));
-            QVERIFY(prompt.contains(bob));
-            foundGroupedGage = true;
+            if (ovV.toMap().value(QStringLiteral("kind")).toString() == QLatin1String("gage"))
+                gageOverlays.append(ovV);
         }
-        QVERIFY(foundGroupedGage);
+        QCOMPARE(gageOverlays.size(), 1);
+        const auto ov = gageOverlays[0].toMap();
+        const auto players = ov.value(QStringLiteral("players")).toStringList();
+        QVERIFY(players.contains(alice));
+        QVERIFY(players.contains(bob));
+        QCOMPARE(players.size(), 2);
+        const QString prompt = ov.value(QStringLiteral("prompt")).toString();
+        QVERIFY(prompt.contains(QStringLiteral("doivent")));
+        QVERIFY(prompt.contains(alice));
+        QVERIFY(prompt.contains(bob));
 
         auto countChecked = [](const QVariantList& checks) {
             int n = 0;
@@ -287,6 +289,68 @@ private slots:
         QVERIFY(!off.value(QStringLiteral("checked")).toBool());
         QCOMPARE(countChecked(controller.loadPlayChecks(alice)), 0);
         QCOMPARE(countChecked(controller.loadPlayChecks(bob)), 0);
+    }
+
+    void toggleDoesNotWipeOtherPlayersUniqueChecks()
+    {
+        // Régression : applyPlayChecks/save écrasait une grille avec la matrice
+        // d'un autre joueur → coches fantômes / décoches. Ici on vérifie que le
+        // toggle C++ préserve les coches déjà posées sur des libellés distincts.
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(controller.openProject(id));
+        controller.setGridSize(2);
+        controller.setFreeCenter(false);
+        controller.setGageMode(false);
+        while (controller.players().size() > 2)
+            controller.removePlayer(controller.players().size() - 1);
+        while (controller.players().size() < 2)
+            controller.addPlayer();
+        controller.setPlayerName(0, QStringLiteral("Alice"));
+        controller.setPlayerName(1, QStringLiteral("Bob"));
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        controller.addCase(QStringLiteral("SeulAlice"), 1, 100);
+        controller.addCase(QStringLiteral("SeulBob"), 1, 100);
+        controller.addCase(QStringLiteral("Commun"), 1, 100);
+        controller.addCase(QStringLiteral("Autre"), 1, 100);
+        QVERIFY2(!controller.generateAll().contains(QStringLiteral("Aucun")), "generate");
+        controller.setGridCellLabel(0, 0, 0, QStringLiteral("SeulAlice"), 1);
+        controller.setGridCellLabel(0, 0, 1, QStringLiteral("Commun"), 1);
+        controller.setGridCellLabel(0, 1, 0, QStringLiteral("Autre"), 1);
+        controller.setGridCellLabel(0, 1, 1, QStringLiteral("Autre"), 1);
+        controller.setGridCellLabel(1, 0, 0, QStringLiteral("SeulBob"), 1);
+        controller.setGridCellLabel(1, 0, 1, QStringLiteral("Commun"), 1);
+        controller.setGridCellLabel(1, 1, 0, QStringLiteral("Autre"), 1);
+        controller.setGridCellLabel(1, 1, 1, QStringLiteral("Autre"), 1);
+
+        QVERIFY(controller.togglePlayCell(QStringLiteral("Alice"), 0, 0)
+                    .value(QStringLiteral("checked")).toBool());
+        auto aliceChecks = controller.loadPlayChecks(QStringLiteral("Alice"));
+        QVERIFY(aliceChecks[0].toList()[0].toBool()); // SeulAlice
+        QVERIFY(!aliceChecks[0].toList()[1].toBool());
+
+        // Bob coche « Commun » → doit cocher Commun chez Alice SANS toucher SeulAlice
+        QVERIFY(controller.togglePlayCell(QStringLiteral("Bob"), 0, 1)
+                    .value(QStringLiteral("checked")).toBool());
+        aliceChecks = controller.loadPlayChecks(QStringLiteral("Alice"));
+        QVERIFY2(aliceChecks[0].toList()[0].toBool(), "SeulAlice still checked");
+        QVERIFY2(aliceChecks[0].toList()[1].toBool(), "Commun now checked");
+        QVERIFY(!aliceChecks[1].toList()[0].toBool());
+        QVERIFY(!aliceChecks[1].toList()[1].toBool());
+
+        // savePlayChecks plat rejeté
+        controller.savePlayChecks(QStringLiteral("Alice"), QVariantList{ true, false, true, false });
+        aliceChecks = controller.loadPlayChecks(QStringLiteral("Alice"));
+        QVERIFY2(aliceChecks[0].toList()[0].toBool(), "flat save ignored");
     }
 
     void generateAllRequiresCases()

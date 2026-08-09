@@ -51,3 +51,4 @@ tests/        generator, json, database, smoke
 - Follow Colo Course patterns: context property `Theme`, `StackView` navigation, `ColoDialog`.
 - QML module URI: `OpenBingo`.
 - Conventional commits, `feat/<slug>` branches, local build + ctest before merge.
+- **Release** : toujours suivre [`.cursor/skills/openbingo-release/SKILL.md`](.cursor/skills/openbingo-release/SKILL.md) (bump, **README**, tag annoté `v*`, push CI).

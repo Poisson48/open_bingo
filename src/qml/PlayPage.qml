@@ -353,9 +353,14 @@ Item {
         }
     }
 
-    function applyPlayChecks(c) {
-        playRoot.checks = c
-        playRoot.saveChecks()
+    function applyPlayChecks(playerName, c) {
+        // Ne PAS savePlayChecks ici : togglePlayCell a déjà persisté toutes les
+        // grilles. Un save sur le joueur du ComboBox (souvent un autre) écrasait
+        // ses coches avec la matrice du joueur en plein écran.
+        if (playerBox.count > 0
+                && AppController.grids[playerBox.currentIndex].player === playerName)
+            playRoot.checks = c
+        playRoot.bingoRevision++
     }
 
     function openFullscreen() {

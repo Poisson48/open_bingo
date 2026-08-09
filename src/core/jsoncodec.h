@@ -15,6 +15,10 @@ struct ProjectBundle {
     std::map<std::string, std::string> playChecks;
     // true si le JSON contenait explicitement "playChecks" (même vide).
     bool hasPlayChecks = false;
+    // Overlays gage/combo du dernier cochage (JSON array) — source de vérité
+    // partagée pour que tous les appareils affichent les mêmes noms.
+    std::string playOverlaysJson;
+    bool hasPlayOverlays = false;
 };
 
 class JsonCodec

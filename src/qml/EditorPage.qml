@@ -70,8 +70,8 @@ Item {
         playTab.openFullscreen()
     }
 
-    function applyPlayChecks(c) {
-        playTab.applyPlayChecks(c)
+    function applyPlayChecks(playerName, c) {
+        playTab.applyPlayChecks(playerName, c)
     }
 
     ShareSheet { id: shareSheet; anchors.centerIn: parent }
