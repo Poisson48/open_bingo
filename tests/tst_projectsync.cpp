@@ -9,6 +9,7 @@
 
 #include <QGuiApplication>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -77,7 +78,12 @@ private slots:
         net::NostrEvent ev;
         ev.kind = 4545;
         ev.created_at = 42;
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
         ev.content = QString::fromStdString(
             net::encryptPayload(key, tag, core::JsonCodec::projectToJson(host, false)));
         QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
@@ -131,7 +137,12 @@ private slots:
         net::NostrEvent ev;
         ev.kind = 4545;
         ev.created_at = 42;
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
         ev.content = QString::fromStdString(net::encryptPayload(key, tag, packed));
         QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
 
@@ -198,7 +209,12 @@ private slots:
         net::NostrEvent ev;
         ev.kind = 4545;
         ev.created_at = 1;
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
         ev.content = QString::fromStdString(net::encryptPayload(key, tag, packed));
         QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
 
@@ -271,7 +287,12 @@ private slots:
         net::NostrEvent ev;
         ev.kind = 4545;
         ev.created_at = 42;
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
         ev.content = QString::fromStdString(
             net::encryptPayload(key, tag, core::JsonCodec::projectToJson(host, false)));
         QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
@@ -317,7 +338,12 @@ private slots:
         net::NostrEvent ev;
         ev.kind = 4545;
         ev.created_at = 42;
-        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
         ev.content = QString::fromStdString(
             net::encryptPayload(key, tag, core::JsonCodec::projectToJson(remote, false)));
         QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
@@ -326,6 +352,42 @@ private slots:
 
         QCOMPARE(db.getProject(id)->cases[0].label, std::string("Chez moi"));
         QVERIFY(!db.isEventSeen(ev.id.toStdString()));
+    }
+
+    void publishedEventTagsAreNestedArrays()
+    {
+        // Régression Android/Clang : QJsonArray{ QJsonArray{…} } aplatit les tags
+        // → relais strfry « tag in tags field was not an array ».
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        core::Project p = core::JsonCodec::defaultProject();
+        p.id = "proj_tags_shape";
+        p.title = "Tags";
+        p.updatedAt = 1;
+        p.cases = { { "A", 1, 100 } };
+        p.players = { { "Alice" } };
+        db.upsertProject(p);
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+        sync.enableSharing(QString::fromStdString(p.id));
+
+        const auto pending = db.outboxPeekAll();
+        QVERIFY(!pending.empty());
+        const auto doc = QJsonDocument::fromJson(
+            QByteArray::fromStdString(pending.front().content));
+        QVERIFY(doc.isObject());
+        const QJsonArray tags = doc.object().value(QStringLiteral("tags")).toArray();
+        QCOMPARE(tags.size(), 1);
+        QVERIFY(tags.at(0).isArray());
+        const QJsonArray tag0 = tags.at(0).toArray();
+        QCOMPARE(tag0.size(), 2);
+        QCOMPARE(tag0.at(0).toString(), QStringLiteral("t"));
+        QVERIFY(!tag0.at(1).toString().isEmpty());
     }
 };
 

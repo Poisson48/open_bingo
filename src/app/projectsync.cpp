@@ -404,7 +404,15 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     net::NostrEvent ev;
     ev.kind = 4545;
     ev.created_at = QDateTime::currentSecsSinceEpoch();
-    ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(*tag) } };
+    // NIP-01 : tags = [["t","channel"], ...]. Pas de QJsonArray{ QJsonArray{…} } :
+    // avec un seul élément du même type, Clang/NDK peut prendre le copy-ctor et
+    // aplatir en ["t","channel"] → rejet relais « tag in tags field was not an array ».
+    {
+        QJsonArray tagT;
+        tagT.append(QStringLiteral("t"));
+        tagT.append(QString::fromStdString(*tag));
+        ev.tags.append(tagT);
+    }
     const std::string cipher = net::encryptPayload(*key, *tag, packed);
     if (cipher.empty()) {
         qWarning() << "[ProjectSync] encryptPayload failed — not publishing";
