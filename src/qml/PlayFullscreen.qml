@@ -30,6 +30,8 @@ Item {
         visible = true
         clearGagePanel()
         hideWinner()
+        reloadRowsFromController()
+        reloadChecksFromController()
         forceActiveFocus()
         AppController.setKeepScreenOn(true)
         AppController.lockLandscape()
@@ -44,6 +46,62 @@ Item {
         AppController.unlockOrientation()
         AppController.setKeepScreenOn(AppController.lastTab === 5)
         closed()
+    }
+
+    function reloadRowsFromController() {
+        if (!playerName || playerName.length === 0)
+            return
+        const grids = AppController.grids
+        for (var i = 0; i < grids.length; ++i) {
+            if (grids[i].player === playerName) {
+                rows = grids[i].cells || []
+                playerIndex = i
+                bingoRevision++
+                return
+            }
+        }
+    }
+
+    // Comme PlayPage : recharger depuis la DB quand la sync distante (ou un
+    // autre joueur local) met à jour les coches — sinon le plein écran reste
+    // figé sur sa copie initiale.
+    function reloadChecksFromController() {
+        if (!playerName || playerName.length === 0)
+            return
+        var loaded = AppController.loadPlayChecks(playerName)
+        if (!loaded || loaded.length === 0) {
+            const n = AppController.gridSize
+            if (n <= 0) {
+                checks = []
+                bingoRevision++
+                return
+            }
+            var empty = []
+            const mid = Math.floor(n / 2)
+            for (var r = 0; r < n; r++) {
+                var row = []
+                for (var c = 0; c < n; c++)
+                    row.push(AppController.freeCenter && n % 2 === 1 && r === mid && c === mid)
+                empty.push(row)
+            }
+            loaded = empty
+        }
+        checks = loaded
+        bingoRevision++
+        // Pas de checksUpdated ici : ça rappellerait savePlayChecks → republish.
+        // PlayPage écoute déjà playChecksChanged pour se rafraîchir.
+    }
+
+    Connections {
+        target: AppController
+        enabled: fs.visible
+        function onPlayChecksChanged() {
+            fs.reloadChecksFromController()
+        }
+        function onGridsChanged() {
+            fs.reloadRowsFromController()
+            fs.reloadChecksFromController()
+        }
     }
 
     function clearGagePanel() {

@@ -1082,6 +1082,17 @@ void AppController::reshuffleGrid(int playerIdx)
     if (!m_hasCurrent)
         return;
     core::reshuffleGrid(m_current, playerIdx, core::Rng{});
+    // Nouveau tirage → les anciennes coches par position n'ont plus de sens.
+    if (m_db && playerIdx >= 0
+        && playerIdx < static_cast<int>(m_current.grids.size())) {
+        const auto& player = m_current.grids[static_cast<size_t>(playerIdx)].player;
+        const auto empty = checksToVariant(emptyChecks(m_current.gridSize, m_current.freeCenter));
+        m_db->savePlayChecks(m_current.id, player,
+                             QJsonDocument(QJsonArray::fromVariantList(empty))
+                                 .toJson(QJsonDocument::Compact)
+                                 .toStdString());
+        emit playChecksChanged();
+    }
     persistCurrent();
     ++m_gridsRevision;
     emit gridsChanged();
@@ -1097,7 +1108,35 @@ void AppController::swapGridCells(int playerIdx, int r1, int c1, int r2, int c2)
         return;
     if (r1 >= static_cast<int>(cells.size()) || r2 >= static_cast<int>(cells.size()))
         return;
-    std::swap(cells[r1][c1], cells[r2][c2]);
+    if (c1 >= static_cast<int>(cells[static_cast<size_t>(r1)].size())
+        || c2 >= static_cast<int>(cells[static_cast<size_t>(r2)].size()))
+        return;
+    std::swap(cells[static_cast<size_t>(r1)][static_cast<size_t>(c1)],
+              cells[static_cast<size_t>(r2)][static_cast<size_t>(c2)]);
+
+    // Les coches sont indexées par position : les faire suivre le libellé déplacé,
+    // sinon Play (local + sync) affiche la coche sur la mauvaise case.
+    if (m_db) {
+        const auto& player = m_current.grids[static_cast<size_t>(playerIdx)].player;
+        const int N = m_current.gridSize;
+        auto checks = emptyChecks(N, m_current.freeCenter);
+        if (const auto json = m_db->getPlayChecks(m_current.id, player)) {
+            const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
+            checks = checksFromVariant(doc.array().toVariantList(), N);
+        }
+        if (r1 < N && r2 < N && c1 < N && c2 < N) {
+            const bool tmp = checks[static_cast<size_t>(r1)][static_cast<size_t>(c1)];
+            checks[static_cast<size_t>(r1)][static_cast<size_t>(c1)] =
+                checks[static_cast<size_t>(r2)][static_cast<size_t>(c2)];
+            checks[static_cast<size_t>(r2)][static_cast<size_t>(c2)] = tmp;
+            m_db->savePlayChecks(m_current.id, player,
+                                 QJsonDocument(QJsonArray::fromVariantList(checksToVariant(checks)))
+                                     .toJson(QJsonDocument::Compact)
+                                     .toStdString());
+            emit playChecksChanged();
+        }
+    }
+
     persistCurrent();
     ++m_gridsRevision;
     emit gridsChanged();

@@ -21,7 +21,10 @@ Item {
             ComboBox {
                 id: playerBox
                 Layout.fillWidth: true
-                model: AppController.grids
+                model: {
+                    void AppController.gridsRevision
+                    return AppController.grids
+                }
                 textRole: "player"
             }
 
@@ -189,8 +192,13 @@ Item {
                     visible: playerBox.count > 0
                     width: playRoot.width
                     availableWidth: playRoot.width
-                    rows: playerBox.count > 0
-                          ? AppController.grids[playerBox.currentIndex].cells : []
+                    // gridsRevision : forcer le rebind quand la sync / un swap
+                    // change les cellules (sinon Play garde l'ancien layout).
+                    rows: {
+                        void AppController.gridsRevision
+                        return playerBox.count > 0
+                            ? AppController.grids[playerBox.currentIndex].cells : []
+                    }
                     interactive: true
                     checks: playRoot.checks
                     bingoSet: playRoot.bingoSet
