@@ -389,6 +389,155 @@ private slots:
         QCOMPARE(tag0.at(0).toString(), QStringLiteral("t"));
         QVERIFY(!tag0.at(1).toString().isEmpty());
     }
+
+    void remoteSnapshotAppliesPlayChecks()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        auto key = net::generateListKey();
+        const std::string id = "proj_play_checks";
+        const auto tag = net::deriveChannelTag(key);
+
+        core::Project host = core::JsonCodec::defaultProject();
+        host.id = id;
+        host.title = "Play sync";
+        host.updatedAt = 50;
+        host.gridSize = 2;
+        host.cases = { { "A", 1, 100 }, { "B", 1, 100 } };
+        host.players = { { "Alice" } };
+        host.grids = { { "Alice", { { { "A", 1, 100 }, { "B", 1, 100 } },
+                                    { { "B", 1, 100 }, { "A", 1, 100 } } } } };
+
+        core::Project stub;
+        stub.id = id;
+        stub.title = "Play sync";
+        stub.updatedAt = 0;
+        db.upsertProject(stub);
+        db.setSyncKey(id, key);
+        db.savePlayChecks(id, "Alice", "[[false,false],[false,false]]");
+
+        core::ProjectBundle bundle;
+        bundle.project = host;
+        bundle.playChecks = { { "Alice", "[[true,false],[false,true]]" } };
+        bundle.hasPlayChecks = true;
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+
+        net::NostrEvent ev;
+        ev.kind = 4545;
+        ev.created_at = 42;
+        {
+            QJsonArray tagT;
+            tagT.append(QStringLiteral("t"));
+            tagT.append(QString::fromStdString(tag));
+            ev.tags.append(tagT);
+        }
+        const std::string packed = core::ShareCodec::compress(
+            core::JsonCodec::projectBundleToJson(bundle, false));
+        ev.content = QString::fromStdString(net::encryptPayload(key, tag, packed));
+        QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
+
+        sync.handleRelayEvent(ev);
+
+        const auto got = db.getProject(id);
+        QVERIFY(got);
+        QCOMPARE(got->cases.size(), size_t(2));
+        const auto checks = db.getPlayChecks(id, "Alice");
+        QVERIFY(checks);
+        QVERIFY(checks->find("true") != std::string::npos);
+    }
+
+    void flatTagOutboxIsDetectedAndFreshPublishIsNested()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        core::Project p = core::JsonCodec::defaultProject();
+        p.id = "proj_flat_outbox";
+        p.title = "Flat";
+        p.updatedAt = 1;
+        p.cases = { { "A", 1, 100 } };
+        p.players = { { "Alice" } };
+        db.upsertProject(p);
+        db.savePlayChecks(p.id, "Alice", "[[true]]");
+
+        // Event outbox aux tags plats (bug Clang pré-2.0.35).
+        net::NostrEvent bad;
+        bad.kind = 4545;
+        bad.created_at = 1;
+        bad.tags = QJsonArray{ QStringLiteral("t"), QStringLiteral("channel") };
+        bad.content = QStringLiteral("x");
+        bad.id = QStringLiteral("badflat00000000000000000000000000000000000000000000000000000000");
+        bad.pubkey = QStringLiteral("pub");
+        bad.sig = QStringLiteral("sig");
+        const auto badTags = bad.tags;
+        QVERIFY(!badTags.isEmpty());
+        QVERIFY(!badTags.at(0).isArray());
+
+        net::RelayPool pool;
+        pool.disconnectAll();
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+        pool.disconnectAll();
+        sync.enableSharing(QString::fromStdString(p.id));
+
+        const auto pending = db.outboxPeekAll();
+        QVERIFY(!pending.empty());
+        const auto doc = QJsonDocument::fromJson(
+            QByteArray::fromStdString(pending.front().content));
+        const QJsonArray tags = doc.object().value(QStringLiteral("tags")).toArray();
+        QCOMPARE(tags.size(), 1);
+        QVERIFY(tags.at(0).isArray());
+
+        // Payload = enveloppe avec playChecks.
+        const auto key = *db.getSyncKey(p.id);
+        const auto tag = net::deriveChannelTag(key);
+        auto evOpt = net::NostrEvent::fromJson(doc.object());
+        QVERIFY(evOpt);
+        const auto plain = net::decryptPayload(key, tag, evOpt->content.toStdString());
+        QVERIFY(plain);
+        bool ok = false;
+        const std::string json = plain->rfind("z:", 0) == 0
+            ? core::ShareCodec::decompress(*plain, &ok)
+            : *plain;
+        if (plain->rfind("z:", 0) == 0)
+            QVERIFY(ok);
+        const auto bundle = core::JsonCodec::projectBundleFromJson(json, &ok);
+        QVERIFY(ok);
+        QVERIFY(bundle.hasPlayChecks);
+        QCOMPARE(bundle.playChecks.at("Alice"), std::string("[[true]]"));
+    }
+
+    void projectBundleRoundTripKeepsPlayChecks()
+    {
+        core::ProjectBundle b;
+        b.project = core::JsonCodec::defaultProject();
+        b.project.id = "bundle1";
+        b.project.title = "Bundle";
+        b.playChecks = { { "Léa", "[[true,false],[false,false]]" } };
+        b.hasPlayChecks = true;
+        const std::string json = core::JsonCodec::projectBundleToJson(b, false);
+        bool ok = false;
+        const auto got = core::JsonCodec::projectBundleFromJson(json, &ok);
+        QVERIFY(ok);
+        QCOMPARE(got.project.title, std::string("Bundle"));
+        QVERIFY(got.hasPlayChecks);
+        QCOMPARE(got.playChecks.at("Léa"), std::string("[[true,false],[false,false]]"));
+
+        // Ancien format nu : pas de playChecks.
+        bool ok2 = false;
+        const auto bare = core::JsonCodec::projectBundleFromJson(
+            core::JsonCodec::projectToJson(b.project, false), &ok2);
+        QVERIFY(ok2);
+        QVERIFY(!bare.hasPlayChecks);
+    }
 };
 
 int main(int argc, char* argv[])

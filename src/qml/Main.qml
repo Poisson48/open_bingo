@@ -335,7 +335,13 @@ ApplicationWindow {
 
     Connections {
         target: AppController
-        function onEditorOpened(projectId) { stack.push(editorPage) }
+        function onEditorOpened(projectId) {
+            // Déjà dans l'éditeur : ne pas re-push (sinon téléport / pile qui grossit
+            // à chaque sync).
+            if (stack.depth > 1)
+                return
+            stack.push(editorPage)
+        }
         function onToast(message) { snackbar.show(message) }
     }
 

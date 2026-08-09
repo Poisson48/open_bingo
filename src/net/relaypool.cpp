@@ -1,5 +1,6 @@
 #include "relaypool.h"
 
+#include <QDateTime>
 #include <QDebug>
 
 namespace net {
@@ -86,8 +87,21 @@ int RelayPool::connectedCount() const
     return n;
 }
 
+bool RelayPool::forceReconnectAllowed() const
+{
+    constexpr qint64 kCooldownMs = 8000;
+    if (m_lastForceReconnectMs == 0)
+        return true;
+    return (QDateTime::currentMSecsSinceEpoch() - m_lastForceReconnectMs) >= kCooldownMs;
+}
+
 void RelayPool::forceReconnect()
 {
+    if (!forceReconnectAllowed()) {
+        qDebug() << "[RelayPool] forceReconnect skipped (cooldown)";
+        return;
+    }
+    m_lastForceReconnectMs = QDateTime::currentMSecsSinceEpoch();
     for (auto& c : m_clients) {
         c->disconnectFromRelay();
         c->connectToRelay();

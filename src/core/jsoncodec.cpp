@@ -229,7 +229,83 @@ Project JsonCodec::projectFromJson(const std::string& jsonStr, bool* ok)
     try {
         const auto j = json::parse(jsonStr);
         if (ok) *ok = true;
+        // Enveloppe sync/export : { v, project, playChecks }.
+        if (j.is_object() && j.contains("project") && j["project"].is_object())
+            return projectFromJsonObj(j["project"]);
         return projectFromJsonObj(j);
+    } catch (...) {
+        if (ok) *ok = false;
+        return {};
+    }
+}
+
+namespace {
+
+json playChecksToJson(const std::map<std::string, std::string>& playChecks)
+{
+    json obj = json::object();
+    for (const auto& [player, checksJson] : playChecks) {
+        try {
+            obj[player] = json::parse(checksJson);
+        } catch (...) {
+            obj[player] = json::array();
+        }
+    }
+    return obj;
+}
+
+std::map<std::string, std::string> playChecksFromJson(const json& j)
+{
+    std::map<std::string, std::string> out;
+    if (!j.is_object())
+        return out;
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        if (it.value().is_array())
+            out.emplace(it.key(), it.value().dump());
+        else if (it.value().is_string())
+            out.emplace(it.key(), it.value().get<std::string>());
+    }
+    return out;
+}
+
+ProjectBundle bundleFromJsonObj(const json& j)
+{
+    ProjectBundle b;
+    if (j.contains("project") && j["project"].is_object()) {
+        b.project = projectFromJsonObj(j["project"]);
+        if (j.contains("playChecks")) {
+            b.hasPlayChecks = true;
+            b.playChecks = playChecksFromJson(j["playChecks"]);
+        }
+        return b;
+    }
+    // Projet nu ; playChecks optionnel au sommet (ignoré par projectFromJsonObj).
+    b.project = projectFromJsonObj(j);
+    if (j.contains("playChecks")) {
+        b.hasPlayChecks = true;
+        b.playChecks = playChecksFromJson(j["playChecks"]);
+    }
+    return b;
+}
+
+} // namespace
+
+std::string JsonCodec::projectBundleToJson(const ProjectBundle& bundle, bool pretty)
+{
+    json env = json{
+        { "v", 1 },
+        { "project", projectToJsonObj(bundle.project) },
+        { "playChecks", playChecksToJson(bundle.playChecks) },
+    };
+    return pretty ? env.dump(2) : env.dump();
+}
+
+ProjectBundle JsonCodec::projectBundleFromJson(const std::string& jsonStr, bool* ok)
+{
+    try {
+        const auto j = json::parse(jsonStr);
+        if (ok) *ok = true;
+        return bundleFromJsonObj(j);
     } catch (...) {
         if (ok) *ok = false;
         return {};
@@ -245,9 +321,31 @@ std::string JsonCodec::exportAll(const std::vector<Project>& projects, bool pret
     return pretty ? wrapper.dump(2) : wrapper.dump();
 }
 
+std::string JsonCodec::exportAllBundles(const std::vector<ProjectBundle>& bundles, bool pretty)
+{
+    json arr = json::array();
+    for (const auto& b : bundles) {
+        arr.push_back(json{
+            { "v", 1 },
+            { "project", projectToJsonObj(b.project) },
+            { "playChecks", playChecksToJson(b.playChecks) },
+        });
+    }
+    json wrapper{ { "version", 1 }, { "projects", std::move(arr) } };
+    return pretty ? wrapper.dump(2) : wrapper.dump();
+}
+
 std::vector<Project> JsonCodec::importAll(const std::string& jsonStr, bool* ok)
 {
     std::vector<Project> out;
+    for (const auto& b : importAllBundles(jsonStr, ok))
+        out.push_back(b.project);
+    return out;
+}
+
+std::vector<ProjectBundle> JsonCodec::importAllBundles(const std::string& jsonStr, bool* ok)
+{
+    std::vector<ProjectBundle> out;
     try {
         const json data = json::parse(jsonStr);
         json arr;
@@ -261,7 +359,7 @@ std::vector<Project> JsonCodec::importAll(const std::string& jsonStr, bool* ok)
         for (const auto& item : arr) {
             if (!item.is_object())
                 continue;
-            out.push_back(projectFromJsonObj(item));
+            out.push_back(bundleFromJsonObj(item));
         }
         if (ok) *ok = true;
     } catch (...) {

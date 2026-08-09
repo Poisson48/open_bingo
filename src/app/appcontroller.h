@@ -194,6 +194,8 @@ signals:
 private:
     void touchProject();
     void persistCurrent();
+    // Bump updatedAt + publish snapshot si le projet est partagé (coches Play).
+    void publishPlayChecksIfShared();
     void markGridsDirty();
     void clearGridsDirtyFlag();
     core::Project* current();

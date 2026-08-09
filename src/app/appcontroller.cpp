@@ -356,12 +356,17 @@ bool AppController::init()
         connect(m_projectSync.get(), &ProjectSync::remoteProjectUpdated, this,
                 [this](const QString& id) {
                     reloadProjects();
-                    if (m_hasCurrent && m_current.id == id.toStdString()) {
-                        // Ne pas forcer l'onglet Play : l'utilisateur peut être en Config.
-                        openProject(id, false);
-                        // grids NOTIFY gridsChanged seulement — sans ça l'UI garde l'ancien aperçu.
+                    if (!m_hasCurrent || m_current.id != id.toStdString())
+                        return;
+                    // Rafraîchir en place — ne PAS openProject (émet editorOpened
+                    // → stack.push en boucle à chaque echo sync).
+                    if (auto p = m_db->getProject(id.toStdString())) {
+                        m_current = *p;
+                        clearGridsDirtyFlag();
                         ++m_gridsRevision;
+                        emit currentProjectChanged();
                         emit gridsChanged();
+                        emit playChecksChanged();
                     }
                 });
         m_updater->check();
@@ -428,6 +433,17 @@ void AppController::touchProject()
     if (!m_hasCurrent)
         return;
     m_current.updatedAt = QDateTime::currentMSecsSinceEpoch();
+}
+
+void AppController::publishPlayChecksIfShared()
+{
+    if (!m_hasCurrent || !m_db || !m_projectSync)
+        return;
+    if (!m_db->getSyncKey(m_current.id))
+        return;
+    touchProject();
+    m_db->upsertProject(m_current);
+    m_projectSync->onLocalProjectChange(QString::fromStdString(m_current.id));
 }
 
 void AppController::persistCurrent()
@@ -1214,9 +1230,13 @@ static bool writeFile(const QString& path, const std::string& content)
 
 bool AppController::exportCurrentJson(const QString& filePath)
 {
-    if (!m_hasCurrent)
+    if (!m_hasCurrent || !m_db)
         return false;
-    return writeFile(filePath, core::JsonCodec::projectToJson(m_current));
+    core::ProjectBundle b;
+    b.project = m_current;
+    b.playChecks = m_db->getAllPlayChecks(m_current.id);
+    b.hasPlayChecks = true;
+    return writeFile(filePath, core::JsonCodec::projectBundleToJson(b));
 }
 
 bool AppController::importJsonFile(const QString& filePath)
@@ -1225,24 +1245,40 @@ bool AppController::importJsonFile(const QString& filePath)
     if (!f.open(QIODevice::ReadOnly))
         return false;
     bool ok = false;
-    auto p = core::JsonCodec::projectFromJson(f.readAll().toStdString(), &ok);
+    auto bundle = core::JsonCodec::projectBundleFromJson(f.readAll().toStdString(), &ok);
     if (!ok)
         return false;
-    m_db->upsertProject(p);
+    m_db->upsertProject(bundle.project);
+    if (bundle.hasPlayChecks)
+        m_db->replaceAllPlayChecks(bundle.project.id, bundle.playChecks);
     reloadProjects();
-    openProject(QString::fromStdString(p.id));
+    openProject(QString::fromStdString(bundle.project.id));
     return true;
 }
 
 bool AppController::exportProjectJson(const QString& id, const QString& filePath)
 {
     const auto p = m_db->getProject(id.toStdString());
-    return p && writeFile(filePath, core::JsonCodec::projectToJson(*p));
+    if (!p)
+        return false;
+    core::ProjectBundle b;
+    b.project = *p;
+    b.playChecks = m_db->getAllPlayChecks(p->id);
+    b.hasPlayChecks = true;
+    return writeFile(filePath, core::JsonCodec::projectBundleToJson(b));
 }
 
 bool AppController::exportAllJson(const QString& filePath)
 {
-    return writeFile(filePath, core::JsonCodec::exportAll(m_db->getAllProjects()));
+    std::vector<core::ProjectBundle> bundles;
+    for (const auto& p : m_db->getAllProjects()) {
+        core::ProjectBundle b;
+        b.project = p;
+        b.playChecks = m_db->getAllPlayChecks(p.id);
+        b.hasPlayChecks = true;
+        bundles.push_back(std::move(b));
+    }
+    return writeFile(filePath, core::JsonCodec::exportAllBundles(bundles));
 }
 
 int AppController::importAllJsonFile(const QString& filePath)
@@ -1251,13 +1287,16 @@ int AppController::importAllJsonFile(const QString& filePath)
     if (!f.open(QIODevice::ReadOnly))
         return -1;
     bool ok = false;
-    const auto projects = core::JsonCodec::importAll(f.readAll().toStdString(), &ok);
+    const auto bundles = core::JsonCodec::importAllBundles(f.readAll().toStdString(), &ok);
     if (!ok)
         return -1;
-    for (const auto& p : projects)
-        m_db->upsertProject(p);
+    for (const auto& b : bundles) {
+        m_db->upsertProject(b.project);
+        if (b.hasPlayChecks)
+            m_db->replaceAllPlayChecks(b.project.id, b.playChecks);
+    }
     reloadProjects();
-    return static_cast<int>(projects.size());
+    return static_cast<int>(bundles.size());
 }
 
 namespace {
@@ -1437,6 +1476,7 @@ void AppController::savePlayChecks(const QString& playerName, const QVariantList
     const QJsonDocument doc(QJsonArray::fromVariantList(checks));
     m_db->savePlayChecks(m_current.id, playerName.toStdString(),
                          doc.toJson(QJsonDocument::Compact).toStdString());
+    publishPlayChecksIfShared();
 }
 
 QVariantMap AppController::togglePlayCell(const QString& playerName, int row, int col)
@@ -1612,6 +1652,7 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     result.insert(QStringLiteral("winners"), winners);
     result.insert(QStringLiteral("scoreboard"), board);
     emit playChecksChanged();
+    publishPlayChecksIfShared();
     return result;
 }
 
@@ -1638,6 +1679,7 @@ void AppController::resetPlayChecks(const QString& playerName)
         }
     }
     emit playChecksChanged();
+    publishPlayChecksIfShared();
 }
 
 int AppController::computeScore(const QString& playerName, const QVariantList& checks)

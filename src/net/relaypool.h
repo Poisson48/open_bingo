@@ -48,7 +48,9 @@ public:
     int connectedCount() const;
 
     // Coupe tout et reconnecte (connexions WebSocket « zombies » Android).
+    // Ignore les appels trop rapprochés (cooldown) pour éviter le thrashing offline.
     void forceReconnect();
+    bool forceReconnectAllowed() const;
 
     // Subscribe on every relay (accumulates channel tags — un filtre #t multi-valeurs).
     void subscribeAll(const QString& channelTag, int64_t since);
@@ -81,6 +83,7 @@ private:
     int64_t     m_since = 0;
 
     bool m_online = false;
+    qint64 m_lastForceReconnectMs = 0;
 };
 
 } // namespace net

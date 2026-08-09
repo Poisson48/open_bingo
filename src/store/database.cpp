@@ -176,6 +176,37 @@ std::optional<std::string> Database::getPlayChecks(const std::string& projectId,
     return q.value(0).toString().toStdString();
 }
 
+std::map<std::string, std::string> Database::getAllPlayChecks(const std::string& projectId)
+{
+    std::map<std::string, std::string> out;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "SELECT player_name, checks_json FROM play_checks WHERE project_id = ?"));
+    q.addBindValue(QString::fromStdString(projectId));
+    if (!q.exec())
+        return out;
+    while (q.next()) {
+        out.emplace(q.value(0).toString().toStdString(),
+                    q.value(1).toString().toStdString());
+    }
+    return out;
+}
+
+bool Database::replaceAllPlayChecks(const std::string& projectId,
+                                    const std::map<std::string, std::string>& byPlayer)
+{
+    QSqlQuery del(m_db);
+    del.prepare(QStringLiteral("DELETE FROM play_checks WHERE project_id = ?"));
+    del.addBindValue(QString::fromStdString(projectId));
+    if (!del.exec())
+        return false;
+    for (const auto& [player, checksJson] : byPlayer) {
+        if (!savePlayChecks(projectId, player, checksJson))
+            return false;
+    }
+    return true;
+}
+
 bool Database::deletePlayChecksForProject(const std::string& projectId)
 {
     QSqlQuery q(m_db);

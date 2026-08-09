@@ -4,6 +4,7 @@
 
 #include <QSqlDatabase>
 #include <QString>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -32,6 +33,10 @@ public:
                         const std::string& checksJson);
     std::optional<std::string> getPlayChecks(const std::string& projectId,
                                              const std::string& playerName);
+    // joueur → checks_json (tableau JSON).
+    std::map<std::string, std::string> getAllPlayChecks(const std::string& projectId);
+    bool replaceAllPlayChecks(const std::string& projectId,
+                              const std::map<std::string, std::string>& byPlayer);
     bool deletePlayChecksForProject(const std::string& projectId);
 
     // Sync Nostr (même stack que Colo) : clé stable une fois le partage activé.

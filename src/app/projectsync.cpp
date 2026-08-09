@@ -10,6 +10,7 @@
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 
 namespace {
 
@@ -41,6 +42,36 @@ std::optional<std::string> plainToProjectJson(const std::string& plain)
         return json;
     }
     return plain;
+}
+
+bool tagsAreNestedArrays(const QJsonArray& tags)
+{
+    if (tags.isEmpty())
+        return false;
+    for (const QJsonValue& v : tags) {
+        if (!v.isArray())
+            return false;
+    }
+    return true;
+}
+
+bool isCorruptTagRejection(const QString& msg)
+{
+    const QString m = msg.toLower();
+    return m.contains(QStringLiteral("tag"))
+        && (m.contains(QStringLiteral("not an array"))
+            || m.contains(QStringLiteral("was not an array"))
+            || m.contains(QStringLiteral("tags field")));
+}
+
+void appendChannelTag(net::NostrEvent& ev, const QString& channel)
+{
+    // NIP-01 : tags = [["t","channel"], ...]. Pas de QJsonArray{ QJsonArray{…} } :
+    // Clang/NDK peut aplatir en ["t","channel"] → rejet relais.
+    QJsonArray tagT;
+    tagT.append(QStringLiteral("t"));
+    tagT.append(channel);
+    ev.tags.append(tagT);
 }
 
 } // namespace
@@ -263,10 +294,11 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
             continue;
 
         bool ok = false;
-        auto remote = core::JsonCodec::projectFromJson(*json, &ok);
+        auto bundle = core::JsonCodec::projectBundleFromJson(*json, &ok);
         if (!ok)
             continue;
 
+        auto& remote = bundle.project;
         remote.id = projectId;
 
         auto local = m_db->getProject(projectId);
@@ -277,6 +309,9 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         if (accept) {
             m_db->markEventSeen(ev.id.toStdString());
             m_db->upsertProject(remote);
+            // Ancien snapshot sans playChecks : ne pas écraser les coches locales.
+            if (bundle.hasPlayChecks)
+                m_db->replaceAllPlayChecks(projectId, bundle.playChecks);
             // Echo de notre propre publish = confirmation relais (sans attendre OK).
             const auto ackIt = m_pendingAcks.find(ev.id);
             if (ackIt != m_pendingAcks.end()) {
@@ -304,16 +339,8 @@ void ProjectSync::onRelayOnline(bool online)
     emit onlineChanged();
     if (!online)
         return;
-    // Ne pas seulement rejouer l'outbox : un event pré-2.0.33 « too large »
-    // resterait bloqué. Republier un snapshot compressé frais.
-    if (m_db) {
-        for (const auto& id : m_db->sharedProjectIds()) {
-            if (auto p = m_db->getProject(id)) {
-                if (!isContentEmpty(*p))
-                    publishSnapshot(id);
-            }
-        }
-    }
+    // Pas de republish aveugle de tous les projets : ça provoquait hors-ligne en boucle
+    // + storm d'events. On rejoue seulement l'outbox (éventuellement reconstruit).
     flushOutbox();
     subscribeAll(0);
 }
@@ -329,8 +356,9 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
         qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
         const std::string projectId = it->second;
         m_pendingAcks.erase(it);
-        if (msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)) {
-            // Abandonner l'event trop gros et republier compressé (z:).
+        const bool rebuild = msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)
+            || isCorruptTagRejection(msg);
+        if (rebuild) {
             m_db->outboxRemoveForEvent(eventId.toStdString());
             emit pendingChangesChanged();
             publishSnapshot(projectId);
@@ -356,21 +384,25 @@ void ProjectSync::onAckWatchdog()
 {
     if (!m_db || !m_pool || m_db->outboxCount() == 0)
         return;
-    // Pas d'OK : souvent une socket WS « Connected » morte sur mobile.
     qWarning() << "[ProjectSync] ack timeout — forceReconnect + republish"
                << "pending=" << m_db->outboxCount()
                << "connected=" << m_pool->connectedCount();
-    emit toast(QStringLiteral(
-        "Les relais ne répondent pas — nouvelle tentative d'envoi…"));
-    m_pendingAcks.clear();
-    m_pool->forceReconnect();
-    // Nouveau snapshot (nouvel id) plutôt que rejouer un event peut-être corrompu.
-    for (const auto& id : m_db->sharedProjectIds()) {
-        if (auto p = m_db->getProject(id)) {
+    if (m_pool->forceReconnectAllowed()) {
+        emit toast(QStringLiteral(
+            "Les relais ne répondent pas — nouvelle tentative d'envoi…"));
+        m_pendingAcks.clear();
+        m_pool->forceReconnect();
+    }
+    // Reconstruire un snapshot frais (tags corrects) plutôt que rejouer un event
+    // peut-être corrompu encore en outbox.
+    for (const auto& row : m_db->outboxPeekAll()) {
+        m_db->outboxRemoveForEvent(row.eventId);
+        if (auto p = m_db->getProject(row.projectId)) {
             if (!isContentEmpty(*p))
-                publishSnapshot(id);
+                publishSnapshot(row.projectId);
         }
     }
+    emit pendingChangesChanged();
 }
 
 void ProjectSync::armAckWatchdog()
@@ -397,22 +429,17 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     if (isContentEmpty(*project))
         return;
 
-    const std::string json = core::JsonCodec::projectToJson(*project, false);
+    core::ProjectBundle bundle;
+    bundle.project = *project;
+    bundle.playChecks = m_db->getAllPlayChecks(projectId);
+    const std::string json = core::JsonCodec::projectBundleToJson(bundle, false);
     // Compresse avant chiffrement : grilles × joueurs font exploser le JSON.
     const std::string packed = core::ShareCodec::compress(json);
 
     net::NostrEvent ev;
     ev.kind = 4545;
     ev.created_at = QDateTime::currentSecsSinceEpoch();
-    // NIP-01 : tags = [["t","channel"], ...]. Pas de QJsonArray{ QJsonArray{…} } :
-    // avec un seul élément du même type, Clang/NDK peut prendre le copy-ctor et
-    // aplatir en ["t","channel"] → rejet relais « tag in tags field was not an array ».
-    {
-        QJsonArray tagT;
-        tagT.append(QStringLiteral("t"));
-        tagT.append(QString::fromStdString(*tag));
-        ev.tags.append(tagT);
-    }
+    appendChannelTag(ev, QString::fromStdString(*tag));
     const std::string cipher = net::encryptPayload(*key, *tag, packed);
     if (cipher.empty()) {
         qWarning() << "[ProjectSync] encryptPayload failed — not publishing";
@@ -430,8 +457,6 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
 
     // Comme Colo SyncEngine : outbox = event JSON complet, retiré seulement à l'OK.
     // Un seul snapshot en attente par projet (LWW document entier).
-    // Ne PAS markEventSeen avant ACK : sinon on ne peut pas confirmer l'echo relais,
-    // et un OK fantôme laisse croire que c'est parti alors que le canal est vide.
     const std::string eventJson =
         QJsonDocument(ev.toJson()).toJson(QJsonDocument::Compact).toStdString();
     m_db->outboxPush(projectId, ev.id.toStdString(), eventJson);
@@ -441,8 +466,10 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     const int sent = m_pool->isOnline() ? m_pool->publishToAll(ev) : 0;
     if (sent == 0) {
         qWarning() << "[ProjectSync] publish with 0 connected relays — force reconnect";
-        emit toast(QStringLiteral("Aucun relais joignable — reconnexion…"));
-        m_pool->forceReconnect();
+        if (m_pool->forceReconnectAllowed()) {
+            emit toast(QStringLiteral("Aucun relais joignable — reconnexion…"));
+            m_pool->forceReconnect();
+        }
     } else {
         qDebug() << "[ProjectSync] published to" << sent << "relay(s) id=" << ev.id.left(12);
     }
@@ -469,16 +496,27 @@ void ProjectSync::flushOutbox()
     if (!m_db || !m_pool || !m_pool->isOnline())
         return;
     // Republier le MÊME event (même id) — pas de re-sign (sinon l'ACK ne matche plus).
+    // Sauf tags plats (bug Clang pré-2.0.35) : reconstruire un snapshot frais.
     for (const auto& row : m_db->outboxPeekAll()) {
         const QJsonDocument doc = QJsonDocument::fromJson(
             QByteArray::fromStdString(row.content));
         if (!doc.isObject()) {
             m_db->outboxRemoveForEvent(row.eventId);
+            publishSnapshot(row.projectId);
             continue;
         }
         auto evOpt = net::NostrEvent::fromJson(doc.object());
         if (!evOpt) {
             m_db->outboxRemoveForEvent(row.eventId);
+            publishSnapshot(row.projectId);
+            continue;
+        }
+        if (!tagsAreNestedArrays(evOpt->tags)) {
+            qWarning() << "[ProjectSync] dropping flat-tag outbox event"
+                       << QString::fromStdString(row.eventId).left(12);
+            m_db->outboxRemoveForEvent(row.eventId);
+            m_pendingAcks.erase(QString::fromStdString(row.eventId));
+            publishSnapshot(row.projectId);
             continue;
         }
         m_pool->publishToAll(*evOpt);
