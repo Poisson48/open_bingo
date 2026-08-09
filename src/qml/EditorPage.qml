@@ -11,9 +11,10 @@ Item {
         IconButton {
             iconName: "menu"
             iconColor: Theme.text
-            onClicked: editorMenu.open()
+            Accessible.name: "Menu projet"
+            onClicked: editorMenu.popup()
         }
-        Menu {
+        ColoMenu {
             id: editorMenu
             MenuItem { text: "Partager"; onTriggered: shareSheet.openForCurrent() }
             MenuItem { text: "Exporter"; onTriggered: AppController.pickExportCurrentJson() }
@@ -34,7 +35,7 @@ Item {
             BingoTabBar {
                 id: tabBar
                 anchors.fill: parent
-                labels: ["Config", "Phrases", "Gages", "Grilles", "Impression", "Play", "Scores"]
+                labels: ["Réglages", "Phrases", "Gages", "Grilles", "Impression", "Partie", "Classement"]
                 currentIndex: AppController.lastTab
                 onCurrentIndexChanged: {
                     if (AppController.lastTab !== currentIndex)

@@ -56,6 +56,10 @@ struct Project {
     std::string              description;
     int64_t                  createdAt  = 0;
     int64_t                  updatedAt  = 0;
+    // Dimensions de grille (source de vérité). gridSize reste pour compat JSON /
+    // anciens lecteurs (= max(rows, cols) après normalisation).
+    int                      gridRows   = 5;
+    int                      gridCols   = 5;
     int                      gridSize   = 5;
     std::vector<Player>      players;
     int                      startHP    = 20;
@@ -69,7 +73,9 @@ struct Project {
 };
 
 struct Requirements {
-    int  N         = 0;
+    int  rows      = 0;
+    int  cols      = 0;
+    int  N         = 0; // alias historique = max(rows, cols) ; préférer rows/cols
     int  total     = 0;
     bool hasCenter = false;
     int  available = 0;
@@ -82,5 +88,30 @@ struct GenerateResult {
     std::string message;
     bool        repeats = false;
 };
+
+// Clamp 2–12, migre gridSize → rows/cols, resynchronise gridSize = max(rows, cols).
+inline void normalizeGridDims(Project& p)
+{
+    if (p.gridRows <= 0 && p.gridCols <= 0) {
+        const int n = p.gridSize > 0 ? p.gridSize : 5;
+        p.gridRows = n;
+        p.gridCols = n;
+    } else {
+        if (p.gridRows <= 0)
+            p.gridRows = p.gridSize > 0 ? p.gridSize : 5;
+        if (p.gridCols <= 0)
+            p.gridCols = p.gridSize > 0 ? p.gridSize : 5;
+    }
+    if (p.gridRows < 2) p.gridRows = 2;
+    if (p.gridRows > 12) p.gridRows = 12;
+    if (p.gridCols < 2) p.gridCols = 2;
+    if (p.gridCols > 12) p.gridCols = 12;
+    p.gridSize = p.gridRows > p.gridCols ? p.gridRows : p.gridCols;
+}
+
+inline bool projectHasFreeCenter(const Project& p)
+{
+    return p.freeCenter && (p.gridRows % 2 == 1) && (p.gridCols % 2 == 1);
+}
 
 } // namespace core

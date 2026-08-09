@@ -207,7 +207,7 @@ Item {
                     anchors.bottomMargin: pointsText.visible
                                           ? cellPad + pointsText.implicitHeight
                                           : cellPad
-                    text: isFree ? "FREE" : cellLabel
+                    text: isFree ? "Libre" : cellLabel
                     color: isFree ? Theme.accent : Theme.text
                     font.pixelSize: labelSize
                     font.weight: isFree ? Font.Bold : Font.Normal

@@ -74,8 +74,12 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "Points"; color: Theme.textDim; font.pixelSize: 12 }
-            SpinBox {
+            Label {
+                text: AppController.gageMode ? "N° gage" : "Points"
+                color: Theme.textDim
+                font.pixelSize: 12
+            }
+            ColoSpinBox {
                 id: editPts
                 from: 0; to: 99
                 Layout.fillWidth: true

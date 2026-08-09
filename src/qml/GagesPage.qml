@@ -8,14 +8,14 @@ ScrollView {
 
     ColumnLayout {
         x: Theme.pad
-        width: Math.max(0, availableWidth - Theme.pad * 2)
+        width: Math.min(Math.max(0, availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
 
         Label {
             Layout.fillWidth: true
             text: AppController.gageMode
                   ? "Mode gage : chaque phrase (onglet Phrases) pointe un n° de ce tableau."
-                  : "Mode classique : gages optionnels pour récupérer des PV. Activez « Mode gage » dans Config pour lier les phrases."
+                  : "Mode classique : gages optionnels pour récupérer des PV. Active « Mode gage » dans Réglages pour lier les phrases."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap
@@ -53,7 +53,7 @@ ScrollView {
                         color: Theme.textDim
                         font.pixelSize: 12
                     }
-                    SpinBox {
+                    ColoSpinBox {
                         id: gageHp
                         from: 0; to: 100; value: 5
                         Layout.preferredWidth: 120
@@ -219,7 +219,7 @@ ScrollView {
                 Layout.fillWidth: true
                 visible: !AppController.gageMode
                 Label { text: "PV récupérés"; color: Theme.textDim; font.pixelSize: 12 }
-                SpinBox { id: editGageHp; from: 0; to: 100; Layout.fillWidth: true }
+                ColoSpinBox { id: editGageHp; from: 0; to: 100; Layout.fillWidth: true }
             }
 
             onAccepted: {

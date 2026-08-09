@@ -24,13 +24,13 @@ ScrollView {
 
     ColumnLayout {
         x: Theme.pad
-        width: Math.max(0, page.availableWidth - Theme.pad * 2)
+        width: Math.min(Math.max(0, page.availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
 
         Label {
             Layout.fillWidth: true
             visible: AppController.gridsDirty
-            text: "Cases modifiées — regénérez les grilles."
+            text: "Cases modifiées — regénère les grilles."
             color: Theme.warning
             wrapMode: Text.WordWrap
         }
@@ -38,7 +38,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: AppController.cases.length === 0
-            text: "Ajoutez des phrases dans l'onglet Phrases avant de générer."
+            text: "Ajoute des phrases dans l'onglet Phrases avant de générer."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 13
@@ -54,7 +54,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: page.gridList.length > 0
-            text: "Assignez chaque grille à un joueur. Glisser une case pour l'échanger, toucher pour éditer."
+            text: "Assigne chaque grille à un joueur. Glisser une case pour l'échanger, toucher pour éditer."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 12
@@ -63,7 +63,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: page.gridList.length === 0 && AppController.cases.length > 0
-            text: "Aucune grille — cliquez sur « Générer toutes les grilles »."
+            text: "Aucune grille — appuie sur « Générer toutes les grilles »."
             color: Theme.textDim
             wrapMode: Text.WordWrap
             font.pixelSize: 13
@@ -103,7 +103,7 @@ ScrollView {
                             font.pixelSize: 12
                         }
 
-                        ComboBox {
+                        ColoComboBox {
                             id: playerCombo
                             Layout.fillWidth: true
                             model: {
@@ -128,7 +128,7 @@ ScrollView {
                         }
 
                         BingoButton {
-                            text: "Reshuffle"
+                            text: "Mélanger"
                             onClicked: AppController.reshuffleGrid(index)
                         }
                     }

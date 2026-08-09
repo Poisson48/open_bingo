@@ -10,6 +10,18 @@ AbstractButton {
     property bool primary: false
     property bool bordered: false
 
+    Accessible.role: Accessible.Button
+    Accessible.name: {
+        if (iconName === "back") return "Retour"
+        if (iconName === "close") return "Fermer"
+        if (iconName === "menu") return "Menu"
+        if (iconName === "trash") return "Supprimer"
+        if (iconName === "share") return "Partager"
+        if (iconName === "search") return "Rechercher"
+        if (iconName === "plus") return "Ajouter"
+        return iconName
+    }
+
     implicitWidth: Theme.touchTarget
     implicitHeight: Theme.touchTarget
     padding: 0

@@ -9,7 +9,6 @@
 #include <QGuiApplication>
 #include <QCoreApplication>
 #include <QDateTime>
-#include <random>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
@@ -38,8 +37,9 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <algorithm>
-#include <set>
+#include <map>
 #include <random>
+#include <set>
 #ifndef Q_OS_ANDROID
 #  include <QPrintPreviewDialog>
 #endif
@@ -66,13 +66,13 @@ QVariantMap multToMap(const core::Multipliers& m)
     };
 }
 
-std::vector<std::vector<bool>> checksFromVariant(const QVariantList& checks, int N)
+std::vector<std::vector<bool>> checksFromVariant(const QVariantList& checks, int rows, int cols)
 {
-    std::vector<std::vector<bool>> out(N, std::vector<bool>(N, false));
-    for (int r = 0; r < N && r < checks.size(); ++r) {
+    std::vector<std::vector<bool>> out(rows, std::vector<bool>(cols, false));
+    for (int r = 0; r < rows && r < checks.size(); ++r) {
         const QVariantList row = checks[r].toList();
-        for (int c = 0; c < N && c < row.size(); ++c)
-            out[r][c] = row[c].toBool();
+        for (int c = 0; c < cols && c < row.size(); ++c)
+            out[static_cast<size_t>(r)][static_cast<size_t>(c)] = row[c].toBool();
     }
     return out;
 }
@@ -90,12 +90,13 @@ QVariantList checksToVariant(const std::vector<std::vector<bool>>& checks)
     return out;
 }
 
-std::vector<std::vector<bool>> emptyChecks(int N, bool freeCenter)
+std::vector<std::vector<bool>> emptyChecks(int rows, int cols, bool freeCenter)
 {
-    std::vector<std::vector<bool>> out(N, std::vector<bool>(N, false));
-    if (freeCenter && N % 2 == 1) {
-        const int mid = N / 2;
-        out[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+    std::vector<std::vector<bool>> out(rows, std::vector<bool>(cols, false));
+    if (freeCenter && rows % 2 == 1 && cols % 2 == 1) {
+        const int midR = rows / 2;
+        const int midC = cols / 2;
+        out[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
     }
     return out;
 }
@@ -118,6 +119,8 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
         desc = QString::fromStdString(cell.gage);
     } else if (project.gageMode && num > 0) {
         // Tirage pondéré parmi les gages partageant ce n°.
+        // Seed stable (projet + joueur + libellé + n°) : même résultat sur tous
+        // les appareils quand la coche arrive via sync.
         std::vector<size_t> idxs;
         int total = 0;
         for (size_t i = 0; i < project.gages.size(); ++i) {
@@ -131,7 +134,13 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
             return m;
         size_t pick = idxs[0];
         if (idxs.size() > 1) {
-            thread_local std::mt19937 eng{ std::random_device{}() };
+            const QByteArray seedBytes = (QString::fromStdString(project.id) + QLatin1Char('|')
+                                         + playerName + QLatin1Char('|')
+                                         + QString::fromStdString(cell.label) + QLatin1Char('|')
+                                         + QString::number(num))
+                                            .toUtf8();
+            const quint64 seed = qHash(seedBytes, /*seed*/ quint64(0x0b1660u));
+            std::mt19937 eng{ static_cast<std::mt19937::result_type>(seed) };
             if (total <= 0) {
                 std::uniform_int_distribution<size_t> dist(0, idxs.size() - 1);
                 pick = idxs[dist(eng)];
@@ -165,12 +174,85 @@ QVariantMap gageOverlayForCell(const core::Project& project, const core::GridCel
     return m;
 }
 
+QString formatPlayerList(const QStringList& names)
+{
+    if (names.isEmpty())
+        return {};
+    if (names.size() == 1)
+        return names[0];
+    if (names.size() == 2)
+        return names[0] + QStringLiteral(" et ") + names[1];
+    QStringList head = names.mid(0, names.size() - 1);
+    return head.join(QStringLiteral(", ")) + QStringLiteral(" et ") + names.last();
+}
+
+// Regroupe gages / combos identiques : « Léa, Max et Sam doivent : … »
+QVariantList groupPlayOverlays(const QVariantList& raw)
+{
+    QList<QVariantMap> groups;
+    QHash<QString, int> indexByKey;
+
+    auto appendPlayer = [&](QVariantMap ov, const QString& groupKey) {
+        const QString player = ov.value(QStringLiteral("player")).toString();
+        const QString desc = ov.value(QStringLiteral("desc")).toString().trimmed();
+        if (player.isEmpty() || desc.isEmpty())
+            return;
+        if (!indexByKey.contains(groupKey)) {
+            QStringList players;
+            players << player;
+            ov.insert(QStringLiteral("players"), players);
+            ov.remove(QStringLiteral("player"));
+            indexByKey.insert(groupKey, groups.size());
+            groups.append(ov);
+        } else {
+            QVariantMap& g = groups[indexByKey.value(groupKey)];
+            QStringList players = g.value(QStringLiteral("players")).toStringList();
+            if (!players.contains(player)) {
+                players << player;
+                g.insert(QStringLiteral("players"), players);
+            }
+        }
+    };
+
+    for (const QVariant& v : raw) {
+        const QVariantMap ov = v.toMap();
+        const QString kind = ov.value(QStringLiteral("kind")).toString();
+        const QString desc = ov.value(QStringLiteral("desc")).toString().trimmed();
+        if (kind == QLatin1String("gage")) {
+            const int num = ov.value(QStringLiteral("num")).toInt();
+            appendPlayer(ov, QStringLiteral("gage\n") + QString::number(num)
+                                 + QLatin1Char('\n') + desc);
+        } else if (kind == QLatin1String("combo")) {
+            appendPlayer(ov, QStringLiteral("combo\n")
+                                 + ov.value(QStringLiteral("key")).toString()
+                                 + QLatin1Char('\n') + desc);
+        }
+    }
+
+    QVariantList out;
+    for (QVariantMap g : groups) {
+        const QStringList players = g.value(QStringLiteral("players")).toStringList();
+        const QString who = formatPlayerList(players);
+        const QString verb = players.size() <= 1 ? QStringLiteral("doit")
+                                                 : QStringLiteral("doivent");
+        g.insert(QStringLiteral("who"), who);
+        g.insert(QStringLiteral("verb"), verb);
+        g.insert(QStringLiteral("prompt"),
+                 who + QLatin1Char(' ') + verb + QStringLiteral(" :"));
+        if (!players.isEmpty())
+            g.insert(QStringLiteral("player"), players.join(QStringLiteral(", ")));
+        out.append(g);
+    }
+    return out;
+}
+
 std::set<QString> bingoTypeSet(const core::Project& project,
                                const std::vector<std::vector<bool>>& checks)
 {
     std::set<QString> types;
-    const int N = project.gridSize;
-    const auto lines = core::detectBingo(checks, N);
+    const int rows = project.gridRows;
+    const int cols = project.gridCols;
+    const auto lines = core::detectBingo(checks, rows, cols);
     for (const auto& line : lines) {
         if (line.empty())
             continue;
@@ -184,13 +266,18 @@ std::set<QString> bingoTypeSet(const core::Project& project,
             if (r != r0) sameRow = false;
             if (c != c0) sameCol = false;
             if (r != c) mainDiag = false;
-            if (r + c != N - 1) antiDiag = false;
+            if (rows == cols) {
+                if (r + c != rows - 1) antiDiag = false;
+            } else {
+                antiDiag = false;
+                mainDiag = false;
+            }
         }
         if (sameRow)
             types.insert(QStringLiteral("line"));
         else if (sameCol)
             types.insert(QStringLiteral("column"));
-        else if (mainDiag || antiDiag)
+        else if ((mainDiag || antiDiag) && rows == cols)
             types.insert(QStringLiteral("diagonal"));
     }
     return types;
@@ -254,18 +341,20 @@ QVariantList buildScoreboard(const core::Project& project, store::Database* db)
     QVariantList board;
     if (!db)
         return board;
-    const int N = project.gridSize;
+    const int rows = project.gridRows;
+    const int cols = project.gridCols;
     // Mode gage : les « points » des cases sont des n° de gage — on classe
     // sur les cases cochées, pas sur la somme des n°.
     const bool gageMode = project.gageMode;
     for (const auto& grid : project.grids) {
-        auto checks = emptyChecks(N, project.freeCenter);
+        auto checks = emptyChecks(rows, cols, core::projectHasFreeCenter(project));
         if (const auto json = db->getPlayChecks(project.id, grid.player)) {
             const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
-            checks = checksFromVariant(doc.array().toVariantList(), N);
-            if (project.freeCenter && N % 2 == 1) {
-                const int mid = N / 2;
-                checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+            checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
+            if (core::projectHasFreeCenter(project)) {
+                const int midR = rows / 2;
+                const int midC = cols / 2;
+                checks[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
             }
         }
         const int total = countPlayableCells(grid);
@@ -361,12 +450,19 @@ bool AppController::init()
                     // Rafraîchir en place — ne PAS openProject (émet editorOpened
                     // → stack.push en boucle à chaque echo sync).
                     if (auto p = m_db->getProject(id.toStdString())) {
+                        const auto before = m_playChecksSnapshot;
                         m_current = *p;
                         clearGridsDirtyFlag();
                         ++m_gridsRevision;
+                        const auto after = m_db->getAllPlayChecks(m_current.id);
+                        const QVariantList remoteOverlays =
+                            overlaysForNewlyCheckedCells(before, after);
+                        m_playChecksSnapshot = after;
                         emit currentProjectChanged();
                         emit gridsChanged();
                         emit playChecksChanged();
+                        if (!remoteOverlays.isEmpty())
+                            emit playOverlaysTriggered(remoteOverlays);
                     }
                 });
         m_updater->check();
@@ -384,7 +480,7 @@ bool AppController::init()
             m_lastTab = 5; // Play
             m_db->setSetting("last_tab", "5");
             openProject(demoId);
-            emit toast(QStringLiteral("Projet démo chargé — cochez des cases dans Play !"));
+            emit toast(QStringLiteral("Projet démo chargé — coche des cases dans Partie !"));
             return true;
         }
     }
@@ -541,11 +637,40 @@ void AppController::setDescription(const QString& v)
     scheduleAutoSave();
 }
 
+int AppController::gridRows() const { return m_hasCurrent ? m_current.gridRows : 5; }
+int AppController::gridCols() const { return m_hasCurrent ? m_current.gridCols : 5; }
+
 void AppController::setGridSize(int v)
 {
     if (!m_hasCurrent)
         return;
-    m_current.gridSize = qBound(2, v, 12);
+    const int n = qBound(2, v, 12);
+    m_current.gridRows = n;
+    m_current.gridCols = n;
+    m_current.gridSize = n;
+    markGridsDirty();
+    emit currentProjectChanged();
+    scheduleAutoSave();
+}
+
+void AppController::setGridRows(int v)
+{
+    if (!m_hasCurrent)
+        return;
+    m_current.gridRows = qBound(2, v, 12);
+    core::normalizeGridDims(m_current);
+    markGridsDirty();
+    emit currentProjectChanged();
+    scheduleAutoSave();
+}
+
+void AppController::setGridCols(int v)
+{
+    if (!m_hasCurrent)
+        return;
+    m_current.gridCols = qBound(2, v, 12);
+    core::normalizeGridDims(m_current);
+    markGridsDirty();
     emit currentProjectChanged();
     scheduleAutoSave();
 }
@@ -712,6 +837,7 @@ bool AppController::openProject(const QString& id, bool toPlay)
     if (!p)
         return false;
     m_current = *p;
+    core::normalizeGridDims(m_current);
     m_hasCurrent = true;
     clearGridsDirtyFlag();
     m_db->setSetting("current_project_id", m_current.id);
@@ -722,6 +848,7 @@ bool AppController::openProject(const QString& id, bool toPlay)
     }
     emit currentProjectChanged();
     emit editorOpened(id);
+    rememberPlayChecksSnapshot();
     return true;
 }
 
@@ -985,6 +1112,8 @@ QString AppController::seedDemoProject()
     auto p = core::JsonCodec::defaultProject();
     p.title = "Soirée Cinéma (démo)";
     p.description = "Bingo des clichés qui arrivent dans le film — 4 joueurs, grille 5×5.";
+    p.gridRows = 5;
+    p.gridCols = 5;
     p.gridSize = 5;
     p.startHP = 20;
     p.freeCenter = true;
@@ -1058,14 +1187,17 @@ QString AppController::seedDemoProject()
     m_db->upsertProject(p);
 
     {
-        const int N = p.gridSize;
-        const int mid = N / 2;
+        const int rowsN = p.gridRows;
+        const int colsN = p.gridCols;
+        const int midR = rowsN / 2;
+        const int midC = colsN / 2;
+        const bool freeCtr = core::projectHasFreeCenter(p);
         QJsonArray rows;
-        for (int r = 0; r < N; ++r) {
+        for (int r = 0; r < rowsN; ++r) {
             QJsonArray row;
-            for (int c = 0; c < N; ++c) {
-                const bool free = p.freeCenter && (N % 2 == 1) && r == mid && c == mid;
-                row.append(free || (r == c));
+            for (int c = 0; c < colsN; ++c) {
+                const bool free = freeCtr && r == midR && c == midC;
+                row.append(free || (rowsN == colsN && r == c));
             }
             rows.append(row);
         }
@@ -1086,7 +1218,8 @@ void AppController::reshuffleGrid(int playerIdx)
     if (m_db && playerIdx >= 0
         && playerIdx < static_cast<int>(m_current.grids.size())) {
         const auto& player = m_current.grids[static_cast<size_t>(playerIdx)].player;
-        const auto empty = checksToVariant(emptyChecks(m_current.gridSize, m_current.freeCenter));
+        const auto empty = checksToVariant(emptyChecks(m_current.gridRows, m_current.gridCols,
+                                                     core::projectHasFreeCenter(m_current)));
         m_db->savePlayChecks(m_current.id, player,
                              QJsonDocument(QJsonArray::fromVariantList(empty))
                                  .toJson(QJsonDocument::Compact)
@@ -1118,13 +1251,14 @@ void AppController::swapGridCells(int playerIdx, int r1, int c1, int r2, int c2)
     // sinon Play (local + sync) affiche la coche sur la mauvaise case.
     if (m_db) {
         const auto& player = m_current.grids[static_cast<size_t>(playerIdx)].player;
-        const int N = m_current.gridSize;
-        auto checks = emptyChecks(N, m_current.freeCenter);
+        const int rows = m_current.gridRows;
+        const int cols = m_current.gridCols;
+        auto checks = emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
         if (const auto json = m_db->getPlayChecks(m_current.id, player)) {
             const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
-            checks = checksFromVariant(doc.array().toVariantList(), N);
+            checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
         }
-        if (r1 < N && r2 < N && c1 < N && c2 < N) {
+        if (r1 < rows && r2 < rows && c1 < cols && c2 < cols) {
             const bool tmp = checks[static_cast<size_t>(r1)][static_cast<size_t>(c1)];
             checks[static_cast<size_t>(r1)][static_cast<size_t>(c1)] =
                 checks[static_cast<size_t>(r2)][static_cast<size_t>(c2)];
@@ -1530,8 +1664,10 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
 
     if (!m_hasCurrent || !m_db || playerName.isEmpty())
         return result;
-    const int N = m_current.gridSize;
-    if (N <= 0 || row < 0 || col < 0 || row >= N || col >= N)
+    core::normalizeGridDims(m_current);
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
+    if (rows <= 0 || cols <= 0 || row < 0 || col < 0 || row >= rows || col >= cols)
         return result;
 
     const core::PlayerGrid* sourceGrid = nullptr;
@@ -1553,25 +1689,29 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
     if (label.isEmpty())
         return result;
 
-    // Snapshot combos avant (joueur courant uniquement).
     auto loadOrEmpty = [&](const std::string& pname) {
         const auto json = m_db->getPlayChecks(m_current.id, pname);
         if (!json)
-            return emptyChecks(N, m_current.freeCenter);
+            return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
         const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(*json));
-        auto checks = checksFromVariant(doc.array().toVariantList(), N);
-        if (static_cast<int>(checks.size()) != N)
-            return emptyChecks(N, m_current.freeCenter);
-        if (m_current.freeCenter && N % 2 == 1) {
-            const int mid = N / 2;
-            checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+        auto checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
+        if (static_cast<int>(checks.size()) != rows)
+            return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
+        if (core::projectHasFreeCenter(m_current)) {
+            const int midR = rows / 2;
+            const int midC = cols / 2;
+            checks[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
         }
         return checks;
     };
 
     auto viewerChecksBefore = loadOrEmpty(playerName.toStdString());
     const bool newChecked = !viewerChecksBefore[static_cast<size_t>(row)][static_cast<size_t>(col)];
-    const auto oldTypes = bingoTypeSet(m_current, viewerChecksBefore);
+
+    // Combos avant cochage — pour chaque joueur (ligne / colonne / diagonale).
+    std::map<std::string, std::set<QString>> comboTypesBefore;
+    for (const auto& grid : m_current.grids)
+        comboTypesBefore[grid.player] = bingoTypeSet(m_current, loadOrEmpty(grid.player));
 
     // Qui avait déjà une grille pleine (pour détecter les nouveaux gagnants).
     QSet<QString> fullBefore;
@@ -1583,14 +1723,17 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
 
     QVariantList overlays;
     QVariantList viewerChecksOut;
+    // Un overlay gage par joueur touché par le libellé (pas seulement celui
+    // qui a tapé) — les autres doivent aussi faire leur gage.
+    QSet<QString> gagePlayersSeen;
 
     for (const auto& grid : m_current.grids) {
         auto checks = loadOrEmpty(grid.player);
         const QString pname = QString::fromStdString(grid.player);
 
-        for (int r = 0; r < N && r < static_cast<int>(grid.cells.size()); ++r) {
+        for (int r = 0; r < rows && r < static_cast<int>(grid.cells.size()); ++r) {
             const auto& crow = grid.cells[static_cast<size_t>(r)];
-            for (int c = 0; c < N && c < static_cast<int>(crow.size()); ++c) {
+            for (int c = 0; c < cols && c < static_cast<int>(crow.size()); ++c) {
                 const auto& cell = crow[static_cast<size_t>(c)];
                 if (cell.isFree)
                     continue;
@@ -1598,13 +1741,13 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
                     continue;
                 const bool was = checks[static_cast<size_t>(r)][static_cast<size_t>(c)];
                 checks[static_cast<size_t>(r)][static_cast<size_t>(c)] = newChecked;
-                // Overlay : uniquement le(s) gage(s) du joueur en train de jouer,
-                // pas ceux des autres grilles (sync par libellé reste silencieuse).
                 if (newChecked && !was && m_current.gageMode
-                    && grid.player == playerName.toStdString()) {
+                    && !gagePlayersSeen.contains(pname)) {
                     QVariantMap ov = gageOverlayForCell(m_current, cell, pname);
                     if (!ov.isEmpty()) {
-                        const bool isTap = (r == row && c == col);
+                        gagePlayersSeen.insert(pname);
+                        const bool isTap = (grid.player == playerName.toStdString()
+                                            && r == row && c == col);
                         if (isTap)
                             overlays.insert(0, ov);
                         else
@@ -1614,9 +1757,10 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
             }
         }
 
-        if (m_current.freeCenter && N % 2 == 1) {
-            const int mid = N / 2;
-            checks[static_cast<size_t>(mid)][static_cast<size_t>(mid)] = true;
+        if (core::projectHasFreeCenter(m_current)) {
+            const int midR = rows / 2;
+            const int midC = cols / 2;
+            checks[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
         }
 
         const QVariantList asVar = checksToVariant(checks);
@@ -1628,31 +1772,36 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
             viewerChecksOut = asVar;
     }
 
-    // Combos nouvellement débloqués → overlays séparés (après les gages de cases).
-    if (newChecked && m_current.gageMode && !viewerChecksOut.isEmpty()) {
-        const auto after = checksFromVariant(viewerChecksOut, N);
-        const auto newTypes = bingoTypeSet(m_current, after);
+    // Combos nouvellement débloqués chez n'importe quel joueur.
+    if (newChecked && m_current.gageMode) {
         const auto& combos = m_current.comboGages;
-        auto pushCombo = [&](const char* key, const std::string& text) {
+        auto pushCombo = [&](const QString& pname, const char* key, const std::string& text,
+                             const std::set<QString>& oldTypes, const std::set<QString>& newTypes) {
             if (text.empty())
                 return;
             const QString k = QString::fromUtf8(key);
-            if (newTypes.count(k) && !oldTypes.count(k)) {
-                QVariantMap ov;
-                ov.insert(QStringLiteral("kind"), QStringLiteral("combo"));
-                ov.insert(QStringLiteral("key"), k);
-                ov.insert(QStringLiteral("label"),
-                          k == QLatin1String("line") ? QStringLiteral("Ligne complète")
-                          : k == QLatin1String("column") ? QStringLiteral("Colonne complète")
-                                                         : QStringLiteral("Diagonale complète"));
-                ov.insert(QStringLiteral("desc"), QString::fromStdString(text));
-                ov.insert(QStringLiteral("player"), playerName);
-                overlays.append(ov);
-            }
+            if (!newTypes.count(k) || oldTypes.count(k))
+                return;
+            QVariantMap ov;
+            ov.insert(QStringLiteral("kind"), QStringLiteral("combo"));
+            ov.insert(QStringLiteral("key"), k);
+            ov.insert(QStringLiteral("label"),
+                      k == QLatin1String("line") ? QStringLiteral("Ligne complète")
+                      : k == QLatin1String("column") ? QStringLiteral("Colonne complète")
+                                                     : QStringLiteral("Diagonale complète"));
+            ov.insert(QStringLiteral("desc"), QString::fromStdString(text));
+            ov.insert(QStringLiteral("player"), pname);
+            overlays.append(ov);
         };
-        pushCombo("line", combos.line);
-        pushCombo("column", combos.column);
-        pushCombo("diagonal", combos.diagonal);
+        for (const auto& grid : m_current.grids) {
+            const auto after = loadOrEmpty(grid.player);
+            const auto newTypes = bingoTypeSet(m_current, after);
+            const auto& oldTypes = comboTypesBefore[grid.player];
+            const QString pname = QString::fromStdString(grid.player);
+            pushCombo(pname, "line", combos.line, oldTypes, newTypes);
+            pushCombo(pname, "column", combos.column, oldTypes, newTypes);
+            pushCombo(pname, "diagonal", combos.diagonal, oldTypes, newTypes);
+        }
     }
 
     const auto board = buildScoreboard(m_current, m_db.get());
@@ -1683,32 +1832,127 @@ QVariantMap AppController::togglePlayCell(const QString& playerName, int row, in
 
     result.insert(QStringLiteral("checked"), newChecked);
     result.insert(QStringLiteral("checks"), viewerChecksOut);
-    result.insert(QStringLiteral("overlays"), overlays);
+    result.insert(QStringLiteral("overlays"), groupPlayOverlays(overlays));
     result.insert(QStringLiteral("label"), label);
     result.insert(QStringLiteral("gridFull"), viewerFull);
     result.insert(QStringLiteral("justCompleted"), !newWinners.isEmpty());
     result.insert(QStringLiteral("newWinners"), newWinners);
     result.insert(QStringLiteral("winners"), winners);
     result.insert(QStringLiteral("scoreboard"), board);
+    rememberPlayChecksSnapshot();
     emit playChecksChanged();
     publishPlayChecksIfShared();
     return result;
+}
+
+void AppController::rememberPlayChecksSnapshot()
+{
+    m_playChecksSnapshot.clear();
+    if (!m_hasCurrent || !m_db)
+        return;
+    m_playChecksSnapshot = m_db->getAllPlayChecks(m_current.id);
+}
+
+QVariantList AppController::overlaysForNewlyCheckedCells(
+    const std::map<std::string, std::string>& before,
+    const std::map<std::string, std::string>& after) const
+{
+    QVariantList raw;
+    if (!m_hasCurrent || !m_current.gageMode)
+        return raw;
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
+    if (rows <= 0 || cols <= 0)
+        return raw;
+
+    auto parse = [&](const std::string& player,
+                     const std::map<std::string, std::string>& map) {
+        const auto it = map.find(player);
+        if (it == map.end())
+            return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
+        const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(it->second));
+        auto checks = checksFromVariant(doc.array().toVariantList(), rows, cols);
+        if (static_cast<int>(checks.size()) != rows)
+            return emptyChecks(rows, cols, core::projectHasFreeCenter(m_current));
+        if (core::projectHasFreeCenter(m_current)) {
+            const int midR = rows / 2;
+            const int midC = cols / 2;
+            checks[static_cast<size_t>(midR)][static_cast<size_t>(midC)] = true;
+        }
+        return checks;
+    };
+
+    QSet<QString> gagePlayersSeen;
+    const auto& combos = m_current.comboGages;
+    auto pushCombo = [&](const QString& pname, const char* key, const std::string& text,
+                         const std::set<QString>& oldTypes, const std::set<QString>& newTypes) {
+        if (text.empty())
+            return;
+        const QString k = QString::fromUtf8(key);
+        if (!newTypes.count(k) || oldTypes.count(k))
+            return;
+        QVariantMap ov;
+        ov.insert(QStringLiteral("kind"), QStringLiteral("combo"));
+        ov.insert(QStringLiteral("key"), k);
+        ov.insert(QStringLiteral("label"),
+                  k == QLatin1String("line") ? QStringLiteral("Ligne complète")
+                  : k == QLatin1String("column") ? QStringLiteral("Colonne complète")
+                                                 : QStringLiteral("Diagonale complète"));
+        ov.insert(QStringLiteral("desc"), QString::fromStdString(text));
+        ov.insert(QStringLiteral("player"), pname);
+        raw.append(ov);
+    };
+
+    for (const auto& grid : m_current.grids) {
+        const QString pname = QString::fromStdString(grid.player);
+        const auto wasChecks = parse(grid.player, before);
+        const auto nowChecks = parse(grid.player, after);
+        const auto oldTypes = bingoTypeSet(m_current, wasChecks);
+        const auto newTypes = bingoTypeSet(m_current, nowChecks);
+
+        for (int r = 0; r < rows && r < static_cast<int>(grid.cells.size()); ++r) {
+            const auto& crow = grid.cells[static_cast<size_t>(r)];
+            for (int c = 0; c < cols && c < static_cast<int>(crow.size()); ++c) {
+                const auto& cell = crow[static_cast<size_t>(c)];
+                if (cell.isFree)
+                    continue;
+                const bool was = wasChecks[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                const bool now = nowChecks[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                if (!now || was)
+                    continue;
+                if (gagePlayersSeen.contains(pname))
+                    continue;
+                QVariantMap ov = gageOverlayForCell(m_current, cell, pname);
+                if (ov.isEmpty())
+                    continue;
+                gagePlayersSeen.insert(pname);
+                raw.append(ov);
+            }
+        }
+
+        pushCombo(pname, "line", combos.line, oldTypes, newTypes);
+        pushCombo(pname, "column", combos.column, oldTypes, newTypes);
+        pushCombo(pname, "diagonal", combos.diagonal, oldTypes, newTypes);
+    }
+    return groupPlayOverlays(raw);
 }
 
 void AppController::resetPlayChecks(const QString& /*playerName*/)
 {
     if (!m_hasCurrent || !m_db)
         return;
-    const int N = m_current.gridSize;
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
     // Toujours toutes les grilles : un libellé coché l'est chez tous les joueurs,
     // donc une remise à zéro partielle laisserait la partie incohérente.
     for (const auto& g : m_current.grids) {
-        const auto empty = checksToVariant(emptyChecks(N, m_current.freeCenter));
+        const auto empty = checksToVariant(emptyChecks(rows, cols, core::projectHasFreeCenter(m_current)));
         m_db->savePlayChecks(m_current.id, g.player,
                              QJsonDocument(QJsonArray::fromVariantList(empty))
                                  .toJson(QJsonDocument::Compact)
                                  .toStdString());
     }
+    rememberPlayChecksSnapshot();
     emit playChecksChanged();
     publishPlayChecksIfShared();
 }
@@ -1717,11 +1961,12 @@ int AppController::computeScore(const QString& playerName, const QVariantList& c
 {
     if (!m_hasCurrent)
         return 0;
-    const int N = m_current.gridSize;
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
     for (const auto& grid : m_current.grids) {
         if (grid.player != playerName.toStdString())
             continue;
-        return core::computeScore(grid, checksFromVariant(checks, N));
+        return core::computeScore(grid, checksFromVariant(checks, rows, cols));
     }
     return 0;
 }
@@ -1730,8 +1975,9 @@ QVariantList AppController::detectBingoLines(const QVariantList& checks)
 {
     if (!m_hasCurrent)
         return {};
-    const int N = m_current.gridSize;
-    const auto lines = core::detectBingo(checksFromVariant(checks, N), N);
+    const int rows = m_current.gridRows;
+    const int cols = m_current.gridCols;
+    const auto lines = core::detectBingo(checksFromVariant(checks, rows, cols), rows, cols);
     QVariantList out;
     for (const auto& line : lines) {
         QVariantList coords;
@@ -2126,15 +2372,20 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
     if (grid.cells.empty() || gridArea.height() < 20)
         return;
 
-    const int N = static_cast<int>(grid.cells.size());
-    // Cases carrées centrées (comme une vraie grille bingo imprimée)
-    const qreal side = qMin(gridArea.width() / N, gridArea.height() / N);
-    const qreal gridW = side * N;
-    const qreal gridH = side * N;
+    const int rowsN = static_cast<int>(grid.cells.size());
+    const int colsN = rowsN > 0
+        ? static_cast<int>(grid.cells[0].size()) : 0;
+    if (rowsN <= 0 || colsN <= 0)
+        return;
+    // Cases carrées centrées dans la zone réservée
+    const qreal side = qMin(gridArea.width() / colsN, gridArea.height() / rowsN);
+    const qreal gridW = side * colsN;
+    const qreal gridH = side * rowsN;
     gridArea = QRectF(left + (w - gridW) / 2,
                       y + qMax(0.0, (gridArea.height() - gridH) / 2),
                       gridW, gridH);
 
+    const int N = qMax(rowsN, colsN);
     const qreal fontPx = qMax(6.0, side * (N <= 3 ? 0.22 : N <= 5 ? 0.18 : 0.15));
     const qreal ptsPx = qMax(5.0, fontPx * 0.72);
 
@@ -2148,9 +2399,9 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
     opt.setWrapMode(QTextOption::WordWrap);
     opt.setAlignment(Qt::AlignCenter);
 
-    for (int r = 0; r < N; ++r) {
+    for (int r = 0; r < rowsN; ++r) {
         const auto& row = grid.cells[static_cast<size_t>(r)];
-        for (int c = 0; c < N && c < static_cast<int>(row.size()); ++c) {
+        for (int c = 0; c < colsN && c < static_cast<int>(row.size()); ++c) {
             const auto& cell = row[static_cast<size_t>(c)];
             const QRectF rect(gridArea.left() + c * side,
                               gridArea.top() + r * side,
@@ -2163,7 +2414,7 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
             p.drawRect(rect);
 
             const QString label = cell.isFree
-                ? QStringLiteral("FREE")
+                ? QStringLiteral("Libre")
                 : QString::fromStdString(cell.label);
             p.setFont(cellFont);
             p.setPen(Qt::black);
@@ -2270,10 +2521,10 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
     QTextOption rulesOpt;
     rulesOpt.setWrapMode(QTextOption::WordWrap);
     const QString note = QStringLiteral(
-        "Cochez une case quand l'événement se produit. La valeur en points est "
+        "Coche une case quand l'événement se produit. La valeur en points est "
         "dans le coin bas-droit.%1")
         .arg(hasGages
-                 ? QStringLiteral(" Pour récupérer des PV, accomplissez un gage "
+                 ? QStringLiteral(" Pour récupérer des PV, accomplis un gage "
                                   "(feuille « Tableau des Gages »).")
                  : QString());
     p.drawText(QRectF(left, y, w, area.bottom() - y), note, rulesOpt);
@@ -2315,9 +2566,9 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
     p.setPen(QColor(QStringLiteral("#333333")));
     const QString intro = project.gageMode
         ? QStringLiteral("Le n° sur chaque case tire un gage parmi ceux qui portent "
-                         "ce numéro (selon le %). Effectuez-le quand vous tombez dessus !")
-        : QStringLiteral("Accomplissez n'importe quel gage pour récupérer des points "
-                         "de vie. Une fois accompli, cochez-le.");
+                         "ce numéro (selon le %). Effectue-le quand tu tombes dessus !")
+        : QStringLiteral("Accomplis n'importe quel gage pour récupérer des points "
+                         "de vie. Une fois accompli, coche-le.");
     QTextOption introOpt;
     introOpt.setWrapMode(QTextOption::WordWrap);
     const qreal introH = body.pixelSize() * 3.2;

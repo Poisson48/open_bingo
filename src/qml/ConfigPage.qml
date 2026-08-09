@@ -63,21 +63,39 @@ ScrollView {
                 Label { text: "Grille"; color: Theme.text; font.weight: Font.DemiBold; font.pixelSize: 14 }
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "Taille"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                    SpinBox {
+                    Label { text: "Lignes"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    ColoSpinBox {
                         from: 2; to: 12
-                        value: AppController.gridSize
-                        onValueModified: AppController.gridSize = value
+                        value: AppController.gridRows
+                        onValueModified: AppController.gridRows = value
                     }
                 }
-
-                CheckBox {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: "Case FREE au centre"
+                    Label { text: "Colonnes"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    ColoSpinBox {
+                        from: 2; to: 12
+                        value: AppController.gridCols
+                        onValueModified: AppController.gridCols = value
+                    }
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.gridRows !== AppController.gridCols
+                    text: "Grille " + AppController.gridRows + "×" + AppController.gridCols
+                          + " — les diagonales (bingo / gages) ne comptent que sur une grille carrée."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                ColoCheckBox {
+                    Layout.fillWidth: true
+                    text: "Case libre au centre"
                     checked: AppController.freeCenter
                     onClicked: AppController.freeCenter = checked
                 }
-                CheckBox {
+                ColoCheckBox {
                     Layout.fillWidth: true
                     text: "Mode gage"
                     checked: AppController.gageMode
@@ -97,7 +115,7 @@ ScrollView {
                     Layout.fillWidth: true
                     visible: !AppController.gageMode
                     Label { text: "HP de départ"; color: Theme.textDim; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                    SpinBox {
+                    ColoSpinBox {
                         from: 1; to: 100
                         value: AppController.startHP
                         onValueModified: AppController.startHP = value
@@ -120,25 +138,25 @@ ScrollView {
                     rowSpacing: 8
                     columnSpacing: 12
                     Label { text: "Ligne"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
-                    SpinBox {
+                    ColoSpinBox {
                         from: 1; to: 99
                         value: AppController.multipliers.line
                         onValueModified: AppController.setMultiplier("line", value)
                     }
                     Label { text: "Colonne"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
-                    SpinBox {
+                    ColoSpinBox {
                         from: 1; to: 99
                         value: AppController.multipliers.column
                         onValueModified: AppController.setMultiplier("column", value)
                     }
                     Label { text: "Diagonale"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
-                    SpinBox {
+                    ColoSpinBox {
                         from: 1; to: 99
                         value: AppController.multipliers.diagonal
                         onValueModified: AppController.setMultiplier("diagonal", value)
                     }
                     Label { text: "Grille complète"; color: Theme.textDim; Layout.fillWidth: true; elide: Text.ElideRight }
-                    SpinBox {
+                    ColoSpinBox {
                         from: 1; to: 99
                         value: AppController.multipliers.full
                         onValueModified: AppController.setMultiplier("full", value)

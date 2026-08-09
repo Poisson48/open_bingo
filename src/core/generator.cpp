@@ -28,22 +28,24 @@ double roll(const Rng& rng)
 
 PlayerGrid buildGrid(const std::string& playerName,
                      const std::vector<GridCell>& cellData,
-                     int N, bool hasCenter)
+                     int rows, int cols, bool hasCenter)
 {
-    const int centerRow = N / 2;
-    const int centerCol = N / 2;
+    const int centerRow = rows / 2;
+    const int centerCol = cols / 2;
     int idx = 0;
     PlayerGrid grid;
     grid.player = playerName;
-    grid.cells.resize(N);
+    grid.cells.resize(static_cast<size_t>(rows));
 
-    for (int r = 0; r < N; ++r) {
-        grid.cells[r].resize(N);
-        for (int c = 0; c < N; ++c) {
+    for (int r = 0; r < rows; ++r) {
+        grid.cells[static_cast<size_t>(r)].resize(static_cast<size_t>(cols));
+        for (int c = 0; c < cols; ++c) {
             if (hasCenter && r == centerRow && c == centerCol) {
-                grid.cells[r][c] = { "FREE", 0, 100, "", 0, true };
+                grid.cells[static_cast<size_t>(r)][static_cast<size_t>(c)] =
+                    { "FREE", 0, 100, "", 0, true };
             } else {
-                grid.cells[r][c] = cellData.at(static_cast<size_t>(idx++));
+                grid.cells[static_cast<size_t>(r)][static_cast<size_t>(c)] =
+                    cellData.at(static_cast<size_t>(idx++));
             }
         }
     }
@@ -54,10 +56,14 @@ PlayerGrid buildGrid(const std::string& playerName,
 
 Requirements calcRequirements(const Project& project)
 {
+    Project p = project;
+    normalizeGridDims(p);
     Requirements req;
-    req.N = project.gridSize;
-    req.total = req.N * req.N;
-    req.hasCenter = project.freeCenter && (req.N % 2 == 1);
+    req.rows = p.gridRows;
+    req.cols = p.gridCols;
+    req.N = p.gridSize;
+    req.total = req.rows * req.cols;
+    req.hasCenter = projectHasFreeCenter(p);
     req.available = req.hasCenter ? req.total - 1 : req.total;
     req.players = static_cast<int>(project.players.size());
     req.minCases = req.available;
@@ -66,7 +72,7 @@ Requirements calcRequirements(const Project& project)
 
 PlayerGrid generatePlayerGrid(const Project& project,
                               const std::string& playerName,
-                              int N, bool hasCenter, int available,
+                              int rows, int cols, bool hasCenter, int available,
                               const Rng& rng)
 {
     std::vector<GridCell> included;
@@ -116,12 +122,13 @@ PlayerGrid generatePlayerGrid(const Project& project,
     }
 
     cells = shuffleCopy(cells, eng);
-    return buildGrid(playerName, cells, N, hasCenter);
+    return buildGrid(playerName, cells, rows, cols, hasCenter);
 }
 
 GenerateResult generateAll(Project& project, const Rng& rng)
 {
     GenerateResult result;
+    normalizeGridDims(project);
     const auto req = calcRequirements(project);
 
     if (req.players == 0) {
@@ -139,7 +146,8 @@ GenerateResult generateAll(Project& project, const Rng& rng)
     project.grids.reserve(project.players.size());
     for (const auto& p : project.players) {
         project.grids.push_back(
-            generatePlayerGrid(project, p.name, req.N, req.hasCenter, req.available, rng));
+            generatePlayerGrid(project, p.name, req.rows, req.cols,
+                               req.hasCenter, req.available, rng));
     }
 
     result.repeats = static_cast<int>(project.cases.size()) < req.available;
@@ -150,22 +158,25 @@ void reshuffleGrid(Project& project, int playerIdx, const Rng& rng)
 {
     if (playerIdx < 0 || playerIdx >= static_cast<int>(project.grids.size()))
         return;
+    normalizeGridDims(project);
     const auto req = calcRequirements(project);
     const auto& grid = project.grids[static_cast<size_t>(playerIdx)];
     project.grids[static_cast<size_t>(playerIdx)] =
-        generatePlayerGrid(project, grid.player, req.N, req.hasCenter, req.available, rng);
+        generatePlayerGrid(project, grid.player, req.rows, req.cols,
+                           req.hasCenter, req.available, rng);
 }
 
 int computeScore(const PlayerGrid& grid, const std::vector<std::vector<bool>>& checks)
 {
     int score = 0;
-    const int N = static_cast<int>(grid.cells.size());
-    for (int r = 0; r < N; ++r) {
-        for (int c = 0; c < N; ++c) {
+    const int rows = static_cast<int>(grid.cells.size());
+    for (int r = 0; r < rows; ++r) {
+        const int cols = static_cast<int>(grid.cells[static_cast<size_t>(r)].size());
+        for (int c = 0; c < cols; ++c) {
             if (r < static_cast<int>(checks.size()) &&
-                c < static_cast<int>(checks[r].size()) &&
-                checks[r][c]) {
-                score += grid.cells[r][c].points;
+                c < static_cast<int>(checks[static_cast<size_t>(r)].size()) &&
+                checks[static_cast<size_t>(r)][static_cast<size_t>(c)]) {
+                score += grid.cells[static_cast<size_t>(r)][static_cast<size_t>(c)].points;
             }
         }
     }
@@ -173,14 +184,14 @@ int computeScore(const PlayerGrid& grid, const std::vector<std::vector<bool>>& c
 }
 
 std::vector<std::vector<std::pair<int, int>>> detectBingo(
-    const std::vector<std::vector<bool>>& checks, int N)
+    const std::vector<std::vector<bool>>& checks, int rows, int cols)
 {
     std::vector<std::vector<std::pair<int, int>>> lines;
-    if (N <= 0 || static_cast<int>(checks.size()) < N)
+    if (rows <= 0 || cols <= 0 || static_cast<int>(checks.size()) < rows)
         return lines;
 
     auto at = [&](int r, int c) -> bool {
-        if (r < 0 || c < 0 || r >= N || c >= N)
+        if (r < 0 || c < 0 || r >= rows || c >= cols)
             return false;
         if (r >= static_cast<int>(checks.size())
             || c >= static_cast<int>(checks[static_cast<size_t>(r)].size()))
@@ -189,57 +200,61 @@ std::vector<std::vector<std::pair<int, int>>> detectBingo(
     };
 
     auto rowComplete = [&](int r) {
-        for (int c = 0; c < N; ++c)
+        for (int c = 0; c < cols; ++c)
             if (!at(r, c)) return false;
         return true;
     };
     auto colComplete = [&](int c) {
-        for (int r = 0; r < N; ++r)
+        for (int r = 0; r < rows; ++r)
             if (!at(r, c)) return false;
         return true;
     };
 
-    for (int r = 0; r < N; ++r) {
+    for (int r = 0; r < rows; ++r) {
         if (rowComplete(r)) {
             std::vector<std::pair<int, int>> line;
-            for (int c = 0; c < N; ++c)
+            for (int c = 0; c < cols; ++c)
                 line.emplace_back(r, c);
             lines.push_back(std::move(line));
         }
     }
-    for (int c = 0; c < N; ++c) {
+    for (int c = 0; c < cols; ++c) {
         if (colComplete(c)) {
             std::vector<std::pair<int, int>> line;
-            for (int r = 0; r < N; ++r)
+            for (int r = 0; r < rows; ++r)
                 line.emplace_back(r, c);
             lines.push_back(std::move(line));
         }
     }
 
-    bool mainDiag = true;
-    for (int i = 0; i < N; ++i)
-        if (!at(i, i)) mainDiag = false;
-    if (mainDiag) {
-        std::vector<std::pair<int, int>> line;
+    // Diagonales : uniquement sur grille carrée.
+    if (rows == cols) {
+        const int N = rows;
+        bool mainDiag = true;
         for (int i = 0; i < N; ++i)
-            line.emplace_back(i, i);
-        lines.push_back(std::move(line));
-    }
+            if (!at(i, i)) mainDiag = false;
+        if (mainDiag) {
+            std::vector<std::pair<int, int>> line;
+            for (int i = 0; i < N; ++i)
+                line.emplace_back(i, i);
+            lines.push_back(std::move(line));
+        }
 
-    bool antiDiag = true;
-    for (int i = 0; i < N; ++i)
-        if (!at(i, N - 1 - i)) antiDiag = false;
-    if (antiDiag) {
-        std::vector<std::pair<int, int>> line;
+        bool antiDiag = true;
         for (int i = 0; i < N; ++i)
-            line.emplace_back(i, N - 1 - i);
-        lines.push_back(std::move(line));
+            if (!at(i, N - 1 - i)) antiDiag = false;
+        if (antiDiag) {
+            std::vector<std::pair<int, int>> line;
+            for (int i = 0; i < N; ++i)
+                line.emplace_back(i, N - 1 - i);
+            lines.push_back(std::move(line));
+        }
     }
 
     return lines;
 }
 
-std::string detectLineType(const std::vector<std::pair<int, int>>& line, int N)
+std::string detectLineType(const std::vector<std::pair<int, int>>& line, int rows, int cols)
 {
     if (line.empty())
         return {};
@@ -251,6 +266,9 @@ std::string detectLineType(const std::vector<std::pair<int, int>>& line, int N)
                                      [&](const auto& p) { return p.second == line[0].second; });
     if (sameCol)
         return "column";
+    if (rows != cols)
+        return {};
+    const int N = rows;
     const bool mainD = std::all_of(line.begin(), line.end(),
                                    [](const auto& p) { return p.first == p.second; });
     if (mainD)

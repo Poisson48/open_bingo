@@ -15,10 +15,10 @@ Item {
 
         ColumnLayout {
             x: Theme.pad
-            width: Math.max(0, scroll.availableWidth - Theme.pad * 2)
+            width: Math.min(Math.max(0, scroll.availableWidth - Theme.pad * 2), Theme.contentMax)
             spacing: Theme.gap
 
-            ComboBox {
+            ColoComboBox {
                 id: playerBox
                 Layout.fillWidth: true
                 model: {
@@ -44,7 +44,7 @@ Item {
                 }
                 BingoButton {
                     visible: playerBox.count > 0
-                    text: "Réinitialiser"
+                    text: "Réinitialiser la partie"
                     onClicked: confirmResetPlay.open()
                 }
             }
@@ -59,14 +59,18 @@ Item {
                     if (playerBox.count <= 0) { checks = []; return }
                     checks = AppController.loadPlayChecks(
                         AppController.grids[playerBox.currentIndex].player)
-                    if (checks.length === 0 && AppController.gridSize > 0) {
+                    if (checks.length === 0 && AppController.gridRows > 0) {
                         var empty = []
-                        const mid = Math.floor(AppController.gridSize / 2)
-                        for (var r = 0; r < AppController.gridSize; r++) {
+                        const rowsN = AppController.gridRows
+                        const colsN = AppController.gridCols
+                        const midR = Math.floor(rowsN / 2)
+                        const midC = Math.floor(colsN / 2)
+                        const freeCtr = AppController.freeCenter
+                                        && rowsN % 2 === 1 && colsN % 2 === 1
+                        for (var r = 0; r < rowsN; r++) {
                             var row = []
-                            for (var c = 0; c < AppController.gridSize; c++)
-                                row.push(AppController.freeCenter && AppController.gridSize % 2 === 1
-                                         && r === mid && c === mid)
+                            for (var c = 0; c < colsN; c++)
+                                row.push(freeCtr && r === midR && c === midC)
                             empty.push(row)
                         }
                         checks = empty
@@ -102,10 +106,15 @@ Item {
                     void previewOverlays
                     if (previewOverlays && previewOverlays.length > 0) {
                         const o = previewOverlays[0]
-                        if (o && o.kind === "gage")
-                            return { num: o.num, label: o.label, desc: o.desc }
-                        if (o && o.kind === "combo")
-                            return { num: 0, label: o.label || "", desc: o.desc || "" }
+                        if (o && (o.kind === "gage" || o.kind === "combo"))
+                            return {
+                                num: o.num || 0,
+                                label: o.label || "",
+                                desc: o.desc || "",
+                                prompt: o.prompt || "",
+                                who: o.who || o.player || "",
+                                kind: o.kind
+                            }
                     }
                     if (!AppController.gageMode || lastGageR < 0)
                         return null
@@ -120,20 +129,23 @@ Item {
                 function lookupCellGage(cell) {
                     if (!cell) return null
                     if (cell.gage && String(cell.gage).length > 0)
-                        return { num: cell.points || 0, label: cell.label || "", desc: String(cell.gage) }
+                        return { num: cell.points || 0, label: cell.label || "", desc: String(cell.gage), prompt: "" }
                     const idx = (cell.points || 0) - 1
                     const list = AppController.gages || []
                     if (idx < 0 || idx >= list.length) return null
                     const g = list[idx]
                     if (!g || !g.description) return null
-                    return { num: cell.points, label: cell.label || "", desc: g.description }
+                    return { num: cell.points, label: cell.label || "", desc: g.description, prompt: "" }
                 }
 
                 function toggle(r, c) {
                     if (!checks[r] || playerBox.count <= 0) return
-                    const mid = Math.floor(AppController.gridSize / 2)
-                    if (AppController.freeCenter && AppController.gridSize % 2 === 1
-                            && r === mid && c === mid)
+                    const rowsN = AppController.gridRows
+                    const colsN = AppController.gridCols
+                    const midR = Math.floor(rowsN / 2)
+                    const midC = Math.floor(colsN / 2)
+                    if (AppController.freeCenter && rowsN % 2 === 1 && colsN % 2 === 1
+                            && r === midR && c === midC)
                         return
                     const player = AppController.grids[playerBox.currentIndex].player
                     const result = AppController.togglePlayCell(player, r, c)
@@ -143,16 +155,8 @@ Item {
                     if (result.checked) {
                         lastGageR = r
                         lastGageC = c
+                        // Carte gage déjà visible : pas de toasts en doublon.
                         previewOverlays = result.overlays || []
-                        // Toasts pour chaque overlay (aperçu hors plein écran)
-                        for (var i = 0; i < previewOverlays.length; ++i) {
-                            const o = previewOverlays[i]
-                            if (!o || !o.desc) continue
-                            const title = o.kind === "combo"
-                                          ? (o.label || "Combinaison")
-                                          : ("Gage #" + (o.num || ""))
-                            AppController.notify(title + " — " + o.desc)
-                        }
                     } else {
                         if (lastGageR === r && lastGageC === c) {
                             lastGageR = -1
@@ -227,7 +231,9 @@ Item {
                     Label {
                         visible: !!playRoot.activeGageCard
                         text: playRoot.activeGageCard
-                              ? ("Gage #" + playRoot.activeGageCard.num)
+                              ? (playRoot.activeGageCard.kind === "combo"
+                                 ? (playRoot.activeGageCard.label || "Combinaison")
+                                 : ("Gage #" + playRoot.activeGageCard.num))
                               : ""
                         color: Theme.accent
                         font.pixelSize: 12
@@ -235,10 +241,23 @@ Item {
                     }
                     Label {
                         visible: !!playRoot.activeGageCard
+                                 && playRoot.activeGageCard.label
+                                 && playRoot.activeGageCard.kind !== "combo"
                         Layout.fillWidth: true
                         text: playRoot.activeGageCard ? playRoot.activeGageCard.label : ""
                         color: Theme.textDim
                         font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        visible: !!playRoot.activeGageCard
+                                 && !!(playRoot.activeGageCard.prompt
+                                      && String(playRoot.activeGageCard.prompt).length > 0)
+                        Layout.fillWidth: true
+                        text: playRoot.activeGageCard ? (playRoot.activeGageCard.prompt || "") : ""
+                        color: Theme.accent
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
                         wrapMode: Text.WordWrap
                     }
                     Label {
@@ -359,7 +378,7 @@ Item {
         destructive: true
         acceptText: "Réinitialiser"
         Label {
-            width: parent.width
+            Layout.fillWidth: true
             wrapMode: Text.WordWrap
             color: Theme.text
             text: "Effacer toutes les cases cochées de tous les joueurs ? "

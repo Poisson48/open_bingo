@@ -62,6 +62,32 @@ Item {
         }
     }
 
+    function shiftPlayer(delta) {
+        const grids = AppController.grids
+        if (!grids || grids.length === 0)
+            return
+        var idx = playerIndex
+        if (idx < 0 || idx >= grids.length) {
+            for (var i = 0; i < grids.length; ++i) {
+                if (grids[i].player === playerName) {
+                    idx = i
+                    break
+                }
+            }
+        }
+        if (idx < 0)
+            idx = 0
+        const n = grids.length
+        idx = (idx + delta + n) % n
+        playerIndex = idx
+        playerName = grids[idx].player || ""
+        rows = grids[idx].cells || []
+        bingoRevision++
+        reloadChecksFromController()
+        clearGagePanel()
+        hideWinner()
+    }
+
     // Comme PlayPage : recharger depuis la DB quand la sync distante (ou un
     // autre joueur local) met à jour les coches — sinon le plein écran reste
     // figé sur sa copie initiale.
@@ -70,18 +96,22 @@ Item {
             return
         var loaded = AppController.loadPlayChecks(playerName)
         if (!loaded || loaded.length === 0) {
-            const n = AppController.gridSize
-            if (n <= 0) {
+            const rowsN = AppController.gridRows
+            const colsN = AppController.gridCols
+            if (rowsN <= 0 || colsN <= 0) {
                 checks = []
                 bingoRevision++
                 return
             }
             var empty = []
-            const mid = Math.floor(n / 2)
-            for (var r = 0; r < n; r++) {
+            const midR = Math.floor(rowsN / 2)
+            const midC = Math.floor(colsN / 2)
+            const freeCtr = AppController.freeCenter
+                            && rowsN % 2 === 1 && colsN % 2 === 1
+            for (var r = 0; r < rowsN; r++) {
                 var row = []
-                for (var c = 0; c < n; c++)
-                    row.push(AppController.freeCenter && n % 2 === 1 && r === mid && c === mid)
+                for (var c = 0; c < colsN; c++)
+                    row.push(freeCtr && r === midR && c === midC)
                 empty.push(row)
             }
             loaded = empty
@@ -101,6 +131,11 @@ Item {
         function onGridsChanged() {
             fs.reloadRowsFromController()
             fs.reloadChecksFromController()
+        }
+        function onPlayOverlaysTriggered(overlays) {
+            if (!fs.visible)
+                return
+            fs.enqueueOverlays(overlays || [])
         }
     }
 
@@ -184,9 +219,12 @@ Item {
     function toggle(r, c) {
         if (!checks || !checks[r])
             return
-        const mid = Math.floor(AppController.gridSize / 2)
-        if (AppController.freeCenter && AppController.gridSize % 2 === 1
-                && r === mid && c === mid)
+        const rowsN = AppController.gridRows
+        const colsN = AppController.gridCols
+        const midR = Math.floor(rowsN / 2)
+        const midC = Math.floor(colsN / 2)
+        if (AppController.freeCenter && rowsN % 2 === 1 && colsN % 2 === 1
+                && r === midR && c === midC)
             return
 
         const result = AppController.togglePlayCell(fs.playerName, r, c)
@@ -285,6 +323,16 @@ Item {
             return comboIcon(activeOverlay.key) + "  " + (activeOverlay.label || comboLabel(activeOverlay.key))
         return "Gage #" + (activeOverlay.num || 0)
     }
+    readonly property string overlayPrompt: {
+        if (!activeOverlay) return ""
+        if (activeOverlay.prompt && String(activeOverlay.prompt).length > 0)
+            return activeOverlay.prompt
+        const who = activeOverlay.who || activeOverlay.player || ""
+        if (!who) return ""
+        const verb = activeOverlay.verb
+                     || ((activeOverlay.players && activeOverlay.players.length > 1) ? "doivent" : "doit")
+        return who + " " + verb + " :"
+    }
 
     Timer {
         id: gageHideTimer
@@ -303,7 +351,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: Math.round(Math.min(44, Math.max(36, parent.height * 0.07)))
+        height: Math.max(Theme.touchTarget, Math.round(Math.min(48, Math.max(40, parent.height * 0.07))))
         color: Theme.surface
         z: 2
 
@@ -316,9 +364,17 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
+            anchors.leftMargin: 8
             anchors.rightMargin: 8
-            spacing: 8
+            spacing: 4
+
+            IconButton {
+                iconName: "back"
+                iconColor: Theme.textDim
+                enabled: AppController.grids.length > 1
+                Accessible.name: "Joueur précédent"
+                onClicked: fs.shiftPlayer(-1)
+            }
 
             Label {
                 Layout.fillWidth: true
@@ -329,6 +385,16 @@ Item {
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
                 maximumLineCount: 1
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            IconButton {
+                iconName: "back"
+                iconColor: Theme.textDim
+                rotation: 180
+                enabled: AppController.grids.length > 1
+                Accessible.name: "Joueur suivant"
+                onClicked: fs.shiftPlayer(1)
             }
 
             Label {
@@ -341,10 +407,11 @@ Item {
             IconButton {
                 iconName: "close"
                 iconColor: Theme.text
-                implicitWidth: Math.min(44, topBar.height - 4)
-                implicitHeight: Math.min(44, topBar.height - 4)
-                Layout.preferredWidth: implicitWidth
-                Layout.preferredHeight: implicitHeight
+                Accessible.name: "Fermer la partie"
+                implicitWidth: Theme.touchTarget
+                implicitHeight: Theme.touchTarget
+                Layout.preferredWidth: Theme.touchTarget
+                Layout.preferredHeight: Theme.touchTarget
                 onClicked: fs.close()
             }
         }
@@ -434,6 +501,16 @@ Item {
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: fs.overlayPrompt.length > 0
+                text: fs.overlayPrompt
+                color: Theme.accent
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                wrapMode: Text.WordWrap
             }
 
             Label {

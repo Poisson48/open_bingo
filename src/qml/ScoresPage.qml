@@ -35,12 +35,12 @@ ScrollView {
 
     ColumnLayout {
         x: Theme.pad
-        width: Math.max(0, scroll.availableWidth - Theme.pad * 2)
+        width: Math.min(Math.max(0, scroll.availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
 
         Label {
             Layout.fillWidth: true
-            text: "Classement live — grille pleine = gagnant. Exportez en PNG pour partager."
+            text: "Classement live — grille pleine = gagnant. Exporte en PNG pour partager."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap
@@ -106,7 +106,7 @@ ScrollView {
         Label {
             visible: scroll.board.length === 0
             Layout.fillWidth: true
-            text: "Générez des grilles et cochez des cases dans Play pour voir le classement."
+            text: "Générez des grilles et cochez des cases dans Partie pour voir le classement."
             color: Theme.textDim
             font.pixelSize: 14
             wrapMode: Text.WordWrap

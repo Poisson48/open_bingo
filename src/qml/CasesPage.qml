@@ -8,7 +8,7 @@ ScrollView {
 
     ColumnLayout {
         x: Theme.pad
-        width: Math.max(0, availableWidth - Theme.pad * 2)
+        width: Math.min(Math.max(0, availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
 
         Label {
@@ -22,7 +22,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: AppController.gridsDirty
-            text: "Les grilles ne reflètent plus les cases — regénérez-les."
+            text: "Les grilles ne reflètent plus les cases — regénère-les."
             color: Theme.warning
             wrapMode: Text.WordWrap
         }
@@ -65,7 +65,7 @@ ScrollView {
                         color: Theme.textDim
                         font.pixelSize: 12
                     }
-                    SpinBox {
+                    ColoSpinBox {
                         id: pts
                         from: AppController.gageMode ? 1 : 0
                         to: 99
@@ -73,7 +73,7 @@ ScrollView {
                         Layout.fillWidth: true
                     }
                     Label { text: "Taux %"; color: Theme.textDim; font.pixelSize: 12 }
-                    SpinBox {
+                    ColoSpinBox {
                         id: rate
                         from: 0; to: 100; value: 50
                         Layout.fillWidth: true
@@ -97,8 +97,8 @@ ScrollView {
             Layout.fillWidth: true
             visible: AppController.cases.length > 0
             text: AppController.gageMode
-                  ? "Touchez une phrase pour changer le texte, le n° de gage ou le taux."
-                  : "Touchez une phrase pour modifier son texte, ses points ou son taux."
+                  ? "Touche une phrase pour changer le texte, le n° de gage ou le taux."
+                  : "Touche une phrase pour modifier son texte, ses points ou son taux."
             color: Theme.textDim
             font.pixelSize: 12
             wrapMode: Text.WordWrap
@@ -183,14 +183,14 @@ ScrollView {
                     color: Theme.textDim
                     font.pixelSize: 12
                 }
-                SpinBox {
+                ColoSpinBox {
                     id: editPts
                     from: AppController.gageMode ? 1 : 0
                     to: 99
                     Layout.fillWidth: true
                 }
                 Label { text: "Taux %"; color: Theme.textDim; font.pixelSize: 12 }
-                SpinBox {
+                ColoSpinBox {
                     id: editRate
                     from: 0; to: 100
                     Layout.fillWidth: true

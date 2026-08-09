@@ -110,13 +110,18 @@ json projectToJsonObj(const Project& p)
     for (const auto& gr : p.grids)
         grids.push_back(gridToJson(gr));
 
+    Project dims = p;
+    normalizeGridDims(dims);
+
     return json{
         { "id", p.id },
         { "title", p.title },
         { "description", p.description },
         { "createdAt", p.createdAt },
         { "updatedAt", p.updatedAt },
-        { "gridSize", p.gridSize },
+        { "gridSize", dims.gridSize },
+        { "gridRows", dims.gridRows },
+        { "gridCols", dims.gridCols },
         { "players", std::move(players) },
         { "startHP", p.startHP },
         { "freeCenter", p.freeCenter },
@@ -138,6 +143,14 @@ Project projectFromJsonObj(const json& j)
     if (j.contains("createdAt")) p.createdAt = j["createdAt"].get<int64_t>();
     if (j.contains("updatedAt")) p.updatedAt = j["updatedAt"].get<int64_t>();
     if (j.contains("gridSize")) p.gridSize = j["gridSize"].get<int>();
+    if (j.contains("gridRows")) p.gridRows = j["gridRows"].get<int>();
+    if (j.contains("gridCols")) p.gridCols = j["gridCols"].get<int>();
+    // Ancien JSON : seul gridSize → carré. Sinon rows/cols primaires.
+    if (!j.contains("gridRows") && !j.contains("gridCols") && j.contains("gridSize")) {
+        p.gridRows = p.gridSize;
+        p.gridCols = p.gridSize;
+    }
+    normalizeGridDims(p);
     if (j.contains("startHP")) p.startHP = j["startHP"].get<int>();
     if (j.contains("freeCenter")) p.freeCenter = j["freeCenter"].get<bool>();
     if (j.contains("gageMode")) p.gageMode = j["gageMode"].get<bool>();
@@ -215,6 +228,7 @@ Project JsonCodec::defaultProject()
     p.createdAt = now;
     p.updatedAt = now;
     p.players = { { "Joueur 1" }, { "Joueur 2" } };
+    normalizeGridDims(p);
     return p;
 }
 

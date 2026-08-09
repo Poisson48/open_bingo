@@ -25,6 +25,8 @@ class AppController : public QObject
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY currentProjectChanged)
     Q_PROPERTY(QString description READ description WRITE setDescription NOTIFY currentProjectChanged)
     Q_PROPERTY(int gridSize READ gridSize WRITE setGridSize NOTIFY currentProjectChanged)
+    Q_PROPERTY(int gridRows READ gridRows WRITE setGridRows NOTIFY currentProjectChanged)
+    Q_PROPERTY(int gridCols READ gridCols WRITE setGridCols NOTIFY currentProjectChanged)
     Q_PROPERTY(int startHP READ startHP WRITE setStartHP NOTIFY currentProjectChanged)
     Q_PROPERTY(bool freeCenter READ freeCenter WRITE setFreeCenter NOTIFY currentProjectChanged)
     Q_PROPERTY(bool gageMode READ gageMode WRITE setGageMode NOTIFY currentProjectChanged)
@@ -55,6 +57,8 @@ public:
     QString title() const;
     QString description() const;
     int gridSize() const;
+    int gridRows() const;
+    int gridCols() const;
     int startHP() const;
     bool freeCenter() const;
     bool gageMode() const;
@@ -77,6 +81,8 @@ public:
     void setTitle(const QString& v);
     void setDescription(const QString& v);
     void setGridSize(int v);
+    void setGridRows(int v);
+    void setGridCols(int v);
     void setStartHP(int v);
     void setFreeCenter(bool v);
     void setGageMode(bool v);
@@ -192,6 +198,8 @@ signals:
     void editorOpened(const QString& projectId);
     void toast(const QString& message);
     void playChecksChanged();
+    // Gages à afficher après un cochage distant (sync) — même file que togglePlayCell.
+    void playOverlaysTriggered(const QVariantList& overlays);
 
 private:
     void touchProject();
@@ -200,6 +208,10 @@ private:
     void publishPlayChecksIfShared();
     void markGridsDirty();
     void clearGridsDirtyFlag();
+    void rememberPlayChecksSnapshot();
+    QVariantList overlaysForNewlyCheckedCells(
+        const std::map<std::string, std::string>& before,
+        const std::map<std::string, std::string>& after) const;
     core::Project* current();
     const core::Project* current() const;
     QVariantList gridsToVariant() const;
@@ -215,6 +227,8 @@ private:
     int                              m_gridsRevision = 0;
     int                              m_lastTab     = 0;
     QTimer                           m_autoSaveTimer;
+    // Coches connues avant le dernier merge distant — pour déclencher les gages.
+    std::map<std::string, std::string> m_playChecksSnapshot;
 };
 
 } // namespace app

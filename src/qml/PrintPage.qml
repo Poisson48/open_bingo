@@ -8,15 +8,24 @@ ScrollView {
 
     ColumnLayout {
         x: Theme.pad
-        width: Math.max(0, availableWidth - Theme.pad * 2)
+        width: Math.min(Math.max(0, availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
 
         Label {
             Layout.fillWidth: true
-            text: "Aperçu A4 — 2 grilles par page (nom, points / n° de gage, PV ou note, + feuille des gages). L’impression ouvre le service système ; vous pouvez aussi enregistrer un PDF."
+            text: "Aperçu A4 — 2 grilles par page (nom, points / n° de gage, PV ou note, + feuille des gages). L’impression ouvre le service système ; tu peux aussi enregistrer un PDF."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: AppController.grids.length === 0
+            text: "Aucune grille à imprimer — génère-les d’abord dans l’onglet Grilles."
+            color: Theme.warning
+            wrapMode: Text.WordWrap
+            font.pixelSize: 13
         }
 
         RowLayout {

@@ -170,71 +170,13 @@ ApplicationWindow {
             }
         }
 
-        // Dans le header (pas en overlay sur les onglets éditeur).
-        Rectangle {
-            width: parent.width
-            height: window.offline ? 32 : 0
-            color: Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.92)
-            clip: true
-            visible: height > 0 && !window.screenshotMode
-            Behavior on height { NumberAnimation { duration: 160 } }
-
-            Label {
-                anchors.centerIn: parent
-                width: parent.width - 16
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-                text: "Hors ligne — les modifications partiront au retour du réseau"
-                color: "#1A1400"
-                font.pixelSize: 12
-            }
-        }
-
-        Rectangle {
-            width: parent.width
-            height: visible ? 26 : 0
-            visible: !window.offline && !window.screenshotMode
-                     && (window.showPendingBanner || window.showSynced)
-            clip: true
-            color: window.showPendingBanner
-                   ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.92)
-                   : Qt.rgba(Theme.accentSoft.r, Theme.accentSoft.g, Theme.accentSoft.b, 0.92)
-
-            Label {
-                anchors.centerIn: parent
-                width: parent.width - 16
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-                color: window.showPendingBanner ? Theme.textDim : Theme.accent
-                font.pixelSize: 12
-                text: window.showPendingBanner
-                      ? "Envoi de " + AppController.pendingChanges + " modification(s)…"
-                      : "Tout est synchronisé"
-            }
-        }
-    }
-
-    StackView {
-        id: stack
-        anchors.fill: parent
-        initialItem: projectsPage
-    }
-
-    // Bandeau MAJ seul en overlay (sous le header), pour ne pas pousser le layout.
-    Column {
-        id: bannerOverlay
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        z: 10
-        spacing: 0
-        visible: !playGame.visible && !window.screenshotMode
-
+        // Bannière MAJ dans le header (pousse le contenu) — plus d'overlay opaque.
         Rectangle {
             id: updateBanner
             width: parent.width
             height: visible ? 56 : 0
-            visible: Updater.updateAvailable || Updater.downloading || Updater.readyToInstall
+            visible: !window.screenshotMode
+                     && (Updater.updateAvailable || Updater.downloading || Updater.readyToInstall)
             color: Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.95)
             clip: true
 
@@ -293,23 +235,15 @@ ApplicationWindow {
                         color: Theme.textDim
                         font.pixelSize: 12
                         text: Updater.readyToInstall
-                              ? "Android vous demandera confirmation"
-                              : "Vous avez la " + Updater.currentVersion
+                              ? "Android te demandera confirmation"
+                              : "Tu as la " + Updater.currentVersion
                     }
                 }
 
-                Button {
-                    flat: true
+                BingoButton {
                     visible: !Updater.downloading
-                    implicitHeight: Theme.touchTarget
-                    contentItem: Label {
-                        text: Updater.readyToInstall ? "Installer" : "Mettre à jour"
-                        color: Theme.accent
-                        font.pixelSize: 14
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    text: Updater.readyToInstall ? "Installer" : "Mettre à jour"
+                    primary: true
                     onClicked: {
                         if (Updater.readyToInstall)
                             Updater.install()
@@ -324,10 +258,60 @@ ApplicationWindow {
                     visible: !Updater.downloading
                     iconName: "close"
                     iconColor: Theme.textDim
+                    Accessible.name: "Fermer la mise à jour"
                     onClicked: Updater.dismiss()
                 }
             }
         }
+
+        // Dans le header (pas en overlay sur les onglets éditeur).
+        Rectangle {
+            width: parent.width
+            height: window.offline ? 32 : 0
+            color: Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.92)
+            clip: true
+            visible: height > 0 && !window.screenshotMode
+            Behavior on height { NumberAnimation { duration: 160 } }
+
+            Label {
+                anchors.centerIn: parent
+                width: parent.width - 16
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: "Hors ligne — les modifications partiront au retour du réseau"
+                color: "#1A1400"
+                font.pixelSize: 12
+            }
+        }
+
+        Rectangle {
+            width: parent.width
+            height: visible ? 26 : 0
+            visible: !window.offline && !window.screenshotMode
+                     && (window.showPendingBanner || window.showSynced)
+            clip: true
+            color: window.showPendingBanner
+                   ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.92)
+                   : Qt.rgba(Theme.accentSoft.r, Theme.accentSoft.g, Theme.accentSoft.b, 0.92)
+
+            Label {
+                anchors.centerIn: parent
+                width: parent.width - 16
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                color: window.showPendingBanner ? Theme.textDim : Theme.accent
+                font.pixelSize: 12
+                text: window.showPendingBanner
+                      ? "Envoi de " + AppController.pendingChanges + " modification(s)…"
+                      : "Tout est synchronisé"
+            }
+        }
+    }
+
+    StackView {
+        id: stack
+        anchors.fill: parent
+        initialItem: projectsPage
     }
 
     Component { id: projectsPage; ProjectsPage {} }

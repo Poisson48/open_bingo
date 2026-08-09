@@ -28,6 +28,8 @@ QVariant ProjectModel::data(const QModelIndex& index, int role) const
     case DescriptionRole: return QString::fromStdString(p.description);
     case UpdatedAtRole: return static_cast<qlonglong>(p.updatedAt);
     case GridSizeRole: return p.gridSize;
+    case GridRowsRole: return p.gridRows > 0 ? p.gridRows : p.gridSize;
+    case GridColsRole: return p.gridCols > 0 ? p.gridCols : p.gridSize;
     case PlayerCountRole: return static_cast<int>(p.players.size());
     case CaseCountRole: return static_cast<int>(p.cases.size());
     case GridCountRole: return static_cast<int>(p.grids.size());
@@ -45,6 +47,8 @@ QHash<int, QByteArray> ProjectModel::roleNames() const
         { DescriptionRole, "description" },
         { UpdatedAtRole, "updatedAt" },
         { GridSizeRole, "gridSize" },
+        { GridRowsRole, "gridRows" },
+        { GridColsRole, "gridCols" },
         { PlayerCountRole, "playerCount" },
         { CaseCountRole, "caseCount" },
         { GridCountRole, "gridCount" },

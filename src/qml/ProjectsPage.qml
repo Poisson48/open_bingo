@@ -16,23 +16,16 @@ Item {
 
     // Comme Colo Courses : Rejoindre bien visible dans la barre.
     property Component actions: Row {
-        spacing: 0
-        ToolButton {
-            width: 96
-            height: Theme.touchTarget
-            contentItem: Label {
-                text: "Rejoindre"
-                color: Theme.accent
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
+        spacing: 4
+        BingoButton {
+            text: "Rejoindre"
+            primary: true
             onClicked: joinDialog.open()
         }
         IconButton {
             iconName: "menu"
             iconColor: Theme.text
+            Accessible.name: "Menu"
             onClicked: overflowMenu.popup()
         }
     }
@@ -208,7 +201,7 @@ Item {
                                 }
                                 Label {
                                     Layout.fillWidth: true
-                                    text: gridSize + "x" + gridSize + "  "
+                                    text: (gridRows || gridSize) + "×" + (gridCols || gridSize) + "  "
                                           + playerCount + " joueurs  " + caseCount + " phrases"
                                           + (gridCount > 0 ? ("  " + gridCount + " grilles") : "  — pas de grille")
                                     color: gridCount > 0 ? Theme.textDim : Theme.warning
@@ -222,8 +215,10 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
-                            BingoButton {
-                                text: "⋯"
+                            IconButton {
+                                iconName: "menu"
+                                iconColor: Theme.textDim
+                                Accessible.name: "Options du projet"
                                 onClicked: {
                                     page.menuProjectId = projectId
                                     page.menuProjectTitle = title
@@ -252,16 +247,6 @@ Item {
             text: "+ Nouveau projet"
             primary: true
             onClicked: AppController.createProject()
-        }
-
-        BingoButton {
-            Layout.fillWidth: true
-            text: "Charger un projet démo cinéma"
-            onClicked: {
-                const id = AppController.seedDemoProject()
-                if (id.length)
-                    AppController.openProject(id)
-            }
         }
 
         Item { Layout.preferredHeight: Theme.pad * 2 }
@@ -352,7 +337,7 @@ Item {
             color: Theme.textDim
             font.pixelSize: 14
             text: "« " + page.leaveTargetTitle + " » sera effacé de cet appareil. "
-                  + "Les autres participants le gardent, et vous pourrez le rejoindre à nouveau avec le lien ou le QR."
+                  + "Les autres participants le gardent, et tu pourras le rejoindre à nouveau avec le lien ou le QR."
         }
         onAccepted: AppController.leaveProject(page.leaveTargetId)
     }
@@ -363,10 +348,10 @@ Item {
         destructive: true
         acceptText: "Supprimer"
         Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
             text: "Supprimer « " + page.deleteTargetTitle + " » ?"
             color: Theme.text
-            wrapMode: Text.WordWrap
-            width: parent.width
         }
         onAccepted: AppController.deleteProject(page.deleteTargetId)
     }

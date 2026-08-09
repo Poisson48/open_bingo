@@ -93,6 +93,9 @@ set(BINGO_QML_FILES
     qml/ColoDialog.qml
     qml/ColoTextField.qml
     qml/ColoMenu.qml
+    qml/ColoComboBox.qml
+    qml/ColoSpinBox.qml
+    qml/ColoCheckBox.qml
     qml/Icon.qml
     qml/IconButton.qml
     qml/BingoButton.qml

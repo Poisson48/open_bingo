@@ -252,12 +252,23 @@ private slots:
         QVERIFY(result.value(QStringLiteral("checked")).toBool());
         const auto overlays = result.value(QStringLiteral("overlays")).toList();
         QVERIFY(!overlays.isEmpty());
-        // Un seul joueur (Alice) : pas d'overlay pour Bob malgré la sync.
+        // Même gage pour Alice et Bob → un overlay groupé « Alice et Bob doivent : … »
+        bool foundGroupedGage = false;
         for (const auto& ovV : overlays) {
             const auto ov = ovV.toMap();
-            if (ov.value(QStringLiteral("kind")).toString() == QLatin1String("gage"))
-                QCOMPARE(ov.value(QStringLiteral("player")).toString(), alice);
+            if (ov.value(QStringLiteral("kind")).toString() != QLatin1String("gage"))
+                continue;
+            const auto players = ov.value(QStringLiteral("players")).toStringList();
+            QVERIFY(players.contains(alice));
+            QVERIFY(players.contains(bob));
+            QCOMPARE(players.size(), 2);
+            const QString prompt = ov.value(QStringLiteral("prompt")).toString();
+            QVERIFY(prompt.contains(QStringLiteral("doivent")));
+            QVERIFY(prompt.contains(alice));
+            QVERIFY(prompt.contains(bob));
+            foundGroupedGage = true;
         }
+        QVERIFY(foundGroupedGage);
 
         auto countChecked = [](const QVariantList& checks) {
             int n = 0;

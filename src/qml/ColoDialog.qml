@@ -7,7 +7,7 @@ import QtQuick.Layouts
 Dialog {
     id: dlg
 
-    property string acceptText: "OK"
+    property string acceptText: "Valider"
     property bool   acceptEnabled: true
     property bool   destructive: false
     // Masque le bouton de validation : pour un dialogue dont chaque ligne agit au clic
@@ -39,7 +39,7 @@ Dialog {
 
     background: Rectangle {
         color: Theme.surface
-        radius: 20
+        radius: Theme.radiusLg
         border.color: Theme.outline
         border.width: 1
     }
@@ -49,7 +49,8 @@ Dialog {
         color: Theme.text
         font.pixelSize: 19
         font.weight: Font.DemiBold
-        elide: Text.ElideRight
+        wrapMode: Text.WordWrap
+        width: dlg.availableWidth > 0 ? dlg.availableWidth : dlg.width - 40
         padding: 20
         bottomPadding: 4
     }
@@ -57,6 +58,8 @@ Dialog {
     contentItem: ColumnLayout {
         id: content
         spacing: Theme.gap
+        // Sans largeur fixe, les Label wrapMode s'étirent hors de la boîte.
+        width: dlg.availableWidth > 0 ? dlg.availableWidth : dlg.width - 40
     }
 
     footer: RowLayout {

@@ -21,6 +21,8 @@ public:
         DescriptionRole,
         UpdatedAtRole,
         GridSizeRole,
+        GridRowsRole,
+        GridColsRole,
         PlayerCountRole,
         CaseCountRole,
         GridCountRole,
