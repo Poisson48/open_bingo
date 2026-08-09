@@ -6,10 +6,12 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
@@ -23,6 +25,7 @@ import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintDocumentInfo;
 import android.print.PrintManager;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.WindowManager;
 
@@ -117,6 +120,58 @@ public class Platform {
             send.putExtra(Intent.EXTRA_TEXT, text);
             Intent chooser = Intent.createChooser(send, "Partager la liste");
             // Hors d'une Activity, le chooser exige sa propre tâche.
+            chooser.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(chooser);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Classement PNG : insert MediaStore (pas de FileProvider) puis feuille de partage.
+    public static boolean shareImage(Context ctx, String path) {
+        if (ctx == null || path == null)
+            return false;
+        File file = new File(path);
+        if (!file.isFile() || file.length() == 0)
+            return false;
+        try {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, file.getName());
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+            Uri collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                collection = MediaStore.Images.Media.getContentUri(
+                        MediaStore.VOLUME_EXTERNAL_PRIMARY);
+
+            Uri uri = ctx.getContentResolver().insert(collection, values);
+            if (uri == null)
+                return false;
+
+            try (InputStream in = new FileInputStream(file);
+                 OutputStream out = ctx.getContentResolver().openOutputStream(uri)) {
+                if (out == null)
+                    return false;
+                byte[] buffer = new byte[65536];
+                int read;
+                while ((read = in.read(buffer)) > 0)
+                    out.write(buffer, 0, read);
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear();
+                values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                ctx.getContentResolver().update(uri, values, null, null);
+            }
+
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, "Partager le classement");
             chooser.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(chooser);
             return true;

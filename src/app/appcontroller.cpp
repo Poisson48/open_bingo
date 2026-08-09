@@ -1138,66 +1138,109 @@ QString AppController::seedDemoProject()
 
     auto p = core::JsonCodec::defaultProject();
     p.title = "Soirée Cinéma (démo)";
-    p.description = "Bingo des clichés qui arrivent dans le film — 4 joueurs, grille 5×5.";
+    p.description = "Bingo des clichés du film — 4 joueurs, grille 5×5, mode gage "
+                    "avec plusieurs gages par n° (tirage pondéré).";
     p.gridRows = 5;
     p.gridCols = 5;
     p.gridSize = 5;
     p.startHP = 20;
     p.freeCenter = true;
-    p.gageMode = false;
+    p.gageMode = true;
     p.players = { { "Léa" }, { "Max" }, { "Sam" }, { "Chloé" } };
-    // Gages prêts si on active le mode gage (points des cases = n° de gage).
-    // Plusieurs gages peuvent partager un n° avec des % de tirage.
+    // Plusieurs gages peuvent partager un n° ; rate = poids relatif au tirage.
     p.gages = {
-        { "Imite la voix du personnage", 5, 1, 60 },
-        { "Chante la réplique en mode opéra", 5, 1, 40 },
-        { "Mime la scène en 10 secondes", 5, 2, 100 },
-        { "Inventez la réplique suivante", 5, 3, 70 },
-        { "Fais un bruitage live", 5, 3, 30 },
-        { "Change de place avec ton voisin", 3, 4, 100 },
-        { "Raconte la scène en chuchotant", 3, 5, 100 },
+        { "Imite la voix du personnage", 0, 1, 70 },
+        { "Chante la réplique en mode opéra", 0, 1, 25 },
+        { "Bois une gorgée (risqué)", 0, 1, 5 },
+        { "Mime la scène en 10 secondes", 0, 2, 80 },
+        { "Fais le bruitage live", 0, 2, 20 },
+        { "Inventez la réplique suivante", 0, 3, 60 },
+        { "Raconte la scène en chuchotant", 0, 3, 30 },
+        { "Change de place avec ton voisin", 0, 3, 10 },
+        { "Debout 5 secondes", 0, 4, 90 },
+        { "Danse 5 secondes (risqué)", 0, 4, 10 },
+        { "Compliment ridicule au voisin", 0, 5, 100 },
+        { "Titre alternatif du film", 0, 6, 75 },
+        { "Pitch la suite en 15 s", 0, 6, 25 },
+        { "Choisis un Oscar inventé", 0, 7, 100 },
+        { "Imite le méchant", 0, 8, 55 },
+        { "Imite le héros", 0, 8, 35 },
+        { "Cri de guerre (risqué)", 0, 8, 10 },
     };
     p.comboGages.line = "Toute la table boit une gorgée";
     p.comboGages.column = "Le joueur à ta gauche invente un titre alternatif";
     p.comboGages.diagonal = "Tout le monde se lève 5 secondes";
 
-    // Clichés / événements DANS le film (pas pendant la séance). Phrases courtes pour mobile.
-    static const char* phrases[] = {
-        "Le héros se réveille en sursaut",
-        "Flashback en noir et blanc",
-        "Le méchant monologue",
-        "Course-poursuite en voiture",
-        "Explosion spectaculaire",
-        "Révélation : un traître",
-        "Baiser sous la pluie",
-        "Le mentor meurt",
-        "Montage entraînement",
-        "Le chien survit",
-        "Twist prévisible",
-        "Bagarre au ralenti",
-        "Il refuse d'abord la quête",
-        "Vilain qui tombe",
-        "Réplique culte répétée",
-        "Se déguise mal",
-        "Fin ouverte",
-        "Caméo surprise",
-        "Plan produit trop long",
-        "Ils se séparent puis se retrouvent",
-        "Vision / fantôme",
-        "Compte à rebours",
-        "Sauvetage in extremis",
-        "Gag après le générique",
-        "Le vrai méchant était un allié",
+    // Assez de phrases (> cellules jouables) + taux < 100 pour des grilles vraiment
+    // différentes entre joueurs (24 cases utiles sur 5×5 avec FREE).
+    static const struct {
+        const char* label;
+        int rate;
+    } phrases[] = {
+        { "Le héros se réveille en sursaut", 90 },
+        { "Flashback en noir et blanc", 80 },
+        { "Le méchant monologue", 95 },
+        { "Course-poursuite en voiture", 85 },
+        { "Explosion spectaculaire", 90 },
+        { "Révélation : un traître", 85 },
+        { "Baiser sous la pluie", 70 },
+        { "Le mentor meurt", 75 },
+        { "Montage entraînement", 80 },
+        { "Le chien survit", 70 },
+        { "Twist prévisible", 90 },
+        { "Bagarre au ralenti", 85 },
+        { "Il refuse d'abord la quête", 80 },
+        { "Vilain qui tombe", 85 },
+        { "Réplique culte répétée", 90 },
+        { "Se déguise mal", 75 },
+        { "Fin ouverte", 70 },
+        { "Caméo surprise", 65 },
+        { "Plan produit trop long", 60 },
+        { "Ils se séparent puis se retrouvent", 85 },
+        { "Vision / fantôme", 70 },
+        { "Compte à rebours", 80 },
+        { "Sauvetage in extremis", 90 },
+        { "Gag après le générique", 55 },
+        { "Le vrai méchant était un allié", 80 },
+        { "Arme qui s'enraye", 75 },
+        { "Héros qui tombe amoureux", 70 },
+        { "Quiproquo comique", 80 },
+        { "Fuite dans les égouts", 60 },
+        { "Saut d'un immeuble", 70 },
+        { "Appel téléphonique interrompu", 75 },
+        { "Carte / plan étalé sur une table", 80 },
+        { "Regarde par la fenêtre, voit l'ennemi", 75 },
+        { "Électrocuté mais ça va", 65 },
+        { "Voiture qui n'a presque plus d'essence", 70 },
+        { "Poursuite à pied dans une foule", 75 },
+        { "Amnésie temporaire", 55 },
+        { "Coffre-fort / code secret", 70 },
+        { "Le copain sacrifie / se sacrifie", 75 },
+        { "Réunion d'équipe avant le coup final", 80 },
+        { "Pluie de balles, personne n'est touché", 85 },
+        { "Héros qui enlève ses lunettes", 60 },
+        { "Discours motivant avant l'assaut", 75 },
+        { "Le vilain dit « on se reverra »", 85 },
+        { "Explosion vue de loin au ralenti", 80 },
+        { "Enfant qui sauve la situation", 55 },
+        { "Trahison révélée par un regard", 70 },
+        { "Musique épique qui monte", 90 },
+        { "Héros qui dit non puis accepte", 80 },
+        { "Scène de bar / alcool", 65 },
+        { "Ordinateur qui « pirate » trop vite", 70 },
+        { "Chute dans l'eau", 60 },
+        { "Le méchant applaudit lentement", 75 },
+        { "Fusillade derrière des caisses", 80 },
+        { "Retour à la case départ (lieu du début)", 70 },
     };
     p.cases.clear();
-    // N° max parmi les gages (pas l'index) pour assigner les phrases.
     int maxNum = 1;
     for (const auto& g : p.gages)
         maxNum = std::max(maxNum, g.number);
     int i = 0;
-    for (const auto* label : phrases) {
+    for (const auto& ph : phrases) {
         const int gageNum = (i % maxNum) + 1;
-        p.cases.push_back({ label, gageNum, 100 });
+        p.cases.push_back({ ph.label, gageNum, ph.rate });
         ++i;
     }
 
@@ -2043,17 +2086,13 @@ QVariantList AppController::playScoreboard() const
     return buildScoreboard(m_current, m_db.get());
 }
 
-bool AppController::exportScoreboardPng(const QString& filePath)
+QImage AppController::renderScoreboardImage()
 {
-    if (!m_hasCurrent || !m_db) {
-        emit toast(QStringLiteral("Aucun projet ouvert"));
-        return false;
-    }
+    if (!m_hasCurrent || !m_db)
+        return {};
     const QVariantList board = buildScoreboard(m_current, m_db.get());
-    if (board.isEmpty()) {
-        emit toast(QStringLiteral("Aucun joueur — générez des grilles d'abord"));
-        return false;
-    }
+    if (board.isEmpty())
+        return {};
 
     const bool gageMode = m_current.gageMode;
     const QString unit = gageMode ? QStringLiteral("cases") : QStringLiteral("pts");
@@ -2271,6 +2310,20 @@ bool AppController::exportScoreboardPng(const QString& filePath)
                                   .arg(winnerNames.size())
                                   .arg(winnerNames.size() > 1 ? QStringLiteral("s") : QString())));
     p.end();
+    return img;
+}
+
+bool AppController::exportScoreboardPng(const QString& filePath)
+{
+    if (!m_hasCurrent || !m_db) {
+        emit toast(QStringLiteral("Aucun projet ouvert"));
+        return false;
+    }
+    const QImage img = renderScoreboardImage();
+    if (img.isNull()) {
+        emit toast(QStringLiteral("Aucun joueur — générez des grilles d'abord"));
+        return false;
+    }
 
     QString path = filePath;
     if (!path.endsWith(QLatin1String(".png"), Qt::CaseInsensitive))
@@ -2282,13 +2335,68 @@ bool AppController::exportScoreboardPng(const QString& filePath)
     return QFileInfo::exists(path) && QFileInfo(path).size() > 200;
 }
 
-bool AppController::saveScoreboardPng()
+QString AppController::scoreboardPreviewUrl() const
+{
+    if (m_scoreboardPreviewPath.isEmpty())
+        return {};
+    return QUrl::fromLocalFile(m_scoreboardPreviewPath).toString()
+         + QStringLiteral("#r=") + QString::number(m_scoreboardPreviewRevision);
+}
+
+QString AppController::scoreboardShareLabel() const
+{
+#ifdef Q_OS_ANDROID
+    return QStringLiteral("Partager");
+#else
+    return QStringLiteral("Enregistrer");
+#endif
+}
+
+QString AppController::prepareScoreboardPreview()
+{
+    if (!m_hasCurrent || m_current.grids.empty()) {
+        emit toast(QStringLiteral("Générez des grilles d'abord"));
+        return {};
+    }
+    const QImage img = renderScoreboardImage();
+    if (img.isNull()) {
+        emit toast(QStringLiteral("Aucun joueur — générez des grilles d'abord"));
+        return {};
+    }
+
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(dir);
+    const QString path = QDir(dir).filePath(QStringLiteral("openbingo-scores-preview.png"));
+    if (!img.save(path, "PNG") || !QFileInfo::exists(path) || QFileInfo(path).size() < 200) {
+        emit toast(QStringLiteral("Échec de l'aperçu PNG"));
+        return {};
+    }
+    m_scoreboardPreviewPath = path;
+    ++m_scoreboardPreviewRevision;
+    emit scoreboardPreviewChanged();
+    return scoreboardPreviewUrl();
+}
+
+bool AppController::shareScoreboardPng()
 {
     if (!m_hasCurrent || m_current.grids.empty()) {
         emit toast(QStringLiteral("Générez des grilles d'abord"));
         return false;
     }
 
+#ifdef Q_OS_ANDROID
+    if (m_scoreboardPreviewPath.isEmpty() || !QFileInfo::exists(m_scoreboardPreviewPath)
+            || QFileInfo(m_scoreboardPreviewPath).size() < 200) {
+        if (prepareScoreboardPreview().isEmpty())
+            return false;
+    }
+    if (platformShareImage(m_scoreboardPreviewPath)) {
+        emit toast(QStringLiteral("Classement prêt à partager"));
+        return true;
+    }
+    emit toast(QStringLiteral("Impossible de partager le PNG"));
+    return false;
+#else
     const QString suggested = QDir(
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
         .filePath(QString::fromStdString(m_current.title)
@@ -2310,6 +2418,12 @@ bool AppController::saveScoreboardPng()
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     emit toast(QStringLiteral("Classement exporté"));
     return true;
+#endif
+}
+
+bool AppController::saveScoreboardPng()
+{
+    return shareScoreboardPng();
 }
 
 void AppController::setKeepScreenOn(bool on) { platformKeepScreenOn(on); }

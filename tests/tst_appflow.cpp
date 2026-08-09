@@ -95,12 +95,34 @@ private slots:
         QVERIFY(controller.init());
         QVERIFY2(controller.projects()->rowCount() >= 1, "demo auto-seeded");
         QVERIFY(controller.title().contains(QStringLiteral("Cinéma")));
+        QVERIFY(controller.gageMode());
+        QVERIFY2(controller.cases().size() >= 40, "assez de phrases pour varier");
+        QVERIFY2(controller.gages().size() >= 10, "assez de gages (variantes)");
         QVERIFY(controller.grids().size() >= 2);
         QCOMPARE(controller.grids().size(), controller.players().size());
         const auto grid0 = controller.grids()[0].toMap();
         const auto cells = grid0.value(QStringLiteral("cells")).toList();
         QCOMPARE(cells.size(), controller.gridSize());
         QVERIFY(cells[0].toList().size() >= controller.gridSize());
+
+        // Les grilles des joueurs doivent différer (pool > cases jouables).
+        auto flattenLabels = [](const QVariantMap& g) {
+            QStringList out;
+            const auto rows = g.value(QStringLiteral("cells")).toList();
+            for (const auto& rowV : rows) {
+                for (const auto& cellV : rowV.toList()) {
+                    const auto m = cellV.toMap();
+                    if (m.value(QStringLiteral("isFree")).toBool())
+                        continue;
+                    out << m.value(QStringLiteral("label")).toString();
+                }
+            }
+            out.sort();
+            return out;
+        };
+        const auto labels0 = flattenLabels(grid0);
+        const auto labels1 = flattenLabels(controller.grids()[1].toMap());
+        QVERIFY2(labels0 != labels1, "grilles joueurs distinctes");
 
         // Swap deux cases non-FREE (0,0) et (0,1) si possible
         const auto before = cells[0].toList()[0].toMap().value(QStringLiteral("label")).toString();
@@ -353,6 +375,68 @@ private slots:
         QVERIFY2(aliceChecks[0].toList()[0].toBool(), "flat save ignored");
     }
 
+    void weightedGagePickIgnoresZeroRate()
+    {
+        // Deux gages même n° : rate 100 vs 0 → toujours le 100 %.
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(controller.openProject(id));
+        controller.setGridSize(2);
+        controller.setFreeCenter(false);
+        controller.setGageMode(true);
+        while (controller.players().size() > 2)
+            controller.removePlayer(controller.players().size() - 1);
+        while (controller.players().size() < 2)
+            controller.addPlayer();
+        controller.setPlayerName(0, QStringLiteral("Alice"));
+        controller.setPlayerName(1, QStringLiteral("Bob"));
+        while (controller.gages().size() > 0)
+            controller.removeGage(0);
+        controller.addGage(QStringLiteral("Gage sur"), 0, 1, 100);
+        controller.addGage(QStringLiteral("Gage jamais"), 0, 1, 0);
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        for (int i = 0; i < 4; ++i)
+            controller.addCase(QStringLiteral("Scene ") + QString::number(i), 1, 100);
+        QVERIFY2(!controller.generateAll().contains(QStringLiteral("Aucun")), "generate");
+        controller.setGridCellLabel(0, 0, 0, QStringLiteral("Scene test"), 1);
+
+        const QString alice = QStringLiteral("Alice");
+        // Matrice vide valide pour éviter un JSON corrompu résiduel.
+        QVariantList empty;
+        for (int r = 0; r < 2; ++r) {
+            QVariantList row;
+            for (int c = 0; c < 2; ++c)
+                row.append(false);
+            empty.append(QVariant(row));
+        }
+        controller.savePlayChecks(alice, empty);
+        controller.savePlayChecks(QStringLiteral("Bob"), empty);
+
+        const auto result = controller.togglePlayCell(alice, 0, 0);
+        QVERIFY(result.value(QStringLiteral("checked")).toBool());
+        const auto overlays = result.value(QStringLiteral("overlays")).toList();
+        QVERIFY(!overlays.isEmpty());
+        const auto ov = overlays[0].toMap();
+        QCOMPARE(ov.value(QStringLiteral("kind")).toString(), QStringLiteral("gage"));
+        QCOMPARE(ov.value(QStringLiteral("desc")).toString(), QStringLiteral("Gage sur"));
+        QCOMPARE(ov.value(QStringLiteral("rate")).toInt(), 100);
+        QCOMPARE(ov.value(QStringLiteral("variants")).toInt(), 2);
+
+        controller.updateGage(1, QStringLiteral("Gage risque"), 0, 1, 10);
+        QCOMPARE(controller.gages()[1].toMap().value(QStringLiteral("rate")).toInt(), 10);
+        QCOMPARE(controller.gages()[1].toMap().value(QStringLiteral("number")).toInt(), 1);
+        QCOMPARE(controller.maxGageNumber(), 1);
+    }
+
     void generateAllRequiresCases()
     {
         QTemporaryDir tmp;
@@ -392,6 +476,7 @@ private slots:
         controller.setTitle(QStringLiteral("Soirée marathon des noms interminables"));
         controller.setGridSize(3);
         controller.setFreeCenter(true);
+        controller.setGageMode(false); // score = points, pas n° de cases
 
         while (controller.players().size() > 0)
             controller.removePlayer(controller.players().size() - 1);
@@ -486,6 +571,16 @@ private slots:
         QVERIFY2(!img.isNull(), "PNG lisible");
         QCOMPARE(img.width(), 1000);
         QVERIFY(img.height() > 500);
+
+        const QString previewUrl = controller.prepareScoreboardPreview();
+        QVERIFY2(!previewUrl.isEmpty(), "prepareScoreboardPreview url");
+        QVERIFY(previewUrl.startsWith(QStringLiteral("file:")));
+        QVERIFY(!controller.scoreboardPreviewUrl().isEmpty());
+        QVERIFY(controller.scoreboardPreviewRevision() >= 1);
+        // Le fichier cache doit exister (sans le #r= de cache-bust).
+        const QString previewPath = QUrl(previewUrl).toLocalFile();
+        QVERIFY2(QFileInfo::exists(previewPath), "preview file");
+        QVERIFY(QFileInfo(previewPath).size() > 2000);
     }
 
     void announcesWinnerOnFullGrid()

@@ -69,6 +69,19 @@ bool platformShare(const QString& text)
         ctx.object(), jText.object<jstring>());
 }
 
+bool platformShareImage(const QString& filePath)
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid() || filePath.isEmpty())
+        return false;
+
+    const QJniObject jPath = QJniObject::fromString(filePath);
+    return QJniObject::callStaticMethod<jboolean>(
+        kPlatformClass, "shareImage",
+        "(Landroid/content/Context;Ljava/lang/String;)Z",
+        ctx.object(), jPath.object<jstring>());
+}
+
 bool platformInstallApk(const QString& apkPath)
 {
     const QJniObject ctx = androidContext();
@@ -170,6 +183,8 @@ void initNotifications() {}
 bool platformNotify(const QString&, const QString&, qint64) { return false; }
 
 bool platformShare(const QString&) { return false; }
+
+bool platformShareImage(const QString&) { return false; }
 
 bool platformInstallApk(const QString&) { return false; }
 

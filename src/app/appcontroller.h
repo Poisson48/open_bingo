@@ -8,6 +8,7 @@
 #include "updater.h"
 
 #include <QObject>
+#include <QImage>
 #include <QSet>
 #include <QTimer>
 #include <QUrl>
@@ -44,6 +45,10 @@ class AppController : public QObject
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
     Q_PROPERTY(app::Updater* updater READ updater CONSTANT)
+    // Aperçu PNG classement (file://…?r=) — rafraîchi par prepareScoreboardPreview.
+    Q_PROPERTY(QString scoreboardPreviewUrl READ scoreboardPreviewUrl NOTIFY scoreboardPreviewChanged)
+    Q_PROPERTY(int scoreboardPreviewRevision READ scoreboardPreviewRevision NOTIFY scoreboardPreviewChanged)
+    Q_PROPERTY(QString scoreboardShareLabel READ scoreboardShareLabel CONSTANT)
 
 public:
     explicit AppController(QObject* parent = nullptr);
@@ -165,7 +170,15 @@ public:
     // Classement live (tous joueurs) — rafraîchi via playChecksChanged.
     Q_INVOKABLE QVariantList playScoreboard() const;
     Q_INVOKABLE bool exportScoreboardPng(const QString& filePath);
+    // Génère le PNG en cache et renvoie l'URL pour Image QML.
+    Q_INVOKABLE QString prepareScoreboardPreview();
+    // Android : feuille de partage ; desktop : dialogue Enregistrer.
+    Q_INVOKABLE bool shareScoreboardPng();
+    // Alias historique → shareScoreboardPng.
     Q_INVOKABLE bool saveScoreboardPng();
+    QString scoreboardPreviewUrl() const;
+    int scoreboardPreviewRevision() const { return m_scoreboardPreviewRevision; }
+    QString scoreboardShareLabel() const;
 
     Q_INVOKABLE void setKeepScreenOn(bool on);
     Q_INVOKABLE void lockLandscape();
@@ -200,6 +213,7 @@ signals:
     void playChecksChanged();
     // Gages à afficher après un cochage distant (sync) — même file que togglePlayCell.
     void playOverlaysTriggered(const QVariantList& overlays);
+    void scoreboardPreviewChanged();
 
 private:
     void touchProject();
@@ -215,6 +229,7 @@ private:
     core::Project* current();
     const core::Project* current() const;
     QVariantList gridsToVariant() const;
+    QImage renderScoreboardImage();
 
     std::unique_ptr<store::Database> m_db;
     std::unique_ptr<ProjectModel>    m_projectModel;
@@ -229,6 +244,8 @@ private:
     QTimer                           m_autoSaveTimer;
     // Coches connues avant le dernier merge distant — pour déclencher les gages.
     std::map<std::string, std::string> m_playChecksSnapshot;
+    QString                          m_scoreboardPreviewPath;
+    int                              m_scoreboardPreviewRevision = 0;
 };
 
 } // namespace app

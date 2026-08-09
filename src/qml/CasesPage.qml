@@ -30,8 +30,9 @@ ScrollView {
             Layout.fillWidth: true
             visible: AppController.gageMode
             text: AppController.gages.length > 0
-                  ? ("Mode gage : le champ « N° gage » renvoie à l’onglet Gages (1–"
-                     + AppController.gages.length + ").")
+                  ? ("Mode gage : « N° gage » = n° de l’onglet Gages (1–"
+                     + AppController.maxGageNumber()
+                     + "). Plusieurs gages du même n° → tirage pondéré au cochage.")
                   : "Mode gage : créez d’abord des gages dans l’onglet Gages."
             color: AppController.gages.length > 0 ? Theme.textDim : Theme.warning
             font.pixelSize: 12

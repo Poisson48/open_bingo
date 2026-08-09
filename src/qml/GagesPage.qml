@@ -14,7 +14,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             text: AppController.gageMode
-                  ? "Mode gage : chaque phrase (onglet Phrases) pointe un n° de ce tableau."
+                  ? "Mode gage : chaque phrase (onglet Phrases) pointe un n° de ce tableau. Plusieurs gages peuvent partager le même n° — au cochage, tirage pondéré selon la chance % (ex. 90 / 10)."
                   : "Mode classique : gages optionnels pour récupérer des PV. Active « Mode gage » dans Réglages pour lier les phrases."
             color: Theme.textDim
             font.pixelSize: 13
@@ -44,21 +44,53 @@ ScrollView {
                     hint: "Description (ex. boire une gorgée)"
                     onAccepted: addGageBtn.clicked()
                 }
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 8
-                    visible: !AppController.gageMode
+                    columns: 2
+                    columnSpacing: 8
+                    rowSpacing: 8
                     Label {
+                        text: "N°"
+                        color: Theme.textDim
+                        font.pixelSize: 12
+                    }
+                    ColoSpinBox {
+                        id: gageNumber
+                        from: 1; to: 99
+                        value: Math.max(1, AppController.maxGageNumber())
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: "Chance relative %"
+                        color: Theme.textDim
+                        font.pixelSize: 12
+                    }
+                    ColoSpinBox {
+                        id: gageRate
+                        from: 0; to: 100; value: 100
+                        Layout.fillWidth: true
+                        textFromValue: function(value, locale) { return value + " %"; }
+                    }
+                    Label {
+                        visible: !AppController.gageMode
                         text: "PV récupérés"
                         color: Theme.textDim
                         font.pixelSize: 12
                     }
                     ColoSpinBox {
                         id: gageHp
+                        visible: !AppController.gageMode
                         from: 0; to: 100; value: 5
-                        Layout.preferredWidth: 120
+                        Layout.fillWidth: true
                     }
-                    Item { Layout.fillWidth: true }
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.gageMode
+                    text: "Même n° qu’un gage existant = variante (risquée à faible %). Monte le n° pour un nouveau slot."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
                 BingoButton {
                     id: addGageBtn
@@ -71,8 +103,12 @@ ScrollView {
                             return
                         }
                         AppController.addGage(gageDesc.text,
-                                              AppController.gageMode ? 0 : gageHp.value)
+                                              AppController.gageMode ? 0 : gageHp.value,
+                                              gageNumber.value,
+                                              gageRate.value)
                         gageDesc.text = ""
+                        gageNumber.value = Math.max(1, AppController.maxGageNumber())
+                        gageRate.value = 100
                         gageDesc.forceActiveFocus()
                     }
                 }
@@ -91,7 +127,7 @@ ScrollView {
         Label {
             Layout.fillWidth: true
             visible: AppController.gages.length > 0
-            text: AppController.gages.length + " gage(s) — touchez pour modifier."
+            text: AppController.gages.length + " gage(s) — touchez pour modifier n°, chance % ou texte."
             color: Theme.textDim
             font.pixelSize: 12
         }
@@ -113,10 +149,11 @@ ScrollView {
                     spacing: 8
                     Label {
                         text: "#" + (modelData.number || (index + 1))
+                                + " · " + (modelData.rate !== undefined ? modelData.rate : 100) + "%"
                         color: Theme.accent
                         font.weight: Font.DemiBold
-                        font.pixelSize: 14
-                        Layout.preferredWidth: 40
+                        font.pixelSize: 13
+                        Layout.preferredWidth: 72
                     }
                     Label {
                         Layout.fillWidth: true
@@ -197,15 +234,13 @@ ScrollView {
             acceptText: "Enregistrer"
             acceptEnabled: editGageDesc.text.trim().length > 0
             property int gageIndex: -1
-            property int editGageNumber: 1
-            property int editGageRate: 100
 
             function openFor(idx, data) {
                 gageIndex = idx
                 editGageDesc.text = data.description || ""
                 editGageHp.value = data.hp !== undefined ? data.hp : 5
-                editGageNumber = data.number !== undefined ? data.number : (idx + 1)
-                editGageRate = data.rate !== undefined ? data.rate : 100
+                editGageNumber.value = data.number !== undefined ? data.number : (idx + 1)
+                editGageRate.value = data.rate !== undefined ? data.rate : 100
                 open()
                 editGageDesc.forceActiveFocus()
             }
@@ -215,18 +250,51 @@ ScrollView {
                 Layout.fillWidth: true
                 hint: "Description du gage"
             }
-            RowLayout {
+            GridLayout {
                 Layout.fillWidth: true
-                visible: !AppController.gageMode
-                Label { text: "PV récupérés"; color: Theme.textDim; font.pixelSize: 12 }
-                ColoSpinBox { id: editGageHp; from: 0; to: 100; Layout.fillWidth: true }
+                columns: 2
+                columnSpacing: 8
+                rowSpacing: 8
+                Label {
+                    text: "N°"
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                }
+                ColoSpinBox {
+                    id: editGageNumber
+                    from: 1; to: 99
+                    Layout.fillWidth: true
+                }
+                Label {
+                    text: "Chance relative %"
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                }
+                ColoSpinBox {
+                    id: editGageRate
+                    from: 0; to: 100
+                    Layout.fillWidth: true
+                    textFromValue: function(value, locale) { return value + " %"; }
+                }
+                Label {
+                    visible: !AppController.gageMode
+                    text: "PV récupérés"
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                }
+                ColoSpinBox {
+                    id: editGageHp
+                    visible: !AppController.gageMode
+                    from: 0; to: 100
+                    Layout.fillWidth: true
+                }
             }
 
             onAccepted: {
                 if (gageIndex < 0) return
                 AppController.updateGage(gageIndex, editGageDesc.text.trim(),
                                          AppController.gageMode ? 0 : editGageHp.value,
-                                         editGageNumber, editGageRate)
+                                         editGageNumber.value, editGageRate.value)
             }
         }
 
