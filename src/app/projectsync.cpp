@@ -54,9 +54,9 @@ ProjectSync::ProjectSync(QObject* parent)
     m_debounce.setInterval(300);
     connect(&m_debounce, &QTimer::timeout, this, &ProjectSync::onDebounce);
 
-    // Comme Colo : si aucun OK n'arrive, on ne laisse pas le bandeau bloqué.
+    // Comme Colo : si aucun OK n'arrive, on force une reconnexion (Android WS zombies).
     m_ackWatchdog.setSingleShot(true);
-    m_ackWatchdog.setInterval(12000);
+    m_ackWatchdog.setInterval(8000);
     connect(&m_ackWatchdog, &QTimer::timeout, this, &ProjectSync::onAckWatchdog);
 }
 
@@ -111,6 +111,9 @@ QString ProjectSync::joinUri(const QString& projectId, const QString& title)
         return {};
     // Colo : le QR ne porte que la clé. On republie quand même un snapshot pour
     // que l'invité trouve l'historique (bingo = un gros event, pas un flux de deltas).
+    if (m_pool)
+        m_pool->connectAll();
+
     if (!keyFor(projectId.toStdString()))
         enableSharing(projectId);
     else {
@@ -123,6 +126,22 @@ QString ProjectSync::joinUri(const QString& projectId, const QString& title)
     const auto key = keyFor(projectId.toStdString());
     if (!key)
         return {};
+
+    if (!online()) {
+        emit toast(QStringLiteral(
+            "Hors ligne — le lien est prêt, mais le contenu partira "
+            "quand un relais sera joignable. Gardez l'app ouverte."));
+    } else if (pendingChanges() > 0) {
+        emit toast(QStringLiteral("Envoi du contenu aux relais…"));
+    } else {
+        // publishSnapshot a pu no-op (projet vide) : le signaler.
+        const auto p = m_db ? m_db->getProject(projectId.toStdString()) : std::nullopt;
+        if (!p || isContentEmpty(*p)) {
+            emit toast(QStringLiteral(
+                "Projet sans phrases/joueurs/grilles — rien à synchroniser."));
+        }
+    }
+
     return QString::fromStdString(
         core::buildJoinUri(projectId.toStdString(), *key, title.toStdString()));
 }
@@ -258,6 +277,18 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         if (accept) {
             m_db->markEventSeen(ev.id.toStdString());
             m_db->upsertProject(remote);
+            // Echo de notre propre publish = confirmation relais (sans attendre OK).
+            const auto ackIt = m_pendingAcks.find(ev.id);
+            if (ackIt != m_pendingAcks.end()) {
+                m_db->outboxRemoveForEvent(ev.id.toStdString());
+                m_pendingAcks.erase(ackIt);
+                if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
+                    m_ackWatchdog.stop();
+                    emit toast(QStringLiteral(
+                        "Contenu publié — les invités peuvent synchroniser."));
+                }
+                emit pendingChangesChanged();
+            }
             emit remoteProjectUpdated(QString::fromStdString(projectId));
             if (!isContentEmpty(remote) && local && isContentEmpty(*local)) {
                 emit toast(QStringLiteral("Contenu synchronisé : %1")
@@ -273,6 +304,16 @@ void ProjectSync::onRelayOnline(bool online)
     emit onlineChanged();
     if (!online)
         return;
+    // Ne pas seulement rejouer l'outbox : un event pré-2.0.33 « too large »
+    // resterait bloqué. Republier un snapshot compressé frais.
+    if (m_db) {
+        for (const auto& id : m_db->sharedProjectIds()) {
+            if (auto p = m_db->getProject(id)) {
+                if (!isContentEmpty(*p))
+                    publishSnapshot(id);
+            }
+        }
+    }
     flushOutbox();
     subscribeAll(0);
 }
@@ -286,27 +327,50 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
         return;
     if (!accepted) {
         qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
+        const std::string projectId = it->second;
+        m_pendingAcks.erase(it);
         if (msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)) {
-            emit toast(QStringLiteral(
-                "Relais : snapshot trop volumineux — mettez à jour l'app "
-                "(compression) puis rouvrez « Partager »."));
+            // Abandonner l'event trop gros et republier compressé (z:).
+            m_db->outboxRemoveForEvent(eventId.toStdString());
+            emit pendingChangesChanged();
+            publishSnapshot(projectId);
+            return;
         }
+        emit toast(QStringLiteral("Relais a refusé l'envoi : %1")
+                       .arg(msg.isEmpty() ? QStringLiteral("erreur") : msg));
+        emit pendingChangesChanged();
         return;
     }
     // Comme Colo : retirer l'entrée outbox dont l'event id correspond.
     m_db->outboxRemoveForEvent(eventId.toStdString());
+    m_db->markEventSeen(eventId.toStdString());
     m_pendingAcks.erase(it);
-    if (m_pendingAcks.empty() && m_db->outboxCount() == 0)
+    if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
         m_ackWatchdog.stop();
+        emit toast(QStringLiteral("Contenu publié — les invités peuvent synchroniser."));
+    }
     emit pendingChangesChanged();
 }
 
 void ProjectSync::onAckWatchdog()
 {
-    // Ne vide plus l'outbox (Colo garde jusqu'à OK). On coupe juste le bandeau UI
-    // en émettant un changement factice si besoin — pendingChanges reste exact.
-    // Le bandeau QML s'auto-masque ; ici on relance un flush au cas où.
-    flushOutbox();
+    if (!m_db || !m_pool || m_db->outboxCount() == 0)
+        return;
+    // Pas d'OK : souvent une socket WS « Connected » morte sur mobile.
+    qWarning() << "[ProjectSync] ack timeout — forceReconnect + republish"
+               << "pending=" << m_db->outboxCount()
+               << "connected=" << m_pool->connectedCount();
+    emit toast(QStringLiteral(
+        "Les relais ne répondent pas — nouvelle tentative d'envoi…"));
+    m_pendingAcks.clear();
+    m_pool->forceReconnect();
+    // Nouveau snapshot (nouvel id) plutôt que rejouer un event peut-être corrompu.
+    for (const auto& id : m_db->sharedProjectIds()) {
+        if (auto p = m_db->getProject(id)) {
+            if (!isContentEmpty(*p))
+                publishSnapshot(id);
+        }
+    }
 }
 
 void ProjectSync::armAckWatchdog()
@@ -341,25 +405,39 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     ev.kind = 4545;
     ev.created_at = QDateTime::currentSecsSinceEpoch();
     ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(*tag) } };
-    ev.content = QString::fromStdString(net::encryptPayload(*key, *tag, packed));
+    const std::string cipher = net::encryptPayload(*key, *tag, packed);
+    if (cipher.empty()) {
+        qWarning() << "[ProjectSync] encryptPayload failed — not publishing";
+        emit toast(QStringLiteral("Échec du chiffrement — partage impossible."));
+        return;
+    }
+    ev.content = QString::fromStdString(cipher);
 
     const auto seed = net::deriveNostrSeed(*key);
     if (!net::signEvent(ev, seed)) {
         qWarning() << "[ProjectSync] signEvent failed — not publishing";
+        emit toast(QStringLiteral("Échec de signature — partage impossible."));
         return;
     }
 
     // Comme Colo SyncEngine : outbox = event JSON complet, retiré seulement à l'OK.
     // Un seul snapshot en attente par projet (LWW document entier).
+    // Ne PAS markEventSeen avant ACK : sinon on ne peut pas confirmer l'echo relais,
+    // et un OK fantôme laisse croire que c'est parti alors que le canal est vide.
     const std::string eventJson =
         QJsonDocument(ev.toJson()).toJson(QJsonDocument::Compact).toStdString();
     m_db->outboxPush(projectId, ev.id.toStdString(), eventJson);
-    m_db->markEventSeen(ev.id.toStdString()); // ne pas se ré-appliquer notre echo
     emit pendingChangesChanged();
     m_pendingAcks[ev.id] = projectId;
 
-    if (m_pool->isOnline())
-        m_pool->publishToAll(ev);
+    const int sent = m_pool->isOnline() ? m_pool->publishToAll(ev) : 0;
+    if (sent == 0) {
+        qWarning() << "[ProjectSync] publish with 0 connected relays — force reconnect";
+        emit toast(QStringLiteral("Aucun relais joignable — reconnexion…"));
+        m_pool->forceReconnect();
+    } else {
+        qDebug() << "[ProjectSync] published to" << sent << "relay(s) id=" << ev.id.left(12);
+    }
     armAckWatchdog();
 }
 

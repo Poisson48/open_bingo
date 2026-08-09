@@ -11,13 +11,13 @@ RelayPool::RelayPool(QObject* parent)
 // static
 QList<QUrl> RelayPool::defaultRelays()
 {
-    // Identique à Colo Course / Colo Tâches — les deux apps doivent partager
-    // au moins un relais commun pour que l'invité récupère l'historique.
+    // Identique à Colo Course / Colo Tâches + primal (souvent joignable sur mobile).
     return {
         QUrl("wss://relay.damus.io"),
         QUrl("wss://nos.lol"),
         QUrl("wss://relay.nostr.band"),
         QUrl("wss://offchain.pub"),
+        QUrl("wss://relay.primal.net"),
     };
 }
 
@@ -64,11 +64,33 @@ void RelayPool::disconnectAll()
         c->disconnectFromRelay();
 }
 
-void RelayPool::publishToAll(const NostrEvent& ev)
+int RelayPool::publishToAll(const NostrEvent& ev)
+{
+    int sent = 0;
+    for (auto& c : m_clients) {
+        if (c->isConnected()) {
+            c->publish(ev);
+            ++sent;
+        }
+    }
+    return sent;
+}
+
+int RelayPool::connectedCount() const
+{
+    int n = 0;
+    for (const auto& c : m_clients) {
+        if (c->isConnected())
+            ++n;
+    }
+    return n;
+}
+
+void RelayPool::forceReconnect()
 {
     for (auto& c : m_clients) {
-        if (c->isConnected())
-            c->publish(ev);
+        c->disconnectFromRelay();
+        c->connectToRelay();
     }
 }
 

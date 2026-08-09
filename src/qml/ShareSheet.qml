@@ -10,6 +10,9 @@ Popup {
     property string projectTitle: ""
     property string uri: ""
 
+    readonly property bool offline: !AppController.online
+    readonly property int pending: AppController.pendingChanges
+
     function openForCurrent() {
         openFor(AppController.currentProjectId, AppController.title)
     }
@@ -28,6 +31,7 @@ Popup {
     x: (Overlay.overlay.width - width) / 2
     y: Math.max(16, Overlay.overlay.height - height - 16)
     modal: true
+    focus: true
     padding: 20
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.6) }
@@ -52,6 +56,36 @@ Popup {
             wrapMode: Text.WordWrap
             maximumLineCount: 2
             elide: Text.ElideRight
+        }
+
+        // Visible ICI : le bandeau header est caché derrière ce popup modal.
+        Rectangle {
+            Layout.fillWidth: true
+            radius: Theme.radius
+            color: sheet.offline
+                   ? Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.2)
+                   : (sheet.pending > 0
+                      ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                      : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08))
+            implicitHeight: syncLabel.implicitHeight + 16
+
+            Label {
+                id: syncLabel
+                anchors.fill: parent
+                anchors.margins: 8
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 13
+                color: sheet.offline ? Theme.warning
+                     : (sheet.pending > 0 ? Theme.text : Theme.accent)
+                text: {
+                    if (sheet.offline)
+                        return "Hors ligne — le QR est prêt, le contenu partira au retour du réseau."
+                    if (sheet.pending > 0)
+                        return "Envoi du contenu aux relais… (" + sheet.pending + ")"
+                    return "Contenu publié — les invités peuvent synchroniser."
+                }
+            }
         }
 
         Rectangle {

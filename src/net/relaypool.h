@@ -41,8 +41,14 @@ public:
     // Disconnect all relays.
     void disconnectAll();
 
-    // Publish to every connected relay.
-    void publishToAll(const NostrEvent& ev);
+    // Publish to every connected relay. Returns how many sockets accepted the send.
+    int publishToAll(const NostrEvent& ev);
+
+    // Nombre de relais actuellement connectés.
+    int connectedCount() const;
+
+    // Coupe tout et reconnecte (connexions WebSocket « zombies » Android).
+    void forceReconnect();
 
     // Subscribe on every relay (accumulates channel tags — un filtre #t multi-valeurs).
     void subscribeAll(const QString& channelTag, int64_t since);

@@ -44,23 +44,18 @@ ApplicationWindow {
     readonly property bool pending: AppController.pendingChanges > 0
     readonly property bool onProjects: stack.depth <= 1
 
-    // Comme Colo : bandeaux brefs. Pending se masque tout seul (relais sans ACK).
+    // Comme Colo : bandeau « envoi » tant que pending > 0 (ne plus masquer
+    // au bout de 3,5 s — sinon Android donne l'impression que rien ne part).
     property bool showPendingBanner: false
     property bool showSynced: false
     onPendingChanged: {
         if (pending) {
             showPendingBanner = true
-            pendingHideTimer.restart()
         } else {
             showPendingBanner = false
             if (!offline)
                 syncedTimer.restart()
         }
-    }
-    Timer {
-        id: pendingHideTimer
-        interval: 3500
-        onTriggered: window.showPendingBanner = false
     }
     Timer {
         id: syncedTimer
@@ -69,13 +64,19 @@ ApplicationWindow {
         onRunningChanged: if (running) window.showSynced = true
     }
 
+    // Bouton retour Android : Qt le délivre comme une fermeture de fenêtre.
+    // Sans ça, Retour depuis « Partager » / un dialogue quittait l'app.
     onClosing: function (close) {
         close.accepted = false
         if (playGame.visible) {
             playGame.close()
             return
         }
+        if (window.closeTopPopup(window))
+            return
         const page = stack.currentItem
+        if (window.closeTopPopup(page))
+            return
         if (page && typeof page.handleBack === "function" && page.handleBack())
             return
         if (stack.depth > 1) {
@@ -83,6 +84,22 @@ ApplicationWindow {
             return
         }
         close.accepted = true
+    }
+
+    // Popup parenté à Overlay mais déclaré dans la page / la fenêtre → dans `data`.
+    // Dernier ouvert = plus haut → fermé en premier.
+    function closeTopPopup(root) {
+        if (!root)
+            return false
+        const kids = root.data
+        for (let i = kids.length - 1; i >= 0; --i) {
+            const child = kids[i]
+            if (child && child.opened === true && typeof child.close === "function") {
+                child.close()
+                return true
+            }
+        }
+        return false
     }
 
     header: Column {

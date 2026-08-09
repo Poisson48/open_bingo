@@ -3,6 +3,10 @@
 #include <QJsonDocument>
 #include <QUuid>
 #include <QDebug>
+#include <QAbstractSocket>
+#if QT_CONFIG(ssl)
+#  include <QSslError>
+#endif
 
 namespace net {
 
@@ -20,6 +24,24 @@ RelayClient::RelayClient(const QUrl& url, QObject* parent)
             this, &RelayClient::onTextMessageReceived);
     connect(&m_reconnectTimer, &QTimer::timeout,
             this, &RelayClient::onReconnectTimer);
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    connect(&m_socket, &QWebSocket::errorOccurred, this, [this](QAbstractSocket::SocketError e) {
+        qWarning() << "[RelayClient] error" << m_url.toString() << e << m_socket.errorString();
+    });
+#else
+    connect(&m_socket,
+            static_cast<void (QWebSocket::*)(QAbstractSocket::SocketError)>(&QWebSocket::error),
+            this, [this](QAbstractSocket::SocketError e) {
+        qWarning() << "[RelayClient] error" << m_url.toString() << e << m_socket.errorString();
+    });
+#endif
+#if QT_CONFIG(ssl)
+    connect(&m_socket, &QWebSocket::sslErrors, this, [this](const QList<QSslError>& errs) {
+        for (const auto& err : errs)
+            qWarning() << "[RelayClient] sslError" << m_url.toString() << err.errorString();
+    });
+#endif
 }
 
 void RelayClient::connectToRelay()
@@ -122,11 +144,15 @@ void RelayClient::onReconnectTimer()
 void RelayClient::sendJson(const QJsonArray& msg)
 {
     if (m_socket.state() != QAbstractSocket::ConnectedState) {
-        qWarning() << "[RelayClient] send called while not connected";
+        qWarning() << "[RelayClient] send called while not connected" << m_url.toString();
         return;
     }
     const QByteArray bytes = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    m_socket.sendTextMessage(QString::fromUtf8(bytes));
+    const qint64 n = m_socket.sendTextMessage(QString::fromUtf8(bytes));
+    if (n < 0) {
+        qWarning() << "[RelayClient] sendTextMessage failed" << m_url.toString()
+                   << "bytes=" << bytes.size();
+    }
 }
 
 void RelayClient::scheduleReconnect()
