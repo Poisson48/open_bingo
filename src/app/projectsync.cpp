@@ -2,6 +2,7 @@
 
 #include "../core/jsoncodec.h"
 #include "../core/pairing.h"
+#include "../core/sharecodec.h"
 #include "../net/crypto.h"
 #include "../net/nostr.h"
 
@@ -26,6 +27,20 @@ core::Project makeJoinStub(const std::string& id, const std::string& title)
 bool isContentEmpty(const core::Project& p)
 {
     return p.cases.empty() && p.grids.empty() && p.players.empty();
+}
+
+// Snapshot Nostr : JSON compressé (z:/b64:) puis chiffré — les grilles bingo
+// dépassent sinon la limite des relais (~100–128 Ko). Anciens events = JSON brut.
+std::optional<std::string> plainToProjectJson(const std::string& plain)
+{
+    if (plain.rfind("z:", 0) == 0 || plain.rfind("b64:", 0) == 0) {
+        bool ok = false;
+        std::string json = core::ShareCodec::decompress(plain, &ok);
+        if (!ok || json.empty())
+            return std::nullopt;
+        return json;
+    }
+    return plain;
 }
 
 } // namespace
@@ -224,8 +239,12 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
         if (!plain)
             continue;
 
+        const auto json = plainToProjectJson(*plain);
+        if (!json)
+            continue;
+
         bool ok = false;
-        auto remote = core::JsonCodec::projectFromJson(*plain, &ok);
+        auto remote = core::JsonCodec::projectFromJson(*json, &ok);
         if (!ok)
             continue;
 
@@ -260,12 +279,20 @@ void ProjectSync::onRelayOnline(bool online)
 
 void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QString& msg)
 {
-    Q_UNUSED(msg);
-    if (!accepted || !m_db)
+    if (!m_db)
         return;
     const auto it = m_pendingAcks.find(eventId);
     if (it == m_pendingAcks.end())
         return;
+    if (!accepted) {
+        qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
+        if (msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)) {
+            emit toast(QStringLiteral(
+                "Relais : snapshot trop volumineux — mettez à jour l'app "
+                "(compression) puis rouvrez « Partager »."));
+        }
+        return;
+    }
     // Comme Colo : retirer l'entrée outbox dont l'event id correspond.
     m_db->outboxRemoveForEvent(eventId.toStdString());
     m_pendingAcks.erase(it);
@@ -307,12 +334,14 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
         return;
 
     const std::string json = core::JsonCodec::projectToJson(*project, false);
+    // Compresse avant chiffrement : grilles × joueurs font exploser le JSON.
+    const std::string packed = core::ShareCodec::compress(json);
 
     net::NostrEvent ev;
     ev.kind = 4545;
     ev.created_at = QDateTime::currentSecsSinceEpoch();
     ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(*tag) } };
-    ev.content = QString::fromStdString(net::encryptPayload(*key, *tag, json));
+    ev.content = QString::fromStdString(net::encryptPayload(*key, *tag, packed));
 
     const auto seed = net::deriveNostrSeed(*key);
     if (!net::signEvent(ev, seed)) {

@@ -1,6 +1,7 @@
 #include "../src/app/projectsync.h"
 #include "../src/core/jsoncodec.h"
 #include "../src/core/pairing.h"
+#include "../src/core/sharecodec.h"
 #include "../src/net/crypto.h"
 #include "../src/net/nostr.h"
 #include "../src/net/relaypool.h"
@@ -90,6 +91,123 @@ private slots:
         QCOMPARE(got->players.size(), size_t(2));
         QCOMPARE(got->players[0].name, std::string("Alice"));
         QCOMPARE(got->updatedAt, int64_t(1'000));
+    }
+
+    void compressedRemoteSnapshotIsAccepted()
+    {
+        // Gros bingo : plaintext compressé (z:) avant chiffrement — format sync v2.0.33+.
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        auto key = net::generateListKey();
+        const std::string id = "proj_sync_z";
+        const auto tag = net::deriveChannelTag(key);
+
+        core::Project host = core::JsonCodec::defaultProject();
+        host.id = id;
+        host.title = "Cinéma";
+        host.updatedAt = 2'000;
+        for (int i = 0; i < 40; ++i)
+            host.cases.push_back({ "Phrase longue numéro " + std::to_string(i), 1, 100 });
+        host.players = { { "A" }, { "B" }, { "C" } };
+
+        core::Project stub;
+        stub.id = id;
+        stub.title = "Cinéma";
+        stub.updatedAt = 0;
+        db.upsertProject(stub);
+        db.setSyncKey(id, key);
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+
+        const std::string packed =
+            core::ShareCodec::compress(core::JsonCodec::projectToJson(host, false));
+        QVERIFY(packed.rfind("z:", 0) == 0);
+
+        net::NostrEvent ev;
+        ev.kind = 4545;
+        ev.created_at = 42;
+        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        ev.content = QString::fromStdString(net::encryptPayload(key, tag, packed));
+        QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
+
+        sync.handleRelayEvent(ev);
+
+        const auto got = db.getProject(id);
+        QVERIFY(got);
+        QCOMPARE(got->cases.size(), size_t(40));
+        QCOMPARE(got->players.size(), size_t(3));
+        QCOMPARE(got->title, std::string("Cinéma"));
+    }
+
+    void compressedFatSnapshotStaysUnderRelayLimit()
+    {
+        // Sans compression, ~100 Ko JSON → event ~127 Ko rejeté (« too large »).
+        // Avec z: + chiffrement, même un bingo absurde doit rester << 100 Ko filaire.
+        core::Project p = core::JsonCodec::defaultProject();
+        p.id = "proj_fat_wire";
+        p.title = "Stress";
+        p.gageMode = true;
+        p.gridSize = 5;
+        p.cases.clear();
+        p.players.clear();
+        p.grids.clear();
+        p.gages.clear();
+        const std::string pad(120, 'x');
+        for (int i = 0; i < 80; ++i)
+            p.cases.push_back({ "Phrase #" + std::to_string(i) + " " + pad, 1, 100 });
+        for (int i = 0; i < 16; ++i)
+            p.players.push_back({ "Joueur_" + std::to_string(i) });
+        const std::string gpad(150, 'g');
+        for (int i = 0; i < 60; ++i) {
+            core::Gage g;
+            g.description = "Gage #" + std::to_string(i) + " " + gpad;
+            g.hp = 5;
+            g.number = 1 + (i % 8);
+            g.rate = 100;
+            p.gages.push_back(g);
+        }
+        for (const auto& pl : p.players) {
+            core::PlayerGrid g;
+            g.player = pl.name;
+            g.cells.assign(5, std::vector<core::GridCell>(5));
+            for (int r = 0; r < 5; ++r) {
+                for (int c = 0; c < 5; ++c) {
+                    const auto& src = p.cases[(r * 5 + c) % p.cases.size()];
+                    g.cells[r][c].label = src.label;
+                    g.cells[r][c].points = src.points;
+                    g.cells[r][c].rate = src.rate;
+                    g.cells[r][c].gage = p.gages[(r + c) % p.gages.size()].description;
+                    g.cells[r][c].gageHP = 5;
+                }
+            }
+            p.grids.push_back(g);
+        }
+
+        const std::string json = core::JsonCodec::projectToJson(p, false);
+        QVERIFY(json.size() > 100000); // sans compression, au-delà de la limite relais
+        const std::string packed = core::ShareCodec::compress(json);
+        QVERIFY(packed.rfind("z:", 0) == 0);
+
+        auto key = net::generateListKey();
+        const auto tag = net::deriveChannelTag(key);
+        net::NostrEvent ev;
+        ev.kind = 4545;
+        ev.created_at = 1;
+        ev.tags = QJsonArray{ QJsonArray{ QStringLiteral("t"), QString::fromStdString(tag) } };
+        ev.content = QString::fromStdString(net::encryptPayload(key, tag, packed));
+        QVERIFY(net::signEvent(ev, net::deriveNostrSeed(key)));
+
+        const auto wire = QJsonDocument(ev.toJson()).toJson(QJsonDocument::Compact).size();
+        QVERIFY2(wire < 100 * 1024,
+                 qPrintable(QStringLiteral("wire=%1 json=%2 packed=%3")
+                                .arg(wire)
+                                .arg(qsizetype(json.size()))
+                                .arg(qsizetype(packed.size()))));
     }
 
     void staleEmptyStubIsResetOnRejoin()
