@@ -253,7 +253,9 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     enabled: !isFree && (root.interactive || root.editable)
+                    // Empêche le ScrollView parent de voler le geste pendant un swap.
                     preventStealing: root.editable
+                    propagateComposedEvents: false
                     property real startX: 0
                     property real startY: 0
 
@@ -274,14 +276,16 @@ Item {
                         if (!root.didDrag && Math.hypot(dx, dy) > root.dragThreshold)
                             root.didDrag = true
                         if (!root.didDrag) return
-                        const global = cellRect.mapToItem(root, mouse.x, mouse.y)
-                        const cw = root.width / Math.max(1, root.cols)
-                        const ch = root.height / Math.max(1, root.n)
-                        const r = Math.min(root.n - 1, Math.max(0, Math.floor(global.y / ch)))
-                        const c = Math.min(root.cols - 1, Math.max(0, Math.floor(global.x / cw)))
-                        if (!(r === root.dragFromRow && c === root.dragFromCol)) {
+
+                        // Cible = case sous le doigt (robuste avec gaps / étirement Layout).
+                        const pos = mapToItem(grid, mouse.x, mouse.y)
+                        const under = grid.childAt(pos.x, pos.y)
+                        if (under && under.rowIndex !== undefined && under.colIndex !== undefined) {
+                            const r = under.rowIndex
+                            const c = under.colIndex
                             const dest = root.rows[r] && root.rows[r][c]
-                            if (dest && !dest.isFree) {
+                            if (dest && !dest.isFree
+                                    && !(r === root.dragFromRow && c === root.dragFromCol)) {
                                 root.dragOverRow = r
                                 root.dragOverCol = c
                                 return

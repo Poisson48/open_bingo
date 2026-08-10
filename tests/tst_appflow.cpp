@@ -136,6 +136,45 @@ private slots:
         QCOMPARE(controller.grids().size(), controller.players().size());
     }
 
+    void createProjectOpensSettingsTab()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        const QString id = controller.createProject();
+        QVERIFY(!id.isEmpty());
+        QCOMPARE(controller.currentProjectId(), id);
+        QCOMPARE(controller.lastTab(), 0); // Réglages
+    }
+
+    void cloneProjectKeepsGridsAndOpens()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        const QString srcId = controller.seedDemoProject();
+        QVERIFY(!srcId.isEmpty());
+        QVERIFY(controller.openProject(srcId));
+        const int gridCount = controller.grids().size();
+        QVERIFY(gridCount >= 2);
+        const QString srcTitle = controller.title();
+
+        const QString copyId = controller.cloneProject(srcId);
+        QVERIFY(!copyId.isEmpty());
+        QVERIFY(copyId != srcId);
+        QCOMPARE(controller.currentProjectId(), copyId);
+        QCOMPARE(controller.lastTab(), 0);
+        QVERIFY(controller.title().contains(QStringLiteral("copie")));
+        QCOMPARE(controller.grids().size(), gridCount);
+        QVERIFY(controller.title() != srcTitle);
+    }
+
     void pdfExportProducesFile()
     {
         QTemporaryDir tmp;

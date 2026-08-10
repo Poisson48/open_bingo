@@ -53,6 +53,14 @@ Item {
     ColoMenu {
         id: cardMenu
         MenuItem {
+            text: "Dupliquer"
+            onTriggered: {
+                const id = AppController.cloneProject(page.menuProjectId)
+                if (!id || id.length === 0)
+                    AppController.notify("Impossible de dupliquer ce projet")
+            }
+        }
+        MenuItem {
             text: "Partager (QR / lien)"
             onTriggered: shareSheet.openFor(page.menuProjectId, page.menuProjectTitle)
         }

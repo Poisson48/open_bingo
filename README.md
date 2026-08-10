@@ -54,10 +54,10 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 
 ## Fonctionnalités
 
-- **Projets multiples** — créer, cloner, rechercher, supprimer ; métadonnées titre/description
+- **Projets multiples** — créer (ouvre sur Réglages), dupliquer via menu, rechercher, supprimer ; métadonnées titre/description
 - **Configuration** — grille lignes × colonnes (2–12 chacune), joueurs, HP de départ, case FREE au centre, mode gage
 - **Phrases & gages** — phrases avec n° de gage ; plusieurs gages par n° (chance % relative) ; onglet Gages + combinaisons
-- **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle
+- **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle, échange de cases par glisser-déposer
 - **Impression** — A4, 2 grilles/page, trait de découpe, feuille gages
 - **Sans papier** — coches par joueur, overlay gage groupé (« Léa, Max… doivent : … »), sync du même texte entre grilles, notifs gage alignées entre appareils, annonce gagnant pour tout le monde
 - **Classement PNG** — aperçu puis partage (Android) / enregistrement (desktop) ; titre + description du projet

@@ -885,9 +885,10 @@ QString AppController::createProject()
         m_current.description = "Modifiez les phrases, puis régénérez les grilles.";
         persistCurrent();
         emit currentProjectChanged();
-        m_lastTab = 3; // Grilles
+        m_lastTab = 0; // Réglages
+        m_db->setSetting("last_tab", "0");
         emit lastTabChanged();
-        emit toast(QStringLiteral("Projet créé avec grilles — regénérez après vos modifications."));
+        emit toast(QStringLiteral("Projet créé — ajuste les réglages, puis les phrases."));
     }
     return id;
 }
@@ -921,12 +922,19 @@ QString AppController::cloneProject(const QString& id)
     auto clone = *p;
     clone.id = core::JsonCodec::makeId();
     clone.title += " (copie)";
-    clone.grids.clear();
+    // Garder phrases, gages, grilles — nouvelle partie locale (pas de sync / coches).
     clone.createdAt = QDateTime::currentMSecsSinceEpoch();
     clone.updatedAt = clone.createdAt;
     m_db->upsertProject(clone);
     reloadProjects();
-    return QString::fromStdString(clone.id);
+    const QString newId = QString::fromStdString(clone.id);
+    if (openProject(newId)) {
+        m_lastTab = 0; // Réglages
+        m_db->setSetting("last_tab", "0");
+        emit lastTabChanged();
+        emit toast(QStringLiteral("Projet dupliqué"));
+    }
+    return newId;
 }
 
 void AppController::deleteProject(const QString& id)
