@@ -3,6 +3,8 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QProcess>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -224,6 +226,104 @@ private slots:
         QVERIFY2(controller.exportPdf(pdfPath), "exportPdf many gages");
         // Plusieurs pages (grilles + gages paginés) → fichier nettement plus gros.
         QVERIFY(QFileInfo(pdfPath).size() > 4000);
+    }
+
+    // Repro capture Android : ~18 gages + 3 combos, labels longs en bold.
+    void pdfExportComboLabelsReadable()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        controller.setTitle(QStringLiteral("Soirée Cinéma de la truite folle"));
+        QCOMPARE(controller.title(), QStringLiteral("Soirée Cinéma de la truite folle"));
+        controller.setGageMode(true);
+        while (controller.gages().size() > 0)
+            controller.removeGage(0);
+
+        const struct { const char* d; int n; int r; } rows[] = {
+            {"Imite la voix du personnage", 1, 70},
+            {"Chante la réplique en mode opéra", 1, 25},
+            {"Bois une gorgée (risqué)", 1, 5},
+            {"Mime la scène en 10 secondes", 2, 80},
+            {"Fais le bruitage live", 2, 20},
+            {"Invente la réplique suivante", 3, 60},
+            {"Raconte la scène en chuchotant", 3, 30},
+            {"Change de place avec ton voisin", 3, 10},
+            {"Debout 5 secondes", 4, 90},
+            {"Danse 5 secondes (risqué)", 4, 10},
+            {"Compliment ridicule au voisin", 5, 100},
+            {"Titre alternatif du film", 6, 75},
+            {"Pitch la suite en 15 secondes", 6, 25},
+            {"Choisis un Oscar inventé", 7, 100},
+            {"Imite le méchant", 8, 55},
+            {"Imite le héros", 8, 35},
+            {"Cri de guerre (risqué)", 8, 10},
+        };
+        for (const auto& row : rows)
+            controller.addGage(QString::fromUtf8(row.d), 0, row.n, row.r);
+
+        controller.setComboGage(QStringLiteral("line"),
+                                QStringLiteral("Toute la table boit une gorgée"));
+        controller.setComboGage(
+            QStringLiteral("column"),
+            QStringLiteral("Le joueur à ta gauche invente un titre alternatif"));
+        controller.setComboGage(QStringLiteral("diagonal"),
+                                QStringLiteral("Tout le monde se lève 5 secondes"));
+        QVERIFY(controller.grids().size() >= 1);
+
+        const QString pdfPath = qEnvironmentVariableIsSet("BINGO_PDF_OUT")
+            ? QString::fromLocal8Bit(qgetenv("BINGO_PDF_OUT"))
+            : (tmp.path() + QStringLiteral("/truite-gages.pdf"));
+        QVERIFY2(controller.exportPdf(pdfPath), "exportPdf combo labels");
+        QVERIFY(QFileInfo(pdfPath).size() > 1500);
+        // Combos groupés avec les gages : pas de page quasi vide derrière.
+        QVERIFY2(QFile::exists(QStringLiteral("/usr/bin/pdfinfo")),
+                 "pdfinfo required for layout check");
+        QProcess proc;
+        proc.start(QStringLiteral("/usr/bin/pdfinfo"),
+                   {pdfPath});
+        QVERIFY(proc.waitForFinished(5000));
+        const QString info = QString::fromLocal8Bit(proc.readAllStandardOutput());
+        const QRegularExpression re(QStringLiteral("Pages:\\s*(\\d+)"));
+        const auto m = re.match(info);
+        QVERIFY2(m.hasMatch(), qPrintable(info));
+        const int pages = m.captured(1).toInt();
+        // 2 pages grilles (démo 4 joueurs) + 1–2 pages gages/combos.
+        QVERIFY2(pages <= 4,
+                 qPrintable(QStringLiteral("expected ≤4 pages, got %1").arg(pages)));
+        QVERIFY2(pages >= 3,
+                 qPrintable(QStringLiteral("expected ≥3 pages, got %1").arg(pages)));
+    }
+
+    void pdfExportLongComboText()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        controller.setGageMode(true);
+        while (controller.gages().size() > 0)
+            controller.removeGage(0);
+        controller.addGage(QStringLiteral("Gage court"), 0, 1, 100);
+        const QString longCombo = QStringLiteral(
+            "Le joueur à ta gauche doit inventer un titre alternatif absurde pour "
+            "le film en cours, le pitcher en moins de trente secondes devant toute "
+            "la table sans rire, puis boire une gorgée si personne n’applaudit.");
+        controller.setComboGage(QStringLiteral("line"), longCombo);
+        controller.setComboGage(QStringLiteral("column"), longCombo);
+        controller.setComboGage(QStringLiteral("diagonal"), longCombo);
+        QVERIFY(controller.grids().size() >= 1);
+
+        const QString pdfPath = qEnvironmentVariableIsSet("BINGO_PDF_OUT")
+            ? QString::fromLocal8Bit(qgetenv("BINGO_PDF_OUT"))
+            : (tmp.path() + QStringLiteral("/long-combos.pdf"));
+        QVERIFY2(controller.exportPdf(pdfPath), "exportPdf long combos");
+        QVERIFY(QFileInfo(pdfPath).size() > 1500);
     }
 
     void editCaseAndGridCellLabel()

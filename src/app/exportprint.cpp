@@ -534,6 +534,33 @@ bool preferHalfPageLayout(const QPrinter& printer, const QRectF& page,
     return worst >= minSide;
 }
 
+// Hauteur du texte wrapé dans une largeur fixe (mesure fiable pour le layout PDF).
+qreal wrappedTextHeight(const QFontMetrics& fm, const QString& text, qreal width,
+                        int maxHeight = 8000)
+{
+    if (text.isEmpty())
+        return 0;
+    const int w = qMax(1, int(width));
+    return qreal(fm.boundingRect(QRect(0, 0, w, maxHeight),
+                                 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                                 text)
+                     .height());
+}
+
+qreal tableCellRowHeight(const QFontMetrics& fm, const QString& text, qreal colWidth,
+                         qreal minRowH, qreal padH, qreal padV)
+{
+    const qreal innerW = qMax(1.0, colWidth - padH);
+    const qreal textH = wrappedTextHeight(fm, text, innerW);
+    return qMax(minRowH, textH + padV);
+}
+
+void drawWrappedCellText(QPainter& p, const QRectF& rect, const QString& text,
+                         int alignFlags = Qt::AlignLeft | Qt::AlignTop)
+{
+    p.drawText(rect, alignFlags | Qt::TextWordWrap, text);
+}
+
 // Dessine une page (ou suite) du tableau des gages.
 // nextGage : prochain index dans project.gages
 // nextCombo : 0=titre section, 1=ligne, 2=colonne, 3=diagonale, 4=terminé
@@ -637,27 +664,101 @@ bool drawGageSheetPage(QPainter& p, const QRectF& area, const core::Project& pro
     const qreal bodyStartY = y;
     p.setFont(body);
     p.setPen(Qt::black);
+
+    const auto& combos = project.comboGages;
+
+    struct ComboItem {
+        const char* label;
+        const std::string* text;
+    };
+    const ComboItem comboItems[] = {
+        { "Ligne complète", &combos.line },
+        { "Colonne complète", &combos.column },
+        { "Diagonale complète", &combos.diagonal },
+    };
+
+    QFont comboBold = body;
+    comboBold.setBold(true);
+    QFontMetrics fmBold(comboBold);
+    QFont comboTitleFont(body);
+    comboTitleFont.setBold(true);
+    const qreal comboTitleH = comboTitleFont.pixelSize() * 1.5;
+
+    qreal comboTypeW = w * 0.22;
+    for (const ComboItem& it : comboItems) {
+        if (it.text->empty())
+            continue;
+        comboTypeW = qMax(comboTypeW,
+                          qreal(fmBold.horizontalAdvance(QString::fromUtf8(it.label))) + 14);
+    }
+    comboTypeW = qMin(comboTypeW, w * 0.45);
+    const qreal comboTextW = w - comboTypeW;
+    const qreal comboLabelPadH = 8.0;
+    const qreal comboTextPad = 10.0;
+
+    auto comboRowHeight = [&](const ComboItem& it) -> qreal {
+        const QString label = QString::fromUtf8(it.label);
+        const QString text = QString::fromStdString(*it.text);
+        const qreal labelH = wrappedTextHeight(fmBold, label, comboTypeW - comboLabelPadH);
+        const qreal textH = wrappedTextHeight(fm, text, comboTextW - comboTextPad);
+        return qMax(minRowH, qMax(labelH, textH) + 10);
+    };
+
+    auto comboBlockHeight = [&](int fromCombo, bool withSectionTitle) -> qreal {
+        qreal h = 0;
+        if (withSectionTitle)
+            h += 12 + comboTitleH + 4;
+        for (int i = qMax(fromCombo, 1); i <= 3; ++i) {
+            if (comboItems[i - 1].text->empty())
+                continue;
+            h += comboRowHeight(comboItems[i - 1]);
+        }
+        return h;
+    };
+
+    const bool hasCombos = project.gageMode
+        && (!combos.line.empty() || !combos.column.empty() || !combos.diagonal.empty());
+
+    auto remainingGagesHeight = [&]() -> qreal {
+        qreal h = 0;
+        for (size_t i = nextGage; i < project.gages.size(); ++i) {
+            const QString desc = QString::fromStdString(project.gages[i].description);
+            h += tableCellRowHeight(fm, desc, colDesc, minRowH, descPad, 8);
+        }
+        return h;
+    };
+
+    // Réserver le bas de page pour les combos quand ça évite une page orpheline.
+    qreal gageBottom = bottom;
+    if (hasCombos && nextCombo == 0 && nextGage < project.gages.size()) {
+        const qreal reserve = comboBlockHeight(0, true);
+        const qreal roomFull = bottom - y;
+        const qreal gageOnly = remainingGagesHeight();
+        if (gageOnly + reserve <= roomFull + 0.5) {
+            gageBottom = bottom; // gages + combos sur la même page
+        } else if (gageOnly <= roomFull - reserve + 0.5) {
+            gageBottom = bottom - reserve; // gages au-dessus, combos en bas
+        }
+    }
+
     while (nextGage < project.gages.size()) {
         const auto& g = project.gages[nextGage];
         const QString desc = QString::fromStdString(g.description);
-        const QRect descBound = fm.boundingRect(
-            QRect(0, 0, qMax(1, int(colDesc - descPad)), 4000),
-            Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, desc);
-        qreal rowH = qMax(minRowH, qreal(descBound.height()) + 8);
+        const qreal rowH = tableCellRowHeight(fm, desc, colDesc, minRowH, descPad, 8);
 
-        const qreal room = bottom - y;
-        if (rowH > room) {
-            // Page suivante sauf si c'est la 1ʳᵉ ligne du corps (description > page).
-            if (y <= bodyStartY + 0.5 && room >= minRowH)
-                rowH = room;
-            else
+        const qreal room = gageBottom - y;
+        if (rowH > room + 0.5) {
+            if (y > bodyStartY + 0.5)
+                return false;
+            if (room < minRowH)
                 return false;
         }
+        const qreal drawH = qMin(rowH, room);
 
-        const QRectF rNum(left, y, colNum, rowH);
-        const QRectF rDesc(left + colNum, y, colDesc, rowH);
-        const QRectF rRate(left + colNum + colDesc, y, colRate, rowH);
-        const QRectF rHp(left + colNum + colDesc + colRate, y, colHp, rowH);
+        const QRectF rNum(left, y, colNum, drawH);
+        const QRectF rDesc(left + colNum, y, colDesc, drawH);
+        const QRectF rRate(left + colNum + colDesc, y, colRate, drawH);
+        const QRectF rHp(left + colNum + colDesc + colRate, y, colHp, drawH);
         p.setPen(QPen(Qt::black, 1));
         p.drawRect(rNum);
         p.drawRect(rDesc);
@@ -668,47 +769,59 @@ bool drawGageSheetPage(QPainter& p, const QRectF& area, const core::Project& pro
         p.setFont(body);
         p.setPen(Qt::black);
         p.drawText(rNum, Qt::AlignCenter, QString::number(g.number));
-        p.drawText(rDesc.adjusted(6, 4, -4, -4),
-                   Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, desc);
+        drawWrappedCellText(p, rDesc.adjusted(6, 4, -4, -4), desc);
         if (showRate)
             p.drawText(rRate, Qt::AlignCenter, QString::number(g.rate) + QLatin1Char('%'));
         if (showHp)
             p.drawText(rHp, Qt::AlignCenter, QStringLiteral("+%1 PV").arg(g.hp));
-        y += rowH;
+        y += drawH;
         ++nextGage;
     }
 
-    const auto& combos = project.comboGages;
-    const bool hasCombos = project.gageMode
-        && (!combos.line.empty() || !combos.column.empty() || !combos.diagonal.empty());
     if (!hasCombos) {
         nextCombo = 4;
         return true;
     }
 
-    struct ComboItem {
-        const char* label;
-        const std::string* text;
-    };
-    const ComboItem items[] = {
-        { "Ligne complète", &combos.line },
-        { "Colonne complète", &combos.column },
-        { "Diagonale complète", &combos.diagonal },
+    const ComboItem* items = comboItems;
+    const qreal typeW = comboTypeW;
+    const qreal textW = comboTextW;
+
+    const qreal continuationTop = area.top() + titleFont.pixelSize() * 1.45
+        + playerFont.pixelSize() * 1.4 + 8;
+    const qreal freshPageRoom = bottom - continuationTop;
+
+    if (nextCombo == 0) {
+        const qreal blockH = comboBlockHeight(0, true);
+        const qreal room = bottom - y;
+        if (blockH > room + 0.5 && blockH <= freshPageRoom + 0.5
+            && (nextGage > 0 || !firstPage || y > bodyStartY + minRowH)) {
+            return false;
+        }
+    }
+
+    auto drawComboSectionTitle = [&](bool continuation) {
+        QFont comboTitle(comboTitleFont);
+        p.setFont(comboTitle);
+        p.setPen(Qt::black);
+        const QString title = continuation
+            ? QStringLiteral("Gages de combinaison (suite)")
+            : QStringLiteral("Gages de combinaison");
+        p.drawText(QRectF(left, y, w, comboTitleH), Qt::AlignLeft | Qt::AlignVCenter, title);
+        y += comboTitleH + 4;
     };
 
     if (nextCombo == 0) {
-        y += 12;
-        QFont comboTitle(body);
-        comboTitle.setBold(true);
-        const qreal th = comboTitle.pixelSize() * 1.5;
-        if (y + th > bottom)
+        const qreal needStart = 12 + comboTitleH + 4 + minRowH;
+        if (y + needStart > bottom + 0.5)
             return false;
-        p.setFont(comboTitle);
-        p.setPen(Qt::black);
-        p.drawText(QRectF(left, y, w, th), Qt::AlignLeft | Qt::AlignVCenter,
-                   QStringLiteral("Gages de combinaison"));
-        y += th + 4;
+        y += 12;
+        drawComboSectionTitle(false);
         nextCombo = 1;
+    } else if (nextCombo >= 1 && nextCombo <= 3) {
+        if (y + comboTitleH + minRowH > bottom)
+            return false;
+        drawComboSectionTitle(true);
     }
 
     while (nextCombo >= 1 && nextCombo <= 3) {
@@ -718,34 +831,20 @@ bool drawGageSheetPage(QPainter& p, const QRectF& area, const core::Project& pro
             continue;
         }
         const QString text = QString::fromStdString(*it.text);
-        const qreal typeW = w * 0.28;
-        const qreal textW = w * 0.72;
-        const QRect textBound = fm.boundingRect(
-            QRect(0, 0, qMax(1, int(textW - descPad)), 4000),
-            Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text);
-        qreal rowH = qMax(minRowH, qreal(textBound.height()) + 8);
-        const qreal room = bottom - y;
-        if (rowH > room) {
-            if (room >= minRowH * 1.2)
-                rowH = room;
-            else
-                return false;
-        }
+        const qreal rowH = comboRowHeight(it);
+        if (rowH > bottom - y + 0.5)
+            return false;
+
         const QRectF rType(left, y, typeW, rowH);
         const QRectF rText(left + typeW, y, textW, rowH);
         p.setPen(QPen(Qt::black, 1));
         p.drawRect(rType);
         p.drawRect(rText);
-        QFont bold = body;
-        bold.setBold(true);
-        p.setFont(bold);
+        p.setFont(comboBold);
         p.setPen(Qt::black);
-        p.drawText(rType.adjusted(4, 2, -4, -2),
-                   Qt::AlignVCenter | Qt::AlignLeft | Qt::TextWordWrap,
-                   QString::fromUtf8(it.label));
+        drawWrappedCellText(p, rType.adjusted(4, 4, -4, -4), QString::fromUtf8(it.label));
         p.setFont(body);
-        p.drawText(rText.adjusted(6, 4, -4, -4),
-                   Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, text);
+        drawWrappedCellText(p, rText.adjusted(6, 4, -4, -4), text);
         y += rowH;
         ++nextCombo;
     }

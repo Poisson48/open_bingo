@@ -58,7 +58,7 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 - **Configuration** — grille lignes × colonnes (2–12 chacune), joueurs, HP de départ, case FREE au centre, mode gage
 - **Phrases & gages** — phrases avec n° de gage ; plusieurs gages par n° (chance % relative) ; onglet Gages + combinaisons
 - **Grilles** — génération aléatoire par joueur, reshuffle, édition manuelle, échange de cases par glisser-déposer
-- **Impression** — A4, 1 ou 2 grilles/page selon la taille (découpe si 2), feuille gages paginée
+- **Impression** — A4, 1 ou 2 grilles/page selon la taille (découpe si 2), feuille gages paginée ; tableaux combos lisibles (textes longs, pas de chevauchement)
 - **Sans papier** — coches par joueur, overlay gage groupé (« Léa, Max… doivent : … »), sync du même texte entre grilles, notifs gage alignées entre appareils, annonce gagnant pour tout le monde
 - **Classement PNG** — aperçu puis partage (Android) / enregistrement (desktop) ; titre + description du projet
 - **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play)
