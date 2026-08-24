@@ -67,6 +67,7 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 - **MCP IA (desktop)** — Cursor / Claude Desktop pilotent le projet ouvert via HTTP localhost
 - **Bingo film (desktop)** — OpenSubtitles (`.com` API + fallback `.org`) → SDH → phrases bingo
 - **Saisie confort** — focus clavier : le formulaire défile pour garder le champ visible (y compris clavier virtuel)
+- **Sync sans saut** — bandeaux « envoi » / « Tout est synchronisé » en overlay (comme Colo), sans décaler la page
 
 ## Import CSV
 

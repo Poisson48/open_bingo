@@ -263,8 +263,25 @@ ApplicationWindow {
                 }
             }
         }
+    }
 
-        // Dans le header (pas en overlay sur les onglets éditeur).
+    StackView {
+        id: stack
+        anchors.fill: parent
+        initialItem: projectsPage
+    }
+
+    // Comme Colo Course/Tâches : hors-ligne + sync en overlay semi-transparent,
+    // sans pousser le StackView (évite le saut de page sur « Tout est synchronisé »).
+    Column {
+        id: bannerOverlay
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        z: 10
+        spacing: 0
+        visible: !playGame.visible
+
         Rectangle {
             width: parent.width
             height: window.offline ? 32 : 0
@@ -290,7 +307,6 @@ ApplicationWindow {
             visible: !window.offline && !window.screenshotMode
                      && (window.showPendingBanner || window.showSynced)
             clip: true
-            // Succès : fond vert lisible (pas accentSoft opaque → indigo saturé).
             color: window.showPendingBanner
                    ? Qt.rgba(Theme.surfaceHigh.r, Theme.surfaceHigh.g, Theme.surfaceHigh.b, 0.92)
                    : Qt.rgba(Theme.success.r, Theme.success.g, Theme.success.b, 0.92)
@@ -308,12 +324,6 @@ ApplicationWindow {
                       : "Tout est synchronisé"
             }
         }
-    }
-
-    StackView {
-        id: stack
-        anchors.fill: parent
-        initialItem: projectsPage
     }
 
     Component { id: projectsPage; ProjectsPage {} }
