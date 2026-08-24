@@ -209,6 +209,284 @@ ScrollView {
             }
         }
 
+        // MCP IA : desktop uniquement (localhost). Masqué sur Android.
+        Rectangle {
+            Layout.fillWidth: true
+            visible: Qt.platform.os !== "android" && AppController.mcp
+            implicitHeight: mcpSection.implicitHeight + 24
+            radius: Theme.radiusLg
+            color: Theme.surface
+            border.color: Theme.outline
+
+            ColumnLayout {
+                id: mcpSection
+                anchors.fill: parent
+                anchors.margins: Theme.pad
+                spacing: Theme.gap
+
+                Label {
+                    text: "MCP IA"
+                    color: Theme.text
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Serveur local pour Cursor / Claude Desktop (localhost). "
+                          + "Activez, copiez la config, collez-la dans mcp.json."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Activer le serveur"
+                        color: Theme.text
+                        wrapMode: Text.WordWrap
+                    }
+                    Switch {
+                        id: mcpSwitch
+                        checked: AppController.mcp ? AppController.mcp.enabled : false
+                        onToggled: {
+                            if (AppController.mcp)
+                                AppController.mcp.enabled = checked
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.mcp && AppController.mcp.running
+                             && AppController.mcp.url.length > 0
+                    text: "URL · " + (AppController.mcp ? AppController.mcp.url : "")
+                    color: Theme.accent
+                    font.pixelSize: 12
+                    wrapMode: Text.WrapAnywhere
+                }
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.mcp && AppController.mcp.enabled
+                             && !AppController.mcp.running
+                    text: "Démarrage en cours ou échec d’écoute — vérifiez le port."
+                    color: Theme.warning
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: AppController.mcp && AppController.mcp.enabled
+                    Label {
+                        text: "Port"
+                        color: Theme.textDim
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                    }
+                    ColoSpinBox {
+                        from: 1024
+                        to: 65535
+                        value: AppController.mcp ? AppController.mcp.port : 4546
+                        onValueModified: {
+                            if (AppController.mcp)
+                                AppController.mcp.port = value
+                        }
+                    }
+                }
+
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: "Copier config"
+                    primary: true
+                    enabled: AppController.mcp && AppController.mcp.enabled
+                    onClicked: {
+                        if (AppController.mcp)
+                            AppController.mcp.copyConfigToClipboard()
+                    }
+                }
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: "Régénérer le token"
+                    enabled: AppController.mcp && AppController.mcp.enabled
+                    onClicked: {
+                        if (AppController.mcp)
+                            AppController.mcp.regenerateToken()
+                    }
+                }
+            }
+        }
+
+        // OpenSubtitles : clé API locale (PC). Jamais sync Nostr.
+        Rectangle {
+            id: osCard
+            Layout.fillWidth: true
+            visible: Qt.platform.os !== "android" && AppController.film
+            implicitHeight: osSection.implicitHeight + 24
+            radius: Theme.radiusLg
+            color: Theme.surface
+            border.color: Theme.outline
+
+            Component.onCompleted: {
+                if (AppController.film)
+                    osApiKeyField.text = AppController.film.apiKey
+            }
+            Connections {
+                target: AppController.film
+                function onApiKeyChanged() {
+                    if (AppController.film && !osApiKeyField.activeFocus)
+                        osApiKeyField.text = AppController.film.apiKey
+                }
+            }
+
+            ColumnLayout {
+                id: osSection
+                anchors.fill: parent
+                anchors.margins: Theme.pad
+                spacing: Theme.gap
+
+                Label {
+                    text: "OpenSubtitles"
+                    color: Theme.text
+                    font.weight: Font.DemiBold
+                    font.pixelSize: 14
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Clé API consommateur pour Bingo film (stockée sur cet appareil)."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap
+                    Label {
+                        text: "Source"
+                        color: Theme.textDim
+                        font.pixelSize: 13
+                    }
+                    ColoComboBox {
+                        id: osSourceCombo
+                        Layout.fillWidth: true
+                        model: [
+                            { code: "auto", label: "Auto (.com puis .org)" },
+                            { code: "com", label: "opensubtitles.com (API)" },
+                            { code: "org", label: "opensubtitles.org (web)" }
+                        ]
+                        textRole: "label"
+                        Component.onCompleted: {
+                            if (!AppController.film)
+                                return
+                            const s = (AppController.film.source || "auto").toLowerCase()
+                            let idx = 0
+                            for (let i = 0; i < model.length; ++i) {
+                                if (model[i].code === s) {
+                                    idx = i
+                                    break
+                                }
+                            }
+                            currentIndex = idx
+                        }
+                        onActivated: {
+                            if (AppController.film && currentIndex >= 0)
+                                AppController.film.source = model[currentIndex].code
+                        }
+                    }
+                }
+
+                ColoTextField {
+                    id: osApiKeyField
+                    Layout.fillWidth: true
+                    hint: "Clé API (.com)"
+                    echoMode: TextInput.Password
+                }
+
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: "Tester / sauver"
+                    primary: true
+                    onClicked: {
+                        if (!AppController.film)
+                            return
+                        AppController.film.setApiKey(osApiKeyField.text.trim())
+                        if (AppController.film.hasApiKey)
+                            AppController.film.clearError()
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.film && AppController.film.hasApiKey
+                    text: "Clé enregistrée — tu peux chercher un film depuis Phrases."
+                    color: Theme.success
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Login free (optionnel) — quotas download .com plus élevés."
+                    color: Theme.textDim
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                ColoTextField {
+                    id: osUserField
+                    Layout.fillWidth: true
+                    hint: "Nom d’utilisateur"
+                    Component.onCompleted: {
+                        if (AppController.film)
+                            text = AppController.film.username || ""
+                    }
+                }
+
+                ColoTextField {
+                    id: osPassField
+                    Layout.fillWidth: true
+                    hint: "Mot de passe"
+                    echoMode: TextInput.Password
+                }
+
+                BingoButton {
+                    Layout.fillWidth: true
+                    text: AppController.film && AppController.film.loggedIn
+                          ? "Reconnecter (JWT)"
+                          : "Connexion free"
+                    enabled: AppController.film && !AppController.film.busy
+                    onClicked: {
+                        if (!AppController.film)
+                            return
+                        AppController.film.username = osUserField.text.trim()
+                        AppController.film.login(osPassField.text)
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: AppController.film && AppController.film.loggedIn
+                    text: "Compte connecté (JWT enregistré localement)."
+                    color: Theme.success
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: '<a href="https://www.opensubtitles.com/en/consumers">Créer une clé sur opensubtitles.com → API consumers</a>'
+                    color: Theme.accent
+                    font.pixelSize: 12
+                    textFormat: Text.RichText
+                    wrapMode: Text.WordWrap
+                    onLinkActivated: function (link) { Qt.openUrlExternally(link) }
+                }
+            }
+        }
+
         Item { Layout.preferredHeight: Theme.pad * 2 }
     }
 }

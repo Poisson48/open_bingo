@@ -1,5 +1,17 @@
+/.secrets/
+opensubtitles.env
+*.oskey
 /build/
 /.claude/
 *.user
 *.autosave
 CMakeUserPresets.json
+
+# Secrets locaux (OpenSubtitles / env) — jamais committer
+.env
+.env.*
+!.env.example
+*.local.env
+opensubtitles.key
+*.opensubtitles.key
+.openbingo_os_api_key

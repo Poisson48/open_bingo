@@ -21,6 +21,28 @@ ScrollView {
             wrapMode: Text.WordWrap
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Importer CSV"
+                onClicked: importCsvDialog.open()
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Exporter CSV"
+                onClicked: AppController.pickExportGagesCsv()
+            }
+        }
+        Label {
+            Layout.fillWidth: true
+            text: "Tu peux aussi préparer un tableur CSV (description, number, hp, rate)."
+            color: Theme.textDim
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
+
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: addCol.implicitHeight + 20
@@ -224,6 +246,38 @@ ScrollView {
                     text: AppController.comboGages.diagonal
                     hint: "Gage — diagonale complète"
                     onEditingFinished: AppController.setComboGage("diagonal", text)
+                }
+            }
+        }
+
+        ColoDialog {
+            id: importCsvDialog
+            title: "Importer les gages"
+            showAccept: false
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: Theme.textDim
+                font.pixelSize: 14
+                text: "Remplacer la liste actuelle, ou ajouter les lignes du CSV à la suite ?"
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Ajouter"
+                primary: true
+                onClicked: {
+                    importCsvDialog.close()
+                    AppController.pickImportGagesCsv(false)
+                }
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Remplacer"
+                danger: true
+                onClicked: {
+                    importCsvDialog.close()
+                    AppController.pickImportGagesCsv(true)
                 }
             }
         }

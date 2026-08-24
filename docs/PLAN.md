@@ -19,6 +19,8 @@
 | 3 Print / Play / Share | ✅ |
 | 4 CI + cleanup web | ✅ |
 | 5 Windows | ✅ (script + workflow) |
+| 6 CSV + MCP desktop | ✅ `feat/csv-mcp` — [`PLAN-csv-mcp.md`](PLAN-csv-mcp.md) |
+| 7 OpenSubtitles / Bingo film | ✅ — [`PLAN-opensubtitles.md`](PLAN-opensubtitles.md) |
 
 ## Release
 

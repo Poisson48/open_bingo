@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
 ScrollView {
+    id: casesScroll
     clip: true
     contentWidth: availableWidth
 
@@ -10,6 +12,26 @@ ScrollView {
         x: Theme.pad
         width: Math.min(Math.max(0, availableWidth - Theme.pad * 2), Theme.contentMax)
         spacing: Theme.gap
+
+        BingoButton {
+            Layout.fillWidth: true
+            visible: Qt.platform.os !== "android"
+            text: "Depuis un film…"
+            primary: true
+            onClicked: {
+                const w = casesScroll.Window.window
+                if (w && typeof w.pushFilmAssist === "function")
+                    w.pushFilmAssist()
+            }
+        }
+        Label {
+            Layout.fillWidth: true
+            visible: Qt.platform.os !== "android"
+            text: "Prépare des phrases à partir des sous-titres malentendants."
+            color: Theme.textDim
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
 
         Label {
             Layout.fillWidth: true
@@ -35,6 +57,28 @@ ScrollView {
                      + "). Plusieurs gages du même n° → tirage pondéré au cochage.")
                   : "Mode gage : créez d’abord des gages dans l’onglet Gages."
             color: AppController.gages.length > 0 ? Theme.textDim : Theme.warning
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Importer CSV"
+                onClicked: importCsvDialog.open()
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Exporter CSV"
+                onClicked: AppController.pickExportPhrasesCsv()
+            }
+        }
+        Label {
+            Layout.fillWidth: true
+            text: "Tu peux aussi préparer un tableur CSV (label, points, rate)."
+            color: Theme.textDim
             font.pixelSize: 12
             wrapMode: Text.WordWrap
         }
@@ -149,6 +193,38 @@ ScrollView {
                     anchors.fill: parent
                     anchors.rightMargin: 48
                     onClicked: editCaseDialog.openFor(index, modelData)
+                }
+            }
+        }
+
+        ColoDialog {
+            id: importCsvDialog
+            title: "Importer les phrases"
+            showAccept: false
+
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: Theme.textDim
+                font.pixelSize: 14
+                text: "Remplacer la liste actuelle, ou ajouter les lignes du CSV à la suite ?"
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Ajouter"
+                primary: true
+                onClicked: {
+                    importCsvDialog.close()
+                    AppController.pickImportPhrasesCsv(false)
+                }
+            }
+            BingoButton {
+                Layout.fillWidth: true
+                text: "Remplacer"
+                danger: true
+                onClicked: {
+                    importCsvDialog.close()
+                    AppController.pickImportPhrasesCsv(true)
                 }
             }
         }

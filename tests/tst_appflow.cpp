@@ -766,6 +766,55 @@ private slots:
         QVERIFY(host.isProjectShared(id));
         QVERIFY(host.projects()->rowCount() >= 1);
     }
+
+    // Contrat CSV : import phrases → gridsDirty, grilles non vidées.
+    void importPhrasesCsvMarksDirtyWithoutWipingGrids()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        while (controller.projects()->rowCount() > 0)
+            controller.deleteProject(controller.projects()->idAt(0));
+
+        const QString id = controller.createProject();
+        QVERIFY(!id.isEmpty());
+        controller.setGridSize(3);
+        while (controller.players().size() > 2)
+            controller.removePlayer(controller.players().size() - 1);
+        while (controller.players().size() < 2)
+            controller.addPlayer();
+        while (controller.cases().size() > 0)
+            controller.removeCase(0);
+        for (int i = 0; i < 9; ++i)
+            controller.addCase(QStringLiteral("Seed %1").arg(i), 1, 100);
+
+        const QString genMsg = controller.generateAll();
+        QVERIFY2(!genMsg.contains(QStringLiteral("Aucun")), qPrintable(genMsg));
+        const int gridsBefore = controller.grids().size();
+        QVERIFY(gridsBefore >= 1);
+        QVERIFY(!controller.gridsDirty());
+
+        const QString csv = QStringLiteral(
+            "label,points,rate\n"
+            "Importée CSV,2,80\n"
+            ",1,50\n"
+            "Autre phrase,1,60\n");
+        const QVariantMap result = controller.importPhrasesCsvText(csv, false);
+        QVERIFY2(result.value(QStringLiteral("ok")).toBool(), "import ok");
+        QCOMPARE(result.value(QStringLiteral("added")).toInt(), 2);
+        QVERIFY(result.value(QStringLiteral("skipped")).toInt() >= 1);
+
+        QCOMPARE(controller.grids().size(), gridsBefore);
+        QVERIFY2(controller.gridsDirty(), "gridsDirty after CSV import");
+        QVERIFY(controller.cases().size() >= 11);
+
+        const QString exported = controller.exportPhrasesCsvText();
+        QVERIFY(exported.contains(QStringLiteral("Importée CSV")));
+        QVERIFY(exported.startsWith(QStringLiteral("label,points,rate")));
+    }
 };
 
 int main(int argc, char* argv[])

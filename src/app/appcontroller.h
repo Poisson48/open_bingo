@@ -6,6 +6,8 @@
 #include "projectmodel.h"
 #include "projectsync.h"
 #include "updater.h"
+#include "mcpserver.h"
+#include "filmassistant.h"
 
 #include <QObject>
 #include <QImage>
@@ -45,6 +47,8 @@ class AppController : public QObject
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
     Q_PROPERTY(app::Updater* updater READ updater CONSTANT)
+    Q_PROPERTY(app::McpServer* mcp READ mcp CONSTANT)
+    Q_PROPERTY(app::FilmAssistant* film READ film CONSTANT)
     // Aperçu PNG classement (file://…?r=) — rafraîchi par prepareScoreboardPreview.
     Q_PROPERTY(QString scoreboardPreviewUrl READ scoreboardPreviewUrl NOTIFY scoreboardPreviewChanged)
     Q_PROPERTY(int scoreboardPreviewRevision READ scoreboardPreviewRevision NOTIFY scoreboardPreviewChanged)
@@ -82,6 +86,8 @@ public:
     bool online() const;
     int pendingChanges() const;
     Updater* updater() const { return m_updater.get(); }
+    McpServer* mcp() const { return m_mcp.get(); }
+    FilmAssistant* film() const { return m_film.get(); }
 
     void setTitle(const QString& v);
     void setDescription(const QString& v);
@@ -146,6 +152,17 @@ public:
     Q_INVOKABLE void pickImportJson();
     Q_INVOKABLE void pickImportAllJson();
 
+    // CSV phrases / gages (deux fichiers). replace=true remplace la liste.
+    // Import → gridsDirty, grilles non vidées. Voir docs/PLAN-csv-mcp.md.
+    Q_INVOKABLE QVariantMap importPhrasesCsvText(const QString& text, bool replace);
+    Q_INVOKABLE QVariantMap importGagesCsvText(const QString& text, bool replace);
+    Q_INVOKABLE QString exportPhrasesCsvText() const;
+    Q_INVOKABLE QString exportGagesCsvText() const;
+    Q_INVOKABLE void pickImportPhrasesCsv(bool replace);
+    Q_INVOKABLE void pickImportGagesCsv(bool replace);
+    Q_INVOKABLE void pickExportPhrasesCsv();
+    Q_INVOKABLE void pickExportGagesCsv();
+
     Q_INVOKABLE QString buildShareUrl();
     Q_INVOKABLE QString joinUriForProject(const QString& projectId);
     Q_INVOKABLE bool importSharePayload(const QString& payload);
@@ -199,6 +216,11 @@ public:
 
     Q_INVOKABLE QString formatRelativeDate(qint64 ms) const;
 
+    // Settings SQLite (clé API OpenSubtitles, langue, etc.) — jamais sync Nostr.
+    Q_INVOKABLE QString settingsGet(const QString& key,
+                                    const QString& defaultValue = QString()) const;
+    Q_INVOKABLE void settingsSet(const QString& key, const QString& value);
+
     static QString databasePath();
 
 signals:
@@ -241,6 +263,8 @@ private:
     std::unique_ptr<net::RelayPool>  m_relayPool;
     std::unique_ptr<ProjectSync>     m_projectSync;
     std::unique_ptr<Updater>         m_updater;
+    std::unique_ptr<McpServer>       m_mcp;
+    std::unique_ptr<FilmAssistant>   m_film;
     core::Project                    m_current;
     bool                             m_hasCurrent = false;
     bool                             m_gridsDirty = false;

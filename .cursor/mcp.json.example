@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "openbingo": {
+      "url": "http://127.0.0.1:4546/mcp",
+      "headers": {
+        "Authorization": "Bearer <token-affiché-dans-l-app>"
+      }
+    }
+  }
+}

@@ -318,6 +318,17 @@ ApplicationWindow {
 
     Component { id: projectsPage; ProjectsPage {} }
     Component { id: editorPage; EditorPage {} }
+    Component { id: filmAssistPage; FilmAssistPage {} }
+
+    // Bingo film (OpenSubtitles) — desktop only. Appelé depuis CasesPage.
+    function pushFilmAssist() {
+        if (window.isAndroid)
+            return
+        const cur = stack.currentItem
+        if (cur && cur.isFilmAssist)
+            return
+        stack.push(filmAssistPage)
+    }
 
     Connections {
         target: AppController
@@ -345,6 +356,8 @@ ApplicationWindow {
     ChangelogDialog { id: whatsNewDialog }
 
     function openChangelog() { changelogDialog.openHistory() }
+
+    function showToast(message) { snackbar.show(message) }
 
     function openPlayGame(playerName, playerIndex, rows, checks) {
         playGame.playerName = playerName || ""

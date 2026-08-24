@@ -2,6 +2,7 @@
 
 #include "../core/generator.h"
 #include "../core/jsoncodec.h"
+#include "../core/projectcsv.h"
 #include "../core/sharecodec.h"
 #include "platform.h"
 
@@ -419,6 +420,10 @@ AppController::AppController(QObject* parent)
 AppController::~AppController()
 {
     m_autoSaveTimer.stop();
+    if (m_mcp)
+        m_mcp->setEnabled(false);
+    m_mcp.reset();
+    m_film.reset();
     m_projectSync.reset();
     m_relayPool.reset();
     m_updater.reset();
@@ -447,6 +452,8 @@ bool AppController::init()
     m_relayPool = std::make_unique<net::RelayPool>(this);
     m_projectSync = std::make_unique<ProjectSync>(this);
     m_updater = std::make_unique<Updater>(this);
+    m_mcp = std::make_unique<McpServer>(this); // pas de parent QObject : owned par unique_ptr
+    m_film = std::make_unique<FilmAssistant>(this); // unique_ptr only, pas de parent QObject
 
     std::string deviceIdStr = m_db->getSetting("device_id").value_or("");
     if (deviceIdStr.empty()) {
@@ -1587,12 +1594,41 @@ int AppController::importAllJsonFile(const QString& filePath)
 namespace {
 
 constexpr auto kJsonFilter = "JSON (*.json)";
+constexpr auto kCsvFilter  = "CSV (*.csv)";
 
 QString ensureJsonSuffix(QString path)
 {
     if (!path.endsWith(QStringLiteral(".json"), Qt::CaseInsensitive))
         path += QStringLiteral(".json");
     return path;
+}
+
+QString ensureCsvSuffix(QString path)
+{
+    if (!path.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive))
+        path += QStringLiteral(".csv");
+    return path;
+}
+
+QStringList csvErrorsToList(const std::vector<std::string>& errors)
+{
+    QStringList out;
+    out.reserve(static_cast<int>(errors.size()));
+    for (const auto& e : errors)
+        out << QString::fromStdString(e);
+    return out;
+}
+
+QVariantMap csvImportToMap(const core::CsvImportResult& r)
+{
+    // ok si aucune erreur, ou au moins une ligne importée (succès partiel).
+    const bool ok = r.errors.empty() || r.added > 0;
+    return QVariantMap{
+        {QStringLiteral("ok"), ok},
+        {QStringLiteral("added"), r.added},
+        {QStringLiteral("skipped"), r.skipped},
+        {QStringLiteral("errors"), csvErrorsToList(r.errors)},
+    };
 }
 
 } // namespace
@@ -1657,6 +1693,138 @@ void AppController::pickImportAllJson()
         emit toast(tr("%1 projet(s) importé(s)").arg(n));
     else
         emit toast(tr("Import impossible"));
+}
+
+QVariantMap AppController::importPhrasesCsvText(const QString& text, bool replace)
+{
+    if (!m_hasCurrent) {
+        return QVariantMap{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("added"), 0},
+            {QStringLiteral("skipped"), 0},
+            {QStringLiteral("errors"), QStringList{tr("Aucun projet ouvert")}},
+        };
+    }
+    const auto r = core::importPhrasesCsv(m_current, text.toStdString(), replace);
+    markGridsDirty();
+    emit currentProjectChanged();
+    scheduleAutoSave();
+    return csvImportToMap(r);
+}
+
+QVariantMap AppController::importGagesCsvText(const QString& text, bool replace)
+{
+    if (!m_hasCurrent) {
+        return QVariantMap{
+            {QStringLiteral("ok"), false},
+            {QStringLiteral("added"), 0},
+            {QStringLiteral("skipped"), 0},
+            {QStringLiteral("errors"), QStringList{tr("Aucun projet ouvert")}},
+        };
+    }
+    const auto r = core::importGagesCsv(m_current, text.toStdString(), replace);
+    markGridsDirty();
+    emit currentProjectChanged();
+    scheduleAutoSave();
+    return csvImportToMap(r);
+}
+
+QString AppController::exportPhrasesCsvText() const
+{
+    if (!m_hasCurrent)
+        return {};
+    return QString::fromStdString(core::exportPhrasesCsv(m_current));
+}
+
+QString AppController::exportGagesCsvText() const
+{
+    if (!m_hasCurrent)
+        return {};
+    return QString::fromStdString(core::exportGagesCsv(m_current));
+}
+
+void AppController::pickImportPhrasesCsv(bool replace)
+{
+    if (!m_hasCurrent) {
+        emit toast(tr("Aucun projet ouvert"));
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Importer des phrases (CSV)"), {}, kCsvFilter);
+    if (path.isEmpty())
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        emit toast(tr("Impossible de lire le fichier"));
+        return;
+    }
+    const auto result = importPhrasesCsvText(QString::fromUtf8(f.readAll()), replace);
+    const int added = result.value(QStringLiteral("added")).toInt();
+    const QStringList errs = result.value(QStringLiteral("errors")).toStringList();
+    if (errs.isEmpty())
+        emit toast(tr("%1 phrase(s) ajoutée(s)").arg(added));
+    else if (added > 0)
+        emit toast(tr("%1 phrase(s) ajoutée(s), %2 erreur(s)").arg(added).arg(errs.size()));
+    else
+        emit toast(errs.isEmpty() ? tr("Import phrases impossible") : errs.first());
+}
+
+void AppController::pickImportGagesCsv(bool replace)
+{
+    if (!m_hasCurrent) {
+        emit toast(tr("Aucun projet ouvert"));
+        return;
+    }
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Importer des gages (CSV)"), {}, kCsvFilter);
+    if (path.isEmpty())
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        emit toast(tr("Impossible de lire le fichier"));
+        return;
+    }
+    const auto result = importGagesCsvText(QString::fromUtf8(f.readAll()), replace);
+    const int added = result.value(QStringLiteral("added")).toInt();
+    const QStringList errs = result.value(QStringLiteral("errors")).toStringList();
+    if (errs.isEmpty())
+        emit toast(tr("%1 gage(s) ajouté(s)").arg(added));
+    else if (added > 0)
+        emit toast(tr("%1 gage(s) ajouté(s), %2 erreur(s)").arg(added).arg(errs.size()));
+    else
+        emit toast(errs.isEmpty() ? tr("Import gages impossible") : errs.first());
+}
+
+void AppController::pickExportPhrasesCsv()
+{
+    if (!m_hasCurrent) {
+        emit toast(tr("Aucun projet ouvert"));
+        return;
+    }
+    const QString path = ensureCsvSuffix(QFileDialog::getSaveFileName(
+        nullptr, tr("Exporter les phrases (CSV)"), QStringLiteral("phrases.csv"), kCsvFilter));
+    if (path.isEmpty())
+        return;
+    if (writeFile(path, exportPhrasesCsvText().toStdString()))
+        emit toast(tr("Phrases exportées"));
+    else
+        emit toast(tr("Export impossible"));
+}
+
+void AppController::pickExportGagesCsv()
+{
+    if (!m_hasCurrent) {
+        emit toast(tr("Aucun projet ouvert"));
+        return;
+    }
+    const QString path = ensureCsvSuffix(QFileDialog::getSaveFileName(
+        nullptr, tr("Exporter les gages (CSV)"), QStringLiteral("gages.csv"), kCsvFilter));
+    if (path.isEmpty())
+        return;
+    if (writeFile(path, exportGagesCsvText().toStdString()))
+        emit toast(tr("Gages exportés"));
+    else
+        emit toast(tr("Export impossible"));
 }
 
 QString AppController::buildShareUrl()
@@ -3143,6 +3311,23 @@ QString AppController::formatRelativeDate(qint64 ms) const
     if (secs < 86400)
         return QStringLiteral("il y a %1 h").arg(secs / 3600);
     return dt.toString(QStringLiteral("dd/MM/yyyy"));
+}
+
+QString AppController::settingsGet(const QString& key, const QString& defaultValue) const
+{
+    if (!m_db || key.isEmpty())
+        return defaultValue;
+    const auto v = m_db->getSetting(key.toStdString());
+    if (!v)
+        return defaultValue;
+    return QString::fromStdString(*v);
+}
+
+void AppController::settingsSet(const QString& key, const QString& value)
+{
+    if (!m_db || key.isEmpty())
+        return;
+    m_db->setSetting(key.toStdString(), value.toStdString());
 }
 
 } // namespace app

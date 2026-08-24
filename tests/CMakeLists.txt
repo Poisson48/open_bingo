@@ -12,6 +12,24 @@ target_include_directories(tst_json PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOUR
 target_link_libraries(tst_json PRIVATE core Qt6::Test)
 add_test(NAME json COMMAND tst_json)
 
+add_executable(tst_srt tst_srt.cpp)
+target_include_directories(tst_srt PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/third_party)
+target_link_libraries(tst_srt PRIVATE core Qt6::Test)
+target_compile_definitions(tst_srt PRIVATE OPENBINGO_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures")
+add_test(NAME srt COMMAND tst_srt)
+
+add_executable(tst_csv_project tst_csv_project.cpp)
+target_include_directories(tst_csv_project PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/third_party)
+target_link_libraries(tst_csv_project PRIVATE core Qt6::Test)
+add_test(NAME csv_project COMMAND tst_csv_project)
+
+# Live OpenSubtitles (search only). Skip si OPENSUBTITLES_API_KEY vide.
+# ctest -L opensubtitles
+qt_add_executable(tst_opensubtitles_live tst_opensubtitles_live.cpp)
+target_link_libraries(tst_opensubtitles_live PRIVATE Qt6::Test Qt6::Network)
+add_test(NAME opensubtitles_live COMMAND tst_opensubtitles_live)
+set_tests_properties(opensubtitles_live PROPERTIES LABELS "opensubtitles")
+
 qt_add_executable(tst_database tst_database.cpp)
 target_link_libraries(tst_database PRIVATE store Qt6::Test Qt6::Sql)
 add_test(NAME database COMMAND tst_database)

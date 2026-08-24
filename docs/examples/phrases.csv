@@ -1,0 +1,17 @@
+# Exemples CSV Open Bingo — voir docs/PLAN-csv-mcp.md et docs/examples/README.md
+label,points,rate
+"On ne parle pas de Fight Club",1,80
+"Je vois des gens morts",2,60
+"Hasta la vista, baby",1,70
+"May the Force be with you",1,90
+"I'll be back",1,85
+"You shall not pass!",2,75
+"Why so serious?",2,65
+"I am your father",3,50
+"Houston, we have a problem",1,70
+"To infinity… and beyond!",1,80
+"Life finds a way",2,55
+"There's no place like home",1,60
+"My precious",2,70
+"Just keep swimming",1,65
+"Winter is coming",3,45

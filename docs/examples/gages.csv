@@ -1,0 +1,12 @@
+# Exemples CSV Open Bingo — voir docs/PLAN-csv-mcp.md et docs/examples/README.md
+description,number,hp,rate
+"Boire une gorgée",1,5,100
+"Chanter 10 secondes",1,5,40
+"Faire 10 pompes",2,10,100
+"Imiter une voix de film",2,8,60
+"Danser 15 secondes",3,10,70
+"Raconter un spoil (faux)",3,5,30
+"Faire un compliment à chacun",4,5,80
+"Mime 20 secondes",4,8,50
+"Changer de place",5,5,90
+"Boire tout son verre",5,15,25

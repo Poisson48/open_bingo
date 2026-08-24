@@ -11,9 +11,10 @@ add_library(net STATIC
     net/nostr.cpp
     net/relayclient.cpp
     net/relaypool.cpp
+    net/opensubtitlesclient.cpp
 )
 target_include_directories(net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(net PUBLIC Qt6::Core Qt6::WebSockets)
+target_link_libraries(net PUBLIC Qt6::Core Qt6::Network Qt6::WebSockets)
 
 add_library(cryptolayer STATIC net/crypto.cpp)
 target_include_directories(cryptolayer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -27,6 +28,9 @@ add_library(core STATIC
     core/crdt.cpp
     core/payload.cpp
     core/csv.cpp
+    core/projectcsv.cpp
+    core/srtcodec.cpp
+    core/phraseextract.cpp
     core/zip.cpp
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/third_party)
@@ -49,6 +53,8 @@ set(APPLIB_SOURCES
     app/qrimageprovider.cpp
     app/theme.cpp
     app/updater.cpp
+    app/mcpserver.cpp
+    app/filmassistant.cpp
 )
 if(BINGO_HAS_CAMERA)
     list(APPEND APPLIB_SOURCES app/qrscanner.cpp)
@@ -68,6 +74,8 @@ endif()
 
 set(BINGO_VERSION_NAME "2.0.28" CACHE STRING "android:versionName")
 set(BINGO_VERSION_CODE "1" CACHE STRING "android:versionCode")
+# User-Agent OpenSubtitles (net) + applib
+target_compile_definitions(net PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")
 target_compile_definitions(applib PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")
 
 qt_add_executable(openbingo app/main.cpp)
@@ -86,6 +94,10 @@ set(BINGO_QML_FILES
     qml/ConfigPage.qml
     qml/CasesPage.qml
     qml/GagesPage.qml
+    qml/FilmAssistPage.qml
+    qml/FilmSearchBar.qml
+    qml/SubtitleResultDelegate.qml
+    qml/CueList.qml
     qml/GridsPage.qml
     qml/PrintPage.qml
     qml/PlayPage.qml

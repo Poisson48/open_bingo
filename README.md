@@ -63,6 +63,52 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 - **Classement PNG** — aperçu puis partage (Android) / enregistrement (desktop) ; titre + description du projet
 - **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play)
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
+- **Import/export CSV** — phrases et gages depuis un tableur (desktop + Android)
+- **MCP IA (desktop)** — Cursor / Claude Desktop pilotent le projet ouvert via HTTP localhost
+- **Bingo film (desktop)** — OpenSubtitles (`.com` API + fallback `.org`) → SDH → phrases bingo
+
+## Import CSV
+
+Deux fichiers séparés (UTF-8, header obligatoire) :
+
+| Fichier | Colonnes | Exemple |
+|---|---|---|
+| `phrases.csv` | `label`, `points`, `rate` | [`docs/examples/phrases.csv`](docs/examples/phrases.csv) |
+| `gages.csv` | `description`, `number`, `hp`, `rate` | [`docs/examples/gages.csv`](docs/examples/gages.csv) |
+
+Dans l’app : onglets **Phrases** / **Gages** → Importer / Exporter CSV (ajouter ou remplacer).  
+Format et règles : [`docs/PLAN-csv-mcp.md`](docs/PLAN-csv-mcp.md) · workflow film : [`docs/examples/README.md`](docs/examples/README.md).
+
+## MCP IA (desktop)
+
+Sur Linux (AppImage / binaire), activer **MCP IA** dans les réglages : écoute `http://127.0.0.1:4546/mcp` + token Bearer local. Coller dans `.cursor/mcp.json` :
+
+```json
+{
+  "mcpServers": {
+    "openbingo": {
+      "url": "http://127.0.0.1:4546/mcp",
+      "headers": {
+        "Authorization": "Bearer <token-affiché-dans-l-app>"
+      }
+    }
+  }
+}
+```
+
+Modèle prêt à copier : [`.cursor/mcp.json.example`](.cursor/mcp.json.example).  
+Plan, tools et parcours sous-titres SDH → bingo film : [`docs/PLAN-csv-mcp.md`](docs/PLAN-csv-mcp.md).
+
+## Bingo film / OpenSubtitles (desktop)
+
+Sur PC : page **Bingo film** (depuis **Phrases**) — chercher un film, télécharger une piste (SDH mis en avant), importer des répliques.
+
+1. (Recommandé) Clé API gratuite sur opensubtitles.com → **API consumers** + login free optionnel (~20 DL/j).
+2. Réglages → carte **OpenSubtitles** : clé, login optionnel, source **Auto** / `.com` / `.org`.
+3. **Auto** : API `.com` puis secours HTML `.org` (best-effort, gratuit).
+
+Android : sync / jeu seulement.  
+Détail : [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md).
 
 ## Comment ça marche (sync)
 
@@ -140,7 +186,7 @@ src/
   qml/      Interface Material (pages, composants Bingo*)
 ```
 
-Documentation : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), [`CLAUDE.md`](CLAUDE.md).
+Documentation : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/PLAN-csv-mcp.md`](docs/PLAN-csv-mcp.md), [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md), [`CLAUDE.md`](CLAUDE.md).
 
 ## Plateformes
 
