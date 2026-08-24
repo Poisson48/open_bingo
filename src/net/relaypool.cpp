@@ -30,7 +30,7 @@ void RelayPool::setRelays(const QList<QUrl>& urls)
     m_clients.clear();
 
     for (const QUrl& url : urls) {
-        auto client = std::make_unique<RelayClient>(url, this);
+        auto client = std::make_unique<RelayClient>(url, nullptr); // unique_ptr owns
 
         connect(client.get(), &RelayClient::connected,
                 this, &RelayPool::onClientConnected);

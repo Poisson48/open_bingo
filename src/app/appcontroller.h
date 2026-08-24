@@ -248,11 +248,6 @@ private:
     void clearGridsDirtyFlag();
     void rememberPlayChecksSnapshot();
     void announceWinners(const QVariantList& newWinners, const QVariantList& scoreboard);
-    QVariantList overlaysForNewlyCheckedCells(
-        const std::map<std::string, std::string>& before,
-        const std::map<std::string, std::string>& after) const;
-    QSet<QString> fullPlayersFromChecksMap(
-        const std::map<std::string, std::string>& checksByPlayer) const;
     core::Project* current();
     const core::Project* current() const;
     QVariantList gridsToVariant() const;

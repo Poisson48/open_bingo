@@ -2,6 +2,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
 pkg_check_modules(SECP256K1 REQUIRED IMPORTED_TARGET libsecp256k1)
 
+# Warnings stricts — notre code uniquement (pas ZXing / FetchContent).
+set(BINGO_WARN_FLAGS -Wall -Wextra -Wpedantic -Wno-unused-parameter)
+
 add_library(qrcodegen STATIC
     ${CMAKE_SOURCE_DIR}/third_party/qrcodegen/qrcodegen.cpp
 )
@@ -11,14 +14,18 @@ add_library(net STATIC
     net/nostr.cpp
     net/relayclient.cpp
     net/relaypool.cpp
+    net/opensubtitles_com.cpp
+    net/opensubtitles_org.cpp
     net/opensubtitlesclient.cpp
 )
 target_include_directories(net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(net PUBLIC Qt6::Core Qt6::Network Qt6::WebSockets)
+target_compile_options(net PRIVATE ${BINGO_WARN_FLAGS})
 
 add_library(cryptolayer STATIC net/crypto.cpp)
 target_include_directories(cryptolayer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(cryptolayer PUBLIC Qt6::Core net PkgConfig::SODIUM PkgConfig::SECP256K1)
+target_compile_options(cryptolayer PRIVATE ${BINGO_WARN_FLAGS})
 
 add_library(core STATIC
     core/generator.cpp
@@ -35,17 +42,22 @@ add_library(core STATIC
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/third_party)
 target_link_libraries(core PUBLIC ZLIB::ZLIB)
+target_compile_options(core PRIVATE ${BINGO_WARN_FLAGS})
 
 add_library(store STATIC store/database.cpp)
 target_include_directories(store PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(store PUBLIC Qt6::Core Qt6::Sql core)
+target_compile_options(store PRIVATE ${BINGO_WARN_FLAGS})
 
 add_library(qrdecode STATIC app/qrdecode.cpp)
 target_include_directories(qrdecode PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/app)
 target_link_libraries(qrdecode PUBLIC Qt6::Gui ZXing::ZXing)
+target_compile_options(qrdecode PRIVATE ${BINGO_WARN_FLAGS})
 
 set(APPLIB_SOURCES
     app/appcontroller.cpp
+    app/playlogic.cpp
+    app/exportprint.cpp
     app/projectmodel.cpp
     app/projectsync.cpp
     app/platform.cpp
@@ -54,6 +66,10 @@ set(APPLIB_SOURCES
     app/theme.cpp
     app/updater.cpp
     app/mcpserver.cpp
+    app/mcp_json.cpp
+    app/mcp_tools.cpp
+    app/mcp_tools_film.cpp
+    app/mcp_tools_project.cpp
     app/filmassistant.cpp
 )
 if(BINGO_HAS_CAMERA)
@@ -67,6 +83,7 @@ target_link_libraries(applib PUBLIC
     Qt6::Core Qt6::Network Qt6::Quick Qt6::Sql Qt6::WebSockets Qt6::PrintSupport Qt6::Widgets
     PkgConfig::SODIUM PkgConfig::SECP256K1
 )
+target_compile_options(applib PRIVATE ${BINGO_WARN_FLAGS})
 if(BINGO_HAS_CAMERA)
     target_link_libraries(applib PUBLIC Qt6::Multimedia)
     target_compile_definitions(applib PUBLIC BINGO_HAS_CAMERA)
@@ -104,6 +121,7 @@ set(BINGO_QML_FILES
     qml/ScoresPage.qml
     qml/ColoDialog.qml
     qml/ColoTextField.qml
+    qml/scrollutils.js
     qml/ColoMenu.qml
     qml/ColoComboBox.qml
     qml/ColoSpinBox.qml
@@ -133,6 +151,7 @@ target_link_libraries(openbingo PRIVATE
     Qt6::Core Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::WebSockets Qt6::PrintSupport Qt6::Widgets
     PkgConfig::SODIUM PkgConfig::SECP256K1
 )
+target_compile_options(openbingo PRIVATE ${BINGO_WARN_FLAGS})
 
 set_property(TARGET openbingo PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/android")
 set_property(TARGET openbingo PROPERTY QT_ANDROID_TARGET_SDK_VERSION 34)

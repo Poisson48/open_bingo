@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
+import "scrollutils.js" as ScrollUtils
 
 ScrollView {
     clip: true
@@ -55,8 +57,14 @@ ScrollView {
                         border.color: descField.activeFocus ? Theme.accent : Theme.outlineLight
                     }
                     onActiveFocusChanged: {
-                        if (!activeFocus)
+                        if (activeFocus)
+                            Qt.callLater(function () { ScrollUtils.ensureVisible(descField) })
+                        else
                             AppController.description = text
+                    }
+                    onCursorRectangleChanged: {
+                        if (activeFocus)
+                            Qt.callLater(function () { ScrollUtils.ensureVisible(descField) })
                     }
                 }
 

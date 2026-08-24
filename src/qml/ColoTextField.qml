@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
+import "scrollutils.js" as ScrollUtils
 
 TextField {
     id: field
@@ -23,5 +25,23 @@ TextField {
         border.width: field.activeFocus ? 2 : 1
         border.color: field.activeFocus ? Theme.accent : Theme.outlineLight
         clip: true
+    }
+
+    onActiveFocusChanged: {
+        if (activeFocus)
+            Qt.callLater(function () { ScrollUtils.ensureVisible(field) })
+    }
+
+    // Clavier virtuel : re-scroller quand le viewport rétrécit.
+    Connections {
+        target: Qt.inputMethod
+        function onKeyboardRectangleChanged() {
+            if (field.activeFocus)
+                Qt.callLater(function () { ScrollUtils.ensureVisible(field) })
+        }
+        function onVisibleChanged() {
+            if (field.activeFocus && Qt.inputMethod.visible)
+                Qt.callLater(function () { ScrollUtils.ensureVisible(field) })
+        }
     }
 }
