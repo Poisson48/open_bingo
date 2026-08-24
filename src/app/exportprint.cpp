@@ -16,6 +16,8 @@
 #include <QTextOption>
 #include <QtGlobal>
 
+#include <limits>
+
 namespace app::exportprint {
 
 
@@ -487,50 +489,110 @@ void drawPlayerSheet(QPainter& p, const QRectF& area, const core::Project& proje
     p.drawText(QRectF(left, y, w, area.bottom() - y), note, rulesOpt);
 }
 
-void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project)
+// Estimation de la taille de case (px) si on dessine la grille dans `sheetArea`.
+qreal estimateCellSide(const QRectF& sheetArea, const core::Project& project,
+                       const core::PlayerGrid& grid)
+{
+    if (grid.cells.empty())
+        return 0;
+    const int rowsN = static_cast<int>(grid.cells.size());
+    const int colsN = rowsN > 0 ? static_cast<int>(grid.cells[0].size()) : 0;
+    if (rowsN <= 0 || colsN <= 0)
+        return 0;
+
+    const bool gageMode = project.gageMode;
+    // Même proportions que drawPlayerSheet (en-tête + pied).
+    const qreal headerH = sheetArea.height() * 0.12;
+    const qreal footerH = sheetArea.height() * (gageMode ? 0.11 : 0.26);
+    const qreal gridH = qMax(1.0, sheetArea.height() - headerH - footerH);
+    const qreal gridW = sheetArea.width();
+    return qMin(gridW / colsN, gridH / rowsN);
+}
+
+// true = 2 grilles / page (demi A4) si les cases restent assez grandes ; sinon 1 / page.
+bool preferHalfPageLayout(const QPrinter& printer, const QRectF& page,
+                          const core::Project& project)
+{
+    if (project.grids.empty())
+        return true;
+
+    const qreal cutBand = mmToPx(printer, 5);
+    const qreal halfH = (page.height() - cutBand) / 2.0;
+    const qreal insetX = mmToPx(printer, 4);
+    const qreal insetY = mmToPx(printer, 2);
+    const QRectF halfArea(page.left() + insetX,
+                          page.top() + insetY,
+                          page.width() - 2 * insetX,
+                          halfH - 2 * insetY);
+
+    // Seuil lisible ≈ 18 mm de côté de case (texte + n° / points).
+    const qreal minSide = mmToPx(printer, 18);
+
+    qreal worst = std::numeric_limits<qreal>::max();
+    for (const auto& g : project.grids)
+        worst = qMin(worst, estimateCellSide(halfArea, project, g));
+    return worst >= minSide;
+}
+
+// Dessine une page (ou suite) du tableau des gages.
+// nextGage : prochain index dans project.gages
+// nextCombo : 0=titre section, 1=ligne, 2=colonne, 3=diagonale, 4=terminé
+// Retourne false s'il reste du contenu (il faut newPage).
+bool drawGageSheetPage(QPainter& p, const QRectF& area, const core::Project& project,
+                       size_t& nextGage, int& nextCombo, bool firstPage)
 {
     qreal y = area.top();
     const qreal left = area.left();
     const qreal w = area.width();
+    const qreal bottom = area.bottom();
 
     QFont titleFont(QStringLiteral("Sans Serif"));
     titleFont.setBold(true);
-    titleFont.setPixelSize(qMax(10, int(area.height() * 0.03)));
+    titleFont.setPixelSize(qMax(10, int(area.height() * 0.028)));
     p.setFont(titleFont);
     p.setPen(Qt::black);
     p.drawText(QRectF(left, y, w, titleFont.pixelSize() * 1.4),
                Qt::AlignHCenter | Qt::AlignVCenter,
                QString::fromStdString(project.title));
-    y += titleFont.pixelSize() * 1.5;
+    y += titleFont.pixelSize() * 1.45;
 
     QFont playerFont(titleFont);
-    playerFont.setPixelSize(qMax(14, int(area.height() * 0.045)));
+    playerFont.setPixelSize(qMax(13, int(area.height() * 0.04)));
     p.setFont(playerFont);
     p.drawText(QRectF(left, y, w, playerFont.pixelSize() * 1.3),
                Qt::AlignHCenter | Qt::AlignVCenter,
-               QStringLiteral("Tableau des Gages"));
-    y += playerFont.pixelSize() * 1.5;
+               firstPage ? QStringLiteral("Tableau des Gages")
+                         : QStringLiteral("Tableau des Gages (suite)"));
+    y += playerFont.pixelSize() * 1.4;
 
     p.setPen(QPen(Qt::black, 2));
     p.drawLine(QPointF(left, y), QPointF(left + w, y));
-    y += 10;
+    y += 8;
 
     QFont body(QStringLiteral("Sans Serif"));
-    body.setPixelSize(qMax(9, int(area.height() * 0.025)));
-    QFont bodyItalic(body);
-    bodyItalic.setItalic(true);
-    p.setFont(bodyItalic);
-    p.setPen(QColor(QStringLiteral("#333333")));
-    const QString intro = project.gageMode
-        ? QStringLiteral("Le n° sur chaque case tire un gage parmi ceux qui portent "
-                         "ce numéro (selon le %). Effectue-le quand tu tombes dessus !")
-        : QStringLiteral("Accomplis n'importe quel gage pour récupérer des points "
-                         "de vie. Une fois accompli, coche-le.");
-    QTextOption introOpt;
-    introOpt.setWrapMode(QTextOption::WordWrap);
-    const qreal introH = body.pixelSize() * 3.2;
-    p.drawText(QRectF(left, y, w, introH), intro, introOpt);
-    y += introH + 8;
+    body.setPixelSize(qMax(9, int(area.height() * 0.022)));
+    QFontMetrics fm(body);
+
+    if (firstPage) {
+        QFont bodyItalic(body);
+        bodyItalic.setItalic(true);
+        p.setFont(bodyItalic);
+        p.setPen(QColor(QStringLiteral("#333333")));
+        const QString intro = project.gageMode
+            ? QStringLiteral("Le n° sur chaque case tire un gage parmi ceux qui portent "
+                             "ce numéro (selon le %). Effectue-le quand tu tombes dessus !")
+            : QStringLiteral("Accomplis n'importe quel gage pour récupérer des points "
+                             "de vie. Une fois accompli, coche-le.");
+        const QRect introBound = fm.boundingRect(QRect(0, 0, int(w), 1000),
+                                                Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                                                intro);
+        const qreal introH = qMax(qreal(body.pixelSize() * 2.4), qreal(introBound.height() + 4));
+        QTextOption introOpt;
+        introOpt.setWrapMode(QTextOption::WordWrap);
+        p.setFont(bodyItalic);
+        p.drawText(QRectF(left, y, w, introH), intro, introOpt);
+        y += introH + 6;
+    }
 
     const bool showHp = !project.gageMode;
     const bool showRate = project.gageMode;
@@ -538,33 +600,60 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
     const qreal colRate = showRate ? w * 0.12 : 0;
     const qreal colHp = showHp ? w * 0.16 : 0;
     const qreal colDesc = w - colNum - colRate - colHp;
-    const qreal rowH = qMax(18.0, body.pixelSize() * 2.0);
+    const qreal minRowH = qMax(18.0, body.pixelSize() * 1.8);
+    const qreal descPad = 10.0;
 
-    auto drawHeaderCell = [&](const QRectF& r, const QString& text) {
-        p.fillRect(r, QColor(QStringLiteral("#f0f0f0")));
-        p.setPen(QPen(Qt::black, 1.2));
-        p.drawRect(r);
-        QFont h = body;
-        h.setBold(true);
-        p.setFont(h);
-        p.drawText(r.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
+    auto drawHeaderRow = [&]() {
+        auto drawHeaderCell = [&](const QRectF& r, const QString& text) {
+            p.fillRect(r, QColor(QStringLiteral("#f0f0f0")));
+            p.setPen(QPen(Qt::black, 1.2));
+            p.drawRect(r);
+            QFont h = body;
+            h.setBold(true);
+            p.setFont(h);
+            p.setPen(Qt::black);
+            p.drawText(r.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft, text);
+        };
+        if (y + minRowH > bottom)
+            return false;
+        drawHeaderCell(QRectF(left, y, colNum, minRowH), QStringLiteral("#"));
+        drawHeaderCell(QRectF(left + colNum, y, colDesc, minRowH), QStringLiteral("Gage"));
+        if (showRate)
+            drawHeaderCell(QRectF(left + colNum + colDesc, y, colRate, minRowH),
+                           QStringLiteral("%"));
+        if (showHp)
+            drawHeaderCell(QRectF(left + colNum + colDesc + colRate, y, colHp, minRowH),
+                           QStringLiteral("PV"));
+        y += minRowH;
+        return true;
     };
 
-    drawHeaderCell(QRectF(left, y, colNum, rowH), QStringLiteral("#"));
-    drawHeaderCell(QRectF(left + colNum, y, colDesc, rowH), QStringLiteral("Gage"));
-    if (showRate)
-        drawHeaderCell(QRectF(left + colNum + colDesc, y, colRate, rowH),
-                       QStringLiteral("%"));
-    if (showHp)
-        drawHeaderCell(QRectF(left + colNum + colDesc + colRate, y, colHp, rowH),
-                       QStringLiteral("PV"));
-    y += rowH;
+    // En-tête de tableau tant qu'il reste des gages à peindre.
+    if (nextGage < project.gages.size()) {
+        if (!drawHeaderRow())
+            return false;
+    }
 
+    const qreal bodyStartY = y;
     p.setFont(body);
-    for (size_t i = 0; i < project.gages.size(); ++i) {
-        if (y + rowH > area.bottom())
-            break;
-        const auto& g = project.gages[i];
+    p.setPen(Qt::black);
+    while (nextGage < project.gages.size()) {
+        const auto& g = project.gages[nextGage];
+        const QString desc = QString::fromStdString(g.description);
+        const QRect descBound = fm.boundingRect(
+            QRect(0, 0, qMax(1, int(colDesc - descPad)), 4000),
+            Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, desc);
+        qreal rowH = qMax(minRowH, qreal(descBound.height()) + 8);
+
+        const qreal room = bottom - y;
+        if (rowH > room) {
+            // Page suivante sauf si c'est la 1ʳᵉ ligne du corps (description > page).
+            if (y <= bodyStartY + 0.5 && room >= minRowH)
+                rowH = room;
+            else
+                return false;
+        }
+
         const QRectF rNum(left, y, colNum, rowH);
         const QRectF rDesc(left + colNum, y, colDesc, rowH);
         const QRectF rRate(left + colNum + colDesc, y, colRate, rowH);
@@ -576,55 +665,104 @@ void drawGageSheet(QPainter& p, const QRectF& area, const core::Project& project
             p.drawRect(rRate);
         if (showHp)
             p.drawRect(rHp);
+        p.setFont(body);
+        p.setPen(Qt::black);
         p.drawText(rNum, Qt::AlignCenter, QString::number(g.number));
-        p.drawText(rDesc.adjusted(6, 2, -4, -2), Qt::AlignVCenter | Qt::AlignLeft,
-                   QString::fromStdString(g.description));
+        p.drawText(rDesc.adjusted(6, 4, -4, -4),
+                   Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, desc);
         if (showRate)
             p.drawText(rRate, Qt::AlignCenter, QString::number(g.rate) + QLatin1Char('%'));
         if (showHp)
-            p.drawText(rHp, Qt::AlignCenter,
-                       QStringLiteral("+%1 PV").arg(g.hp));
+            p.drawText(rHp, Qt::AlignCenter, QStringLiteral("+%1 PV").arg(g.hp));
         y += rowH;
+        ++nextGage;
     }
 
     const auto& combos = project.comboGages;
-    if (project.gageMode
-        && (!combos.line.empty() || !combos.column.empty() || !combos.diagonal.empty())) {
-        y += 14;
+    const bool hasCombos = project.gageMode
+        && (!combos.line.empty() || !combos.column.empty() || !combos.diagonal.empty());
+    if (!hasCombos) {
+        nextCombo = 4;
+        return true;
+    }
+
+    struct ComboItem {
+        const char* label;
+        const std::string* text;
+    };
+    const ComboItem items[] = {
+        { "Ligne complète", &combos.line },
+        { "Colonne complète", &combos.column },
+        { "Diagonale complète", &combos.diagonal },
+    };
+
+    if (nextCombo == 0) {
+        y += 12;
         QFont comboTitle(body);
         comboTitle.setBold(true);
+        const qreal th = comboTitle.pixelSize() * 1.5;
+        if (y + th > bottom)
+            return false;
         p.setFont(comboTitle);
         p.setPen(Qt::black);
-        p.drawText(QRectF(left, y, w, comboTitle.pixelSize() * 1.4),
-                   Qt::AlignLeft | Qt::AlignVCenter,
+        p.drawText(QRectF(left, y, w, th), Qt::AlignLeft | Qt::AlignVCenter,
                    QStringLiteral("Gages de combinaison"));
-        y += comboTitle.pixelSize() * 1.6;
-        p.setFont(body);
-        auto addCombo = [&](const char* label, const std::string& text) {
-            if (text.empty() || y + rowH > area.bottom())
-                return;
-            const QRectF rType(left, y, w * 0.28, rowH);
-            const QRectF rText(left + w * 0.28, y, w * 0.72, rowH);
-            p.setPen(QPen(Qt::black, 1));
-            p.drawRect(rType);
-            p.drawRect(rText);
-            QFont bold = body;
-            bold.setBold(true);
-            p.setFont(bold);
-            p.drawText(rType.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                       QString::fromUtf8(label));
-            p.setFont(body);
-            p.drawText(rText.adjusted(6, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                       QString::fromStdString(text));
-            y += rowH;
-        };
-        addCombo("Ligne complète", combos.line);
-        addCombo("Colonne complète", combos.column);
-        addCombo("Diagonale complète", combos.diagonal);
+        y += th + 4;
+        nextCombo = 1;
     }
+
+    while (nextCombo >= 1 && nextCombo <= 3) {
+        const ComboItem& it = items[nextCombo - 1];
+        if (it.text->empty()) {
+            ++nextCombo;
+            continue;
+        }
+        const QString text = QString::fromStdString(*it.text);
+        const qreal typeW = w * 0.28;
+        const qreal textW = w * 0.72;
+        const QRect textBound = fm.boundingRect(
+            QRect(0, 0, qMax(1, int(textW - descPad)), 4000),
+            Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text);
+        qreal rowH = qMax(minRowH, qreal(textBound.height()) + 8);
+        const qreal room = bottom - y;
+        if (rowH > room) {
+            if (room >= minRowH * 1.2)
+                rowH = room;
+            else
+                return false;
+        }
+        const QRectF rType(left, y, typeW, rowH);
+        const QRectF rText(left + typeW, y, textW, rowH);
+        p.setPen(QPen(Qt::black, 1));
+        p.drawRect(rType);
+        p.drawRect(rText);
+        QFont bold = body;
+        bold.setBold(true);
+        p.setFont(bold);
+        p.setPen(Qt::black);
+        p.drawText(rType.adjusted(4, 2, -4, -2),
+                   Qt::AlignVCenter | Qt::AlignLeft | Qt::TextWordWrap,
+                   QString::fromUtf8(it.label));
+        p.setFont(body);
+        p.drawText(rText.adjusted(6, 4, -4, -4),
+                   Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, text);
+        y += rowH;
+        ++nextCombo;
+    }
+
+    nextCombo = 4;
+    return true;
 }
 
-
+bool hasGagePages(const core::Project& project)
+{
+    if (!project.gages.empty())
+        return true;
+    if (!project.gageMode)
+        return false;
+    const auto& c = project.comboGages;
+    return !c.line.empty() || !c.column.empty() || !c.diagonal.empty();
+}
 
 } // namespace
 
@@ -635,30 +773,29 @@ void paintBingoDocument(QPrinter& printer, const core::Project& project)
         return;
 
     const QRectF page = printer.pageRect(QPrinter::DevicePixel);
-    const int perPage = 2;
-    // Bande centrale pour découper les deux demi-feuilles A5 (≈148,5 mm).
-    const qreal cutBand = mmToPx(printer, 5);
-    const qreal halfH = (page.height() - cutBand) / perPage;
-    const qreal insetX = mmToPx(printer, 4); // padding horizontal type web (15 mm − marge page)
+    const qreal insetX = mmToPx(printer, 4);
     const qreal insetY = mmToPx(printer, 2);
+    const bool halfPage = preferHalfPageLayout(printer, page, project);
+    const int perPage = halfPage ? 2 : 1;
+    const qreal cutBand = halfPage ? mmToPx(printer, 5) : 0;
+    const qreal slotH = halfPage ? (page.height() - cutBand) / 2.0 : page.height();
 
     auto drawCutGuide = [&](qreal midY) {
-        const qreal y = midY;
         QPen dash(QColor(QStringLiteral("#888888")), 1.2, Qt::DashLine);
         dash.setDashPattern({ 4, 3 });
         painter.setPen(dash);
-        painter.drawLine(QPointF(page.left(), y), QPointF(page.right(), y));
+        painter.drawLine(QPointF(page.left(), midY), QPointF(page.right(), midY));
 
-        // Petites marques « ciseaux » aux extrémités
         QFont mark(QStringLiteral("Sans Serif"));
         mark.setPixelSize(qMax(8, int(mmToPx(printer, 2.8))));
         painter.setFont(mark);
         painter.setPen(QColor(QStringLiteral("#666666")));
         const QString scissors = QStringLiteral("✂ découper");
-        painter.drawText(QRectF(page.left(), y - mark.pixelSize() * 0.7,
+        painter.drawText(QRectF(page.left(), midY - mark.pixelSize() * 0.7,
                                 page.width() * 0.45, mark.pixelSize() * 1.4),
                          Qt::AlignLeft | Qt::AlignVCenter, scissors);
-        painter.drawText(QRectF(page.left() + page.width() * 0.55, y - mark.pixelSize() * 0.7,
+        painter.drawText(QRectF(page.left() + page.width() * 0.55,
+                                midY - mark.pixelSize() * 0.7,
                                 page.width() * 0.45, mark.pixelSize() * 1.4),
                          Qt::AlignRight | Qt::AlignVCenter, scissors);
     };
@@ -672,28 +809,47 @@ void paintBingoDocument(QPrinter& printer, const core::Project& project)
             }
             slot = 0;
         }
-        if (slot == 1)
-            drawCutGuide(page.top() + halfH + cutBand * 0.5);
+        if (halfPage && slot == 1)
+            drawCutGuide(page.top() + slotH + cutBand * 0.5);
 
-        const qreal top = page.top() + slot * (halfH + cutBand);
+        const qreal top = page.top() + slot * (slotH + cutBand);
         const QRectF area(page.left() + insetX,
                           top + insetY,
                           page.width() - 2 * insetX,
-                          halfH - 2 * insetY);
+                          slotH - 2 * insetY);
         drawPlayerSheet(painter, area, project, project.grids[i]);
         ++slot;
     }
 
-    if (!project.gages.empty()) {
-        if (!printer.newPage()) {
-            painter.end();
-            return;
+    if (hasGagePages(project)) {
+        size_t nextGage = 0;
+        int nextCombo = 0;
+        bool firstGagePage = true;
+        for (;;) {
+            if (!printer.newPage()) {
+                painter.end();
+                return;
+            }
+            const QRectF gageArea(page.left() + insetX,
+                                  page.top() + insetY,
+                                  page.width() - 2 * insetX,
+                                  page.height() - 2 * insetY);
+            const size_t beforeGage = nextGage;
+            const int beforeCombo = nextCombo;
+            if (drawGageSheetPage(painter, gageArea, project, nextGage, nextCombo,
+                                  firstGagePage))
+                break;
+            // Garde-fou : si rien n'a avancé (feuille trop petite), on saute un item.
+            if (nextGage == beforeGage && nextCombo == beforeCombo) {
+                if (nextGage < project.gages.size())
+                    ++nextGage;
+                else if (nextCombo < 4)
+                    ++nextCombo;
+                else
+                    break;
+            }
+            firstGagePage = false;
         }
-        const QRectF gageArea(page.left() + insetX,
-                              page.top() + insetY,
-                              page.width() - 2 * insetX,
-                              page.height() - 2 * insetY);
-        drawGageSheet(painter, gageArea, project);
     }
 
     painter.end();

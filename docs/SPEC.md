@@ -26,7 +26,7 @@ Identique app web — `rate=0` exclu strictement ; centre FREE si activé.
 
 ## 5. Impression
 
-A4, 2 grilles/page, page gages optionnelle (`PrintPage` + `QPrinter`).
+A4, 1 ou 2 grilles/page selon lisibilité des cases, feuille gages paginée (`PrintPage` + `QPrinter`).
 
 ## 6. Critères v1
 

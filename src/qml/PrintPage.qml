@@ -13,7 +13,7 @@ ScrollView {
 
         Label {
             Layout.fillWidth: true
-            text: "Aperçu A4 — 2 grilles par page (nom, points / n° de gage, PV ou note, + feuille des gages). L’impression ouvre le service système ; tu peux aussi enregistrer un PDF."
+            text: "Aperçu A4 — petites grilles : 2 par page (découpe) ; grandes : 1 par page pour maximiser les cases. Puis feuille des gages (paginée). Impression système ou PDF."
             color: Theme.textDim
             font.pixelSize: 13
             wrapMode: Text.WordWrap

@@ -193,6 +193,39 @@ private slots:
         QVERIFY(QFileInfo(pdfPath).size() > 500);
     }
 
+    void pdfExportPaginatedGages()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        qputenv("XDG_DATA_HOME", tmp.path().toUtf8());
+
+        app::AppController controller;
+        QVERIFY(controller.init());
+        controller.setGageMode(true);
+        while (controller.gages().size() > 0)
+            controller.removeGage(0);
+        const QString longDesc = QStringLiteral(
+            "Description longue de gage à wrapping sur plusieurs lignes pour "
+            "vérifier que le PDF ne coupe pas le tableau : faire quelque chose "
+            "d’assez absurde devant tout le monde sans rire.");
+        for (int i = 0; i < 40; ++i) {
+            controller.addGage(longDesc + QStringLiteral(" #%1").arg(i + 1),
+                               0, (i % 5) + 1, 100);
+        }
+        controller.setComboGage(QStringLiteral("line"),
+                                QStringLiteral("Gage combo ligne très long aussi"));
+        controller.setComboGage(QStringLiteral("column"),
+                                QStringLiteral("Gage combo colonne"));
+        controller.setComboGage(QStringLiteral("diagonal"),
+                                QStringLiteral("Gage combo diagonale"));
+        QVERIFY(controller.grids().size() >= 1);
+
+        const QString pdfPath = tmp.path() + QStringLiteral("/gages-paginated.pdf");
+        QVERIFY2(controller.exportPdf(pdfPath), "exportPdf many gages");
+        // Plusieurs pages (grilles + gages paginés) → fichier nettement plus gros.
+        QVERIFY(QFileInfo(pdfPath).size() > 4000);
+    }
+
     void editCaseAndGridCellLabel()
     {
         QTemporaryDir tmp;
