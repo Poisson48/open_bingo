@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Open Bingo — Portable Linux & Android</title>
-  <meta name="description" content="Bingo pour soirées jeux : AppImage portable Linux et APK Android. Grilles uniques, impression A4, mode play, sync chiffrée. Gratuit et open source.">
+  <title>Open Bingo — prêt pour la soirée · Linux & Android</title>
+  <meta name="description" content="Bingo pour soirées jeux, version stable : AppImage Linux et APK Android. Grilles, impression A4, play sans papier, sync chiffrée. Gratuit et open source — c’est le feu.">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,11 +26,12 @@
 
   <section class="hero">
     <div class="hero-copy">
-      <p class="eyebrow" id="version-badge">v2 · Qt 6 native</p>
+      <p class="eyebrow" id="version-badge">Stable · prêt pour la soirée</p>
       <h1>Open <em>Bingo</em></h1>
       <p class="lede">
-        Cartes bingo pour vos soirées — version <strong>portable Linux</strong> (AppImage)
-        et <strong>Android</strong>. Sans serveur à héberger, sync optionnelle entre appareils.
+        Plus de bêta — l’app est <strong>utilisable</strong>, et <strong>c’est le feu</strong>.
+        Cartes bingo pour vos soirées : <strong>portable Linux</strong> (AppImage)
+        et <strong>Android</strong>, sans serveur à héberger, sync optionnelle entre appareils.
       </p>
       <div class="cta-row" id="hero-downloads">
         <a id="dl-appimage" class="btn btn-primary" href="https://github.com/Poisson48/open_bingo/releases/latest">
@@ -43,7 +44,7 @@
         </a>
       </div>
       <p class="hint">
-        Un fichier = tout inclus ·
+        Un fichier = tout inclus · téléchargez et jouez ce soir ·
         <a href="https://github.com/Poisson48/open_bingo/releases/latest">Toutes les versions</a>
       </p>
     </div>
@@ -54,7 +55,7 @@
 
   <section id="download" class="download">
     <h2>Télécharger</h2>
-    <p class="subtitle">Deux builds officiels — choisissez selon votre appareil</p>
+    <p class="subtitle">Builds stables officiels — choisissez selon votre appareil</p>
 
     <div class="platforms">
       <article class="platform">
@@ -130,7 +131,9 @@
 
   <section id="features">
     <h2>Fonctionnalités</h2>
+    <p class="subtitle">Tout ce qu’il faut pour une vraie soirée bingo — sans bricolage</p>
     <div class="features">
+      <div class="feature"><h3>Prêt à jouer</h3><p>Plus de bêta : créez, imprimez ou jouez sans papier dès ce soir.</p></div>
       <div class="feature"><h3>Projets multiples</h3><p>Titre, clone, export / import JSON.</p></div>
       <div class="feature"><h3>Grilles lignes × colonnes</h3><p>De 2×2 à 12×12, génération, reshuffle, édition manuelle.</p></div>
       <div class="feature"><h3>Impression A4</h3><p>1 ou 2 grilles par page selon la taille, découpe si besoin, feuille des gages paginée.</p></div>
@@ -163,7 +166,7 @@
         }
         const ver = release.tag_name || '';
         const badge = document.getElementById('version-badge');
-        if (badge && ver) badge.textContent = ver + ' · Qt 6 native';
+        if (badge && ver) badge.textContent = ver + ' · stable · prêt pour la soirée';
 
         function wire(ids, url, label) {
           if (!url) return;

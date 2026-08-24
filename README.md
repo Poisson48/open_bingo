@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Générateur de cartes bingo pour soirées jeux — natif, gratuit, sans serveur à héberger.</strong>
+  <strong>Bingo pour soirées jeux — natif, gratuit, prêt à jouer. Plus de bêta : c’est le feu.</strong>
 </p>
 
 <p align="center">
@@ -16,8 +16,8 @@
 
 Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez sans papier sur téléphone. Partagez un projet entre plusieurs appareils par QR code : les modifications se synchronisent via relais Nostr chiffrés. Données locales en SQLite, export/import JSON. Open source, GPLv3.
 
-> **v2.x** — application **Qt 6 / QML** native (Linux AppImage + Android APK).  
-> Les releases **v1.2.x** (app web/Tauri) ne sont **pas** compatibles (package Android différent).
+> **v2 stable** — application **Qt 6 / QML** native (Linux AppImage + Android APK), utilisable en soirée dès maintenant.  
+> Les anciennes releases **v1.2.x** (app web/Tauri) ne sont **pas** compatibles (package Android différent).
 
 ## Aperçu
 
@@ -194,8 +194,8 @@ Documentation : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), 
 
 | Plateforme | Statut |
 |---|---|
-| Linux x86-64 (AppImage) | ✅ |
-| Android arm64 (APK) | ✅ |
+| Linux x86-64 (AppImage) | ✅ Stable — prêt pour la soirée |
+| Android arm64 (APK) | ✅ Stable — prêt pour la soirée |
 | Windows | 🚧 script + CI préparés |
 
 ## Licence
