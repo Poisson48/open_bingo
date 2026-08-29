@@ -121,11 +121,13 @@ bool AppController::init()
         static const QString kLegacyRelays =
             QStringLiteral("wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band,"
                            "wss://offchain.pub,wss://relay.primal.net");
+        static const QString kColoOnlyRelays =
+            QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr");
         auto relaysSetting = m_db->getSetting("relays");
         QList<QUrl> relayUrls;
         if (relaysSetting && !relaysSetting->empty()) {
             QString relaysStr = QString::fromStdString(*relaysSetting);
-            if (relaysStr == kLegacyRelays)
+            if (relaysStr == kLegacyRelays || relaysStr == kColoOnlyRelays)
                 relaysStr.clear();
             for (const QString &u : relaysStr.split(QLatin1Char(','), Qt::SkipEmptyParts))
                 relayUrls.append(QUrl(u.trimmed()));

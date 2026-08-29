@@ -12,8 +12,13 @@ RelayPool::RelayPool(QObject* parent)
 // static
 QList<QUrl> RelayPool::defaultRelays()
 {
+    // colo-apps en premier (push ntfy + faible latence) ; relais publics en secours
+    // pour que le publish survive à un rejet ponctuel d'un relais (cf. Colo Course).
     return {
         QUrl(QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr")),
+        QUrl(QStringLiteral("wss://nos.lol")),
+        QUrl(QStringLiteral("wss://relay.nostr.band")),
+        QUrl(QStringLiteral("wss://offchain.pub")),
     };
 }
 

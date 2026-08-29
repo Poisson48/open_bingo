@@ -10,7 +10,9 @@
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMetaObject>
 #include <QTemporaryDir>
+#include <QSignalSpy>
 #include <QtTest>
 
 class ProjectSyncTest : public QObject
@@ -388,6 +390,49 @@ private slots:
         QCOMPARE(tag0.size(), 2);
         QCOMPARE(tag0.at(0).toString(), QStringLiteral("t"));
         QVERIFY(!tag0.at(1).toString().isEmpty());
+    }
+
+    void defaultRelaysIncludePublicFallbacks()
+    {
+        const auto relays = net::RelayPool::defaultRelays();
+        QVERIFY2(relays.size() >= 2,
+                 "Au moins colo-apps + un relais public de secours");
+        QCOMPARE(relays.front().toString(),
+                 QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr"));
+    }
+
+    void duplicatePublishAckClearsOutbox()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        store::Database db;
+        QVERIFY(db.open(dir.path() + QStringLiteral("/t.db")));
+
+        core::Project p = core::JsonCodec::defaultProject();
+        p.id = "proj_dup_ack";
+        p.title = "Dup";
+        p.updatedAt = 1;
+        p.cases = { { "A", 1, 100 } };
+        p.players = { { "Alice" } };
+        db.upsertProject(p);
+
+        net::RelayPool pool;
+        app::ProjectSync sync;
+        sync.init(&db, &pool, QStringLiteral("dev"));
+        sync.enableSharing(QString::fromStdString(p.id));
+
+        const auto pending = db.outboxPeekAll();
+        QVERIFY(!pending.empty());
+        const QString eventId = QString::fromStdString(pending.front().eventId);
+
+        QSignalSpy toastSpy(&sync, &app::ProjectSync::toast);
+        const bool invoked = QMetaObject::invokeMethod(
+            &sync, "onPublishAck", Qt::DirectConnection,
+            Q_ARG(QString, eventId), Q_ARG(bool, false),
+            Q_ARG(QString, QStringLiteral("duplicate: event already stored")));
+        QVERIFY(invoked);
+        QCOMPARE(db.outboxCount(), 0);
+        QCOMPARE(toastSpy.count(), 1);
     }
 
     void remoteSnapshotAppliesPlayChecks()

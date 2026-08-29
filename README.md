@@ -61,7 +61,7 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 - **Impression** — A4, 1 ou 2 grilles/page selon la taille (découpe si 2), feuille gages paginée ; tableaux combos lisibles (textes longs, pas de chevauchement)
 - **Sans papier** — coches par joueur, overlay gage groupé (« Léa, Max… doivent : … »), sync du même texte entre grilles, notifs gage alignées entre appareils, annonce gagnant pour tout le monde
 - **Classement PNG** — aperçu puis partage (Android) / enregistrement (desktop) ; titre + description du projet
-- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play)
+- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play) ; relais colo-apps + secours publics si un relais refuse l'envoi
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
 - **Import/export CSV** — phrases et gages depuis un tableur (desktop + Android)
 - **MCP IA (desktop)** — Cursor / Claude Desktop pilotent le projet ouvert via HTTP localhost
@@ -117,7 +117,7 @@ Détail : [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md).
 1. Créez ou ouvrez un projet sur un appareil.
 2. Menu **Partager** → QR code ou lien d'invitation (contient la clé de chiffrement).
 3. L'autre appareil scanne le QR ou ouvre le lien → rejoint le canal.
-4. Chaque modification est publiée chiffrée sur des relais Nostr publics ; l'autre appareil fusionne au retour en ligne (dernier `updatedAt` gagne).
+4. Chaque modification est publiée chiffrée sur les relais Nostr (colo-apps + relais publics de secours) ; l'autre appareil fusionne au retour en ligne (dernier `updatedAt` gagne). Un rejet ponctuel d'un relais n'empêche plus la publication si un autre relais accepte.
 
 Hors ligne : les changements partent dans une file d'attente locale et sont envoyés au retour du réseau.
 

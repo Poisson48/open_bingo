@@ -422,45 +422,57 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
 {
     if (!m_db || eventId.isEmpty())
         return;
-    const auto it = m_pendingAcks.find(eventId);
-    if (it == m_pendingAcks.end() && !relayAckMeansStored(accepted, msg))
-        return;
 
-    if (!relayAckMeansStored(accepted, msg)) {
-        qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
-        if (it == m_pendingAcks.end())
-            return;
-        const std::string projectId = it->second;
-        m_pendingAcks.erase(it);
-        const bool rebuild = msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)
-            || isCorruptTagRejection(msg);
-        if (rebuild) {
-            m_db->outboxRemoveForEvent(eventId.toStdString());
-            emit pendingChangesChanged();
-            publishSnapshot(projectId);
-            return;
+    if (relayAckMeansStored(accepted, msg)) {
+        m_publishRejectCounts.remove(eventId);
+        const auto it = m_pendingAcks.find(eventId);
+        std::string projectId;
+        if (it != m_pendingAcks.end()) {
+            projectId = it->second;
+            m_pendingAcks.erase(it);
         }
-        emit toast(QStringLiteral("Relais a refusé l'envoi : %1")
-                       .arg(msg.isEmpty() ? QStringLiteral("erreur") : msg));
+
+        m_db->outboxRemoveForEvent(eventId.toStdString());
+        m_db->markEventSeen(eventId.toStdString());
+        if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
+            m_ackWatchdog.stop();
+            emit toast(QStringLiteral("Contenu publié — les invités peuvent synchroniser."));
+        }
         emit pendingChangesChanged();
+        if (!projectId.empty())
+            maybeSendPushWake(projectId);
         return;
     }
 
-    std::string projectId;
-    if (it != m_pendingAcks.end()) {
-        projectId = it->second;
+    qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
+    const auto it = m_pendingAcks.find(eventId);
+    if (it == m_pendingAcks.end())
+        return;
+
+    const std::string projectId = it->second;
+    const bool rebuild = msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)
+        || isCorruptTagRejection(msg);
+    if (rebuild) {
+        m_publishRejectCounts.remove(eventId);
         m_pendingAcks.erase(it);
+        m_db->outboxRemoveForEvent(eventId.toStdString());
+        emit pendingChangesChanged();
+        publishSnapshot(projectId);
+        return;
     }
 
-    m_db->outboxRemoveForEvent(eventId.toStdString());
-    m_db->markEventSeen(eventId.toStdString());
-    if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
-        m_ackWatchdog.stop();
-        emit toast(QStringLiteral("Contenu publié — les invités peuvent synchroniser."));
-    }
+    // Comme Colo Course : un rejet isolé n'est pas fatal — un autre relais peut accepter.
+    const int rejections = ++m_publishRejectCounts[eventId];
+    const int connected = m_pool ? m_pool->connectedCount() : 0;
+    const int targets = connected > 0 ? connected : 1;
+    if (rejections < targets)
+        return;
+
+    m_publishRejectCounts.remove(eventId);
+    m_pendingAcks.erase(it);
+    emit toast(QStringLiteral("Relais a refusé l'envoi : %1")
+                   .arg(msg.isEmpty() ? QStringLiteral("erreur") : msg));
     emit pendingChangesChanged();
-    if (!projectId.empty())
-        maybeSendPushWake(projectId);
 }
 
 void ProjectSync::onAckWatchdog()
@@ -474,6 +486,7 @@ void ProjectSync::onAckWatchdog()
         emit toast(QStringLiteral(
             "Les relais ne répondent pas — nouvelle tentative d'envoi…"));
         m_pendingAcks.clear();
+        m_publishRejectCounts.clear();
         m_pool->forceReconnect();
     }
     // Reconstruire un snapshot frais (tags corrects) plutôt que rejouer un event

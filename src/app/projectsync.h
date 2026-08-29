@@ -4,6 +4,7 @@
 #include "../net/relaypool.h"
 #include "../store/database.h"
 
+#include <QHash>
 #include <QObject>
 #include <QTimer>
 #include <QSet>
@@ -89,6 +90,8 @@ private:
     QSet<QString>    m_pendingProjects;
     QSet<QString>    m_subscribed;
     std::map<QString, std::string> m_pendingAcks;
+    // Rejets OK par event id — toast seulement si tous les relais connectés ont refusé.
+    QHash<QString, int> m_publishRejectCounts;
     // projectId → JSON array overlays (sortie / entrée sync).
     std::map<std::string, std::string> m_outboundPlayOverlays;
     std::map<std::string, std::string> m_inboundPlayOverlays;

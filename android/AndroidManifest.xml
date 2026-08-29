@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.openbingo.app"
     android:installLocation="auto"
-    android:versionCode="49"
-    android:versionName="2.0.49">
+    android:versionCode="51"
+    android:versionName="2.0.51">
 
     <!-- Relais Nostr en wss:// : réseau obligatoire. -->
     <uses-permission android:name="android.permission.INTERNET"/>
