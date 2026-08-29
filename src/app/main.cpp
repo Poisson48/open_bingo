@@ -35,10 +35,7 @@ int main(int argc, char* argv[])
                                     "handleJoinUrl");
 
     QObject::connect(&app, &QGuiApplication::applicationStateChanged,
-                     &controller, [&controller](Qt::ApplicationState state) {
-        if (state == Qt::ApplicationActive)
-            controller.reloadProjects();
-    });
+                     &controller, &app::AppController::onApplicationStateChanged);
 
     app::Permissions permissions;
     qmlRegisterSingletonInstance("OpenBingo", 1, 0, "Permissions", &permissions);

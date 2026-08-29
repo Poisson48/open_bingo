@@ -3,6 +3,7 @@
 #ifdef Q_OS_ANDROID
 #  include <QCoreApplication>
 #  include <QJniObject>
+#  include <QJniEnvironment>
 #endif
 
 namespace app {
@@ -176,6 +177,30 @@ bool platformPrintPdf(const QString& pdfPath)
         ctx.object(), jPath.object<jstring>());
 }
 
+void platformConfigurePush(const QString &baseUrl, const QStringList &topics,
+                           const QString &deviceId)
+{
+    const QJniObject ctx = androidContext();
+    if (!ctx.isValid())
+        return;
+
+    QJniEnvironment env;
+    const jsize n = static_cast<jsize>(topics.size());
+    jobjectArray arr = env->NewObjectArray(n, env->FindClass("java/lang/String"), nullptr);
+    for (jsize i = 0; i < n; ++i) {
+        const QJniObject s = QJniObject::fromString(topics.at(static_cast<int>(i)));
+        env->SetObjectArrayElement(arr, i, s.object<jstring>());
+    }
+
+    const QJniObject jUrl = QJniObject::fromString(baseUrl);
+    const QJniObject jDev = QJniObject::fromString(deviceId);
+    QJniObject::callStaticMethod<void>(
+        kPlatformClass, "configurePush",
+        "(Landroid/content/Context;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)V",
+        ctx.object(), jUrl.object<jstring>(), arr, jDev.object<jstring>());
+    env->DeleteLocalRef(arr);
+}
+
 #else // !Q_OS_ANDROID
 
 void initNotifications() {}
@@ -201,6 +226,8 @@ void platformSetImmersive(bool) {}
 bool platformAddCalendarEvent(const QString&, const QString&, qint64) { return false; }
 
 bool platformPrintPdf(const QString&) { return false; }
+
+void platformConfigurePush(const QString &, const QStringList &, const QString &) {}
 
 #endif
 

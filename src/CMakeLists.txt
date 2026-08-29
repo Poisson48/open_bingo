@@ -14,6 +14,7 @@ add_library(net STATIC
     net/nostr.cpp
     net/relayclient.cpp
     net/relaypool.cpp
+    net/pushclient.cpp
     net/opensubtitles_com.cpp
     net/opensubtitles_org.cpp
     net/opensubtitlesclient.cpp

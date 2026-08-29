@@ -5,7 +5,9 @@
 #include "../core/sharecodec.h"
 #include "../net/crypto.h"
 #include "../net/nostr.h"
+#include "../net/pushclient.h"
 
+#include <QHash>
 #include <QDateTime>
 #include <QDebug>
 #include <QJsonArray>
@@ -76,6 +78,20 @@ void appendChannelTag(net::NostrEvent& ev, const QString& channel)
 
 } // namespace
 
+namespace {
+
+bool relayAckMeansStored(bool accepted, const QString& msg)
+{
+    if (accepted)
+        return true;
+    const QString lower = msg.toLower();
+    return lower.contains(QStringLiteral("duplicate"))
+        || lower.contains(QStringLiteral("already"))
+        || lower.contains(QStringLiteral("stored"));
+}
+
+} // namespace
+
 namespace app {
 
 ProjectSync::ProjectSync(QObject* parent)
@@ -103,9 +119,6 @@ void ProjectSync::init(store::Database* db, net::RelayPool* pool, const QString&
     connect(m_pool, &net::RelayPool::eventReceived, this, &ProjectSync::handleRelayEvent);
     connect(m_pool, &net::RelayPool::onlineChanged, this, &ProjectSync::onRelayOnline);
     connect(m_pool, &net::RelayPool::publishAck, this, &ProjectSync::onPublishAck);
-
-    m_pool->setRelays(net::RelayPool::defaultRelays());
-    m_pool->connectAll();
 }
 
 bool ProjectSync::online() const
@@ -298,6 +311,14 @@ void ProjectSync::subscribeAll(int64_t since)
     }
 }
 
+void ProjectSync::catchUpOnForeground()
+{
+    if (!m_pool || !m_pool->isOnline())
+        return;
+    flushOutbox();
+    subscribeAll(0);
+}
+
 void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
 {
     if (!m_db || ev.kind != 4545)
@@ -314,8 +335,11 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
     if (channelTag.isEmpty())
         return;
 
-    if (m_db->isEventSeen(ev.id.toStdString()))
+    if (m_db->isEventSeen(ev.id.toStdString())) {
+        m_db->outboxRemoveForEvent(ev.id.toStdString());
+        emit pendingChangesChanged();
         return;
+    }
 
     for (const auto& projectId : m_db->sharedProjectIds()) {
         const auto tag = channelTagFor(projectId);
@@ -396,13 +420,16 @@ void ProjectSync::onRelayOnline(bool online)
 
 void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QString& msg)
 {
-    if (!m_db)
+    if (!m_db || eventId.isEmpty())
         return;
     const auto it = m_pendingAcks.find(eventId);
-    if (it == m_pendingAcks.end())
+    if (it == m_pendingAcks.end() && !relayAckMeansStored(accepted, msg))
         return;
-    if (!accepted) {
+
+    if (!relayAckMeansStored(accepted, msg)) {
         qWarning() << "[ProjectSync] publish rejected" << eventId.left(12) << msg;
+        if (it == m_pendingAcks.end())
+            return;
         const std::string projectId = it->second;
         m_pendingAcks.erase(it);
         const bool rebuild = msg.contains(QStringLiteral("too large"), Qt::CaseInsensitive)
@@ -418,15 +445,22 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
         emit pendingChangesChanged();
         return;
     }
-    // Comme Colo : retirer l'entrée outbox dont l'event id correspond.
+
+    std::string projectId;
+    if (it != m_pendingAcks.end()) {
+        projectId = it->second;
+        m_pendingAcks.erase(it);
+    }
+
     m_db->outboxRemoveForEvent(eventId.toStdString());
     m_db->markEventSeen(eventId.toStdString());
-    m_pendingAcks.erase(it);
     if (m_pendingAcks.empty() && m_db->outboxCount() == 0) {
         m_ackWatchdog.stop();
         emit toast(QStringLiteral("Contenu publié — les invités peuvent synchroniser."));
     }
     emit pendingChangesChanged();
+    if (!projectId.empty())
+        maybeSendPushWake(projectId);
 }
 
 void ProjectSync::onAckWatchdog()
@@ -581,6 +615,42 @@ void ProjectSync::flushOutbox()
     emit pendingChangesChanged();
     if (!m_pendingAcks.empty())
         armAckWatchdog();
+}
+
+void ProjectSync::maybeSendPushWake(const std::string& projectId)
+{
+    if (!m_db)
+        return;
+
+    const auto enabled = m_db->getSetting("pushEnabled");
+    if (enabled && *enabled == "0")
+        return;
+
+    const auto urlOpt = m_db->getSetting("pushBaseUrl");
+    const QString base =
+        urlOpt && !urlOpt->empty()
+            ? QString::fromStdString(*urlOpt)
+            : QStringLiteral("https://colo-apps.les-crevettes-cevenoles.fr/ntfy");
+
+    const auto tagOpt = channelTagFor(projectId);
+    if (!tagOpt)
+        return;
+
+    static QHash<QString, qint64> lastPushMs;
+    const QString key = QString::fromStdString(projectId);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (lastPushMs.value(key) + 3000 > now)
+        return;
+    lastPushMs[key] = now;
+
+    const auto projectOpt = m_db->getProject(projectId);
+    const QString title =
+        projectOpt ? QString::fromStdString(projectOpt->title) : key;
+
+    net::sendPushWake(base,
+                      net::pushTopicForChannel(QString::fromStdString(*tagOpt)),
+                      title,
+                      m_deviceId);
 }
 
 } // namespace app

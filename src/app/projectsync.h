@@ -27,6 +27,11 @@ public:
 
     void init(store::Database* db, net::RelayPool* pool, const QString& deviceId);
 
+    void setAppInForeground(bool foreground) { m_appInForeground = foreground; }
+    void setDeferBackgroundNotificationsToPush(bool defer) {
+        m_deferBackgroundNotifs = defer;
+    }
+
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
 
@@ -40,6 +45,8 @@ public:
     Q_INVOKABLE QString joinFromUri(const QString& uri);
     Q_INVOKABLE void onLocalProjectChange(const QString& projectId);
     Q_INVOKABLE void subscribeAll(int64_t since = 0);
+    // Flush outbox + resubscribe (retour au premier plan / changement de relais).
+    Q_INVOKABLE void catchUpOnForeground();
     // Arrête la sync locale (clé + abonnement) sans toucher les autres appareils.
     Q_INVOKABLE void leaveSharing(const QString& projectId);
 
@@ -71,6 +78,7 @@ private:
     std::optional<std::vector<uint8_t>> keyFor(const std::string& projectId);
     void flushOutbox();
     void armAckWatchdog();
+    void maybeSendPushWake(const std::string& projectId);
 
     store::Database* m_db   = nullptr;
     net::RelayPool*  m_pool = nullptr;
@@ -85,6 +93,8 @@ private:
     std::map<std::string, std::string> m_outboundPlayOverlays;
     std::map<std::string, std::string> m_inboundPlayOverlays;
     QSet<QString> m_skipOverlayRecompute;
+    bool m_deferBackgroundNotifs = false;
+    bool m_appInForeground       = true;
 };
 
 } // namespace app

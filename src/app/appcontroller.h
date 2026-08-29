@@ -46,6 +46,9 @@ class AppController : public QObject
     Q_PROPERTY(int minCases READ minCases NOTIFY currentProjectChanged)
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
+    Q_PROPERTY(QString relayUrls READ relayUrls NOTIFY relayUrlsChanged)
+    Q_PROPERTY(bool pushEnabled READ pushEnabled NOTIFY pushSettingsChanged)
+    Q_PROPERTY(QString pushBaseUrl READ pushBaseUrl NOTIFY pushSettingsChanged)
     Q_PROPERTY(app::Updater* updater READ updater CONSTANT)
     Q_PROPERTY(app::McpServer* mcp READ mcp CONSTANT)
     Q_PROPERTY(app::FilmAssistant* film READ film CONSTANT)
@@ -85,6 +88,9 @@ public:
     int minCases() const;
     bool online() const;
     int pendingChanges() const;
+    QString relayUrls() const;
+    bool pushEnabled() const;
+    QString pushBaseUrl() const;
     Updater* updater() const { return m_updater.get(); }
     McpServer* mcp() const { return m_mcp.get(); }
     FilmAssistant* film() const { return m_film.get(); }
@@ -173,6 +179,13 @@ public:
     Q_INVOKABLE void leaveProject(const QString& projectId);
     Q_INVOKABLE bool isProjectShared(const QString& projectId) const;
 
+    Q_INVOKABLE void setRelayUrls(const QString& text);
+    Q_INVOKABLE void resetRelayUrls();
+    Q_INVOKABLE QString defaultRelayUrls() const;
+    Q_INVOKABLE void setPushSettings(bool enabled, const QString& baseUrl);
+    Q_INVOKABLE QString defaultPushBaseUrl() const;
+    Q_INVOKABLE void onApplicationStateChanged(Qt::ApplicationState state);
+
     Q_INVOKABLE QVariantList loadPlayChecks(const QString& playerName);
     Q_INVOKABLE void savePlayChecks(const QString& playerName, const QVariantList& checks);
     // Cochage style Colo Courses/Tâches : source de vérité locale, vibration côté UI.
@@ -230,6 +243,8 @@ signals:
     void lastTabChanged();
     void onlineChanged();
     void pendingChangesChanged();
+    void relayUrlsChanged();
+    void pushSettingsChanged();
     void editorOpened(const QString& projectId);
     void toast(const QString& message);
     void playChecksChanged();
@@ -252,6 +267,7 @@ private:
     const core::Project* current() const;
     QVariantList gridsToVariant() const;
     QImage renderScoreboardImage();
+    void refreshPushTopics();
 
     std::unique_ptr<store::Database> m_db;
     std::unique_ptr<ProjectModel>    m_projectModel;
@@ -266,6 +282,8 @@ private:
     int                              m_gridsRevision = 0;
     int                              m_lastTab     = 0;
     QTimer                           m_autoSaveTimer;
+    QString                          m_deviceId;
+    bool                             m_pushLifecycleReady = false;
     // Coches connues avant le dernier merge distant — pour déclencher les gages.
     std::map<std::string, std::string> m_playChecksSnapshot;
     QString                          m_scoreboardPreviewPath;

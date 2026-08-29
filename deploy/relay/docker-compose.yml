@@ -1,0 +1,12 @@
+# Relais Nostr — Strfry en local (TLS via nginx hôte colo-apps).
+# Instance partagée Colo Course + Open Bingo. Copie opérationnelle :
+#   ~/colocourse-relay && docker compose up -d
+
+services:
+  strfry:
+    image: dockurr/strfry:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7777:7777"
+    volumes:
+      - ./data:/app/strfry-db

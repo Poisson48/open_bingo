@@ -44,4 +44,8 @@ bool platformAddCalendarEvent(const QString& title, const QString& description,
 // Ouvre le service d'impression système pour un PDF déjà écrit (Android PrintManager).
 bool platformPrintPdf(const QString& pdfPath);
 
+// Android : veille ntfy pour notifications push app fermée. baseUrl vide = arrêt.
+void platformConfigurePush(const QString &baseUrl, const QStringList &topics,
+                           const QString &deviceId);
+
 } // namespace app

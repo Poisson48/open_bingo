@@ -12,13 +12,8 @@ RelayPool::RelayPool(QObject* parent)
 // static
 QList<QUrl> RelayPool::defaultRelays()
 {
-    // Identique à Colo Course / Colo Tâches + primal (souvent joignable sur mobile).
     return {
-        QUrl("wss://relay.damus.io"),
-        QUrl("wss://nos.lol"),
-        QUrl("wss://relay.nostr.band"),
-        QUrl("wss://offchain.pub"),
-        QUrl("wss://relay.primal.net"),
+        QUrl(QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr")),
     };
 }
 

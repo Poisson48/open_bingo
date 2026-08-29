@@ -41,7 +41,8 @@ import java.io.OutputStream;
 // pour ne dépendre d'aucun namespace Gradle.
 public class Platform {
 
-    private static final String CHANNEL_ID = "openbingo.sync";
+    public static final String CHANNEL_ID = "openbingo.sync";
+    public static final String CHANNEL_VEILLE_ID = "openbingo.veille";
     private static final int    NOTIFICATION_ID = 4545;
     private static final int    PERMISSION_REQUEST = 4545;
 
@@ -49,12 +50,24 @@ public class Platform {
         if (ctx == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
             return;
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
-        if (nm == null || nm.getNotificationChannel(CHANNEL_ID) != null)
+        if (nm == null)
             return;
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, "Synchronisation", NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setDescription("Changements reçus sur vos listes");
-        nm.createNotificationChannel(channel);
+
+        if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID, "Synchronisation", NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription("Changements reçus sur vos projets");
+            nm.createNotificationChannel(channel);
+        }
+
+        if (nm.getNotificationChannel(CHANNEL_VEILLE_ID) == null) {
+            NotificationChannel veille = new NotificationChannel(
+                    CHANNEL_VEILLE_ID, "Veille en arrière-plan",
+                    NotificationManager.IMPORTANCE_MIN);
+            veille.setDescription("Service discret quand l'app est en arrière-plan");
+            veille.setShowBadge(false);
+            nm.createNotificationChannel(veille);
+        }
     }
 
     // Android 13+ : POST_NOTIFICATIONS est une permission runtime. Sans activité
@@ -73,6 +86,12 @@ public class Platform {
 
     public static void showNotification(Context ctx, String title, String body) {
         showNotification(ctx, title, body, 0L);
+    }
+
+    // ntfy : démarre ou arrête la veille push (topics = bingo-{channelTag}).
+    public static void configurePush(Context ctx, String baseUrl, String[] topics,
+                                     String deviceId) {
+        PushService.configure(ctx, baseUrl, topics, deviceId);
     }
 
     // whenMs > 0 : horodatage de la notification = heure de la modification
