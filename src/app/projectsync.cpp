@@ -105,6 +105,13 @@ ProjectSync::ProjectSync(QObject* parent)
     m_ackWatchdog.setSingleShot(true);
     m_ackWatchdog.setInterval(8000);
     connect(&m_ackWatchdog, &QTimer::timeout, this, &ProjectSync::onAckWatchdog);
+
+    m_outboxReconcileTimer.setInterval(15'000);
+    connect(&m_outboxReconcileTimer, &QTimer::timeout, this, [this] {
+        reconcileStuckOutbox();
+        if (m_db && m_db->outboxCount() == 0)
+            m_outboxReconcileTimer.stop();
+    });
 }
 
 void ProjectSync::init(store::Database* db, net::RelayPool* pool, const QString& deviceId)
@@ -293,6 +300,7 @@ void ProjectSync::onLocalProjectChange(const QString& projectId)
 {
     m_pendingProjects.insert(projectId);
     m_debounce.start();
+    schedulePushWake(projectId.toStdString());
 }
 
 void ProjectSync::subscribeAll(int64_t since)
@@ -313,10 +321,82 @@ void ProjectSync::subscribeAll(int64_t since)
 
 void ProjectSync::catchUpOnForeground()
 {
-    if (!m_pool || !m_pool->isOnline())
+    if (!m_pool)
+        return;
+    if (!m_pool->isOnline())
+        m_pool->connectAll();
+    if (!m_pool->isOnline())
         return;
     flushOutbox();
+    reconcileOutbox();
     subscribeAll(0);
+}
+
+void ProjectSync::reconcileOutbox()
+{
+    reconcileStuckOutbox();
+}
+
+void ProjectSync::startOutboxReconcileTimer()
+{
+    if (!m_outboxReconcileTimer.isActive())
+        m_outboxReconcileTimer.start();
+}
+
+void ProjectSync::reconcileStuckOutbox()
+{
+    if (!m_db)
+        return;
+
+    static constexpr int64_t kOutboxStaleMs = 45'000;
+    const int64_t now = QDateTime::currentMSecsSinceEpoch();
+    const bool online = m_pool && m_pool->isOnline();
+    bool changed = false;
+
+    for (const auto& row : m_db->outboxPeekAll()) {
+        const QString eventId = QString::fromStdString(row.eventId);
+        const qint64 created = m_outboxAddedMs.value(eventId, now);
+        if (now - created < kOutboxStaleMs)
+            continue;
+
+        const QJsonDocument doc = QJsonDocument::fromJson(
+            QByteArray::fromStdString(row.content));
+        if (!doc.isObject()) {
+            m_db->outboxRemoveForEvent(row.eventId);
+            m_outboxAddedMs.remove(eventId);
+            changed = true;
+            continue;
+        }
+        const auto evOpt = net::NostrEvent::fromJson(doc.object());
+        if (!evOpt) {
+            m_db->outboxRemoveForEvent(row.eventId);
+            m_outboxAddedMs.remove(eventId);
+            changed = true;
+            continue;
+        }
+
+        if (!online)
+            continue;
+
+        if (m_pendingAcks.find(evOpt->id) == m_pendingAcks.end()) {
+            qInfo() << "[ProjectSync] purging stale delivered outbox entry"
+                    << evOpt->id.left(12);
+            m_db->outboxRemoveForEvent(row.eventId);
+            m_outboxAddedMs.remove(eventId);
+            changed = true;
+            continue;
+        }
+
+        qInfo() << "[ProjectSync] purging stale unacked outbox entry"
+                << evOpt->id.left(12);
+        m_db->outboxRemoveForEvent(row.eventId);
+        m_pendingAcks.erase(evOpt->id);
+        m_outboxAddedMs.remove(eventId);
+        changed = true;
+    }
+
+    if (changed)
+        emit pendingChangesChanged();
 }
 
 void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
@@ -412,9 +492,8 @@ void ProjectSync::onRelayOnline(bool online)
     emit onlineChanged();
     if (!online)
         return;
-    // Pas de republish aveugle de tous les projets : ça provoquait hors-ligne en boucle
-    // + storm d'events. On rejoue seulement l'outbox (éventuellement reconstruit).
     flushOutbox();
+    reconcileStuckOutbox();
     subscribeAll(0);
 }
 
@@ -563,8 +642,10 @@ void ProjectSync::publishSnapshot(const std::string& projectId)
     const std::string eventJson =
         QJsonDocument(ev.toJson()).toJson(QJsonDocument::Compact).toStdString();
     m_db->outboxPush(projectId, ev.id.toStdString(), eventJson);
+    m_outboxAddedMs[ev.id] = QDateTime::currentMSecsSinceEpoch();
     emit pendingChangesChanged();
     m_pendingAcks[ev.id] = projectId;
+    startOutboxReconcileTimer();
 
     const int sent = m_pool->isOnline() ? m_pool->publishToAll(ev) : 0;
     if (sent == 0) {
@@ -624,15 +705,36 @@ void ProjectSync::flushOutbox()
         }
         m_pool->publishToAll(*evOpt);
         m_pendingAcks[evOpt->id] = row.projectId;
+        m_outboxAddedMs[evOpt->id] = QDateTime::currentMSecsSinceEpoch();
     }
     emit pendingChangesChanged();
-    if (!m_pendingAcks.empty())
+    if (!m_pendingAcks.empty()) {
         armAckWatchdog();
+        startOutboxReconcileTimer();
+    }
+}
+
+void ProjectSync::schedulePushWake(const std::string& projectId)
+{
+    const QString key = QString::fromStdString(projectId);
+    QTimer*& timer = m_pushWakeTimers[key];
+    if (!timer) {
+        timer = new QTimer(this);
+        timer->setSingleShot(true);
+        timer->setInterval(60'000);
+        connect(timer, &QTimer::timeout, this, [this, projectId]() {
+            maybeSendPushWake(projectId);
+        });
+    }
+    timer->start();
 }
 
 void ProjectSync::maybeSendPushWake(const std::string& projectId)
 {
     if (!m_db)
+        return;
+
+    if (m_deferBackgroundNotifs && !m_appInForeground)
         return;
 
     const auto enabled = m_db->getSetting("pushEnabled");
@@ -649,16 +751,10 @@ void ProjectSync::maybeSendPushWake(const std::string& projectId)
     if (!tagOpt)
         return;
 
-    static QHash<QString, qint64> lastPushMs;
-    const QString key = QString::fromStdString(projectId);
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (lastPushMs.value(key) + 3000 > now)
-        return;
-    lastPushMs[key] = now;
-
     const auto projectOpt = m_db->getProject(projectId);
     const QString title =
-        projectOpt ? QString::fromStdString(projectOpt->title) : key;
+        projectOpt ? QString::fromStdString(projectOpt->title)
+                   : QString::fromStdString(projectId);
 
     net::sendPushWake(base,
                       net::pushTopicForChannel(QString::fromStdString(*tagOpt)),

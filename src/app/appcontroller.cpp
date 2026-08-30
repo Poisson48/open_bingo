@@ -220,6 +220,9 @@ bool AppController::init()
         if (active) {
             m_pushLifecycleReady = true;
             platformConfigurePush(QString(), {}, QString());
+            resumeSync();
+        } else if (m_projectSync->pendingChanges() == 0) {
+            m_projectSync->reconcileOutbox();
         }
     }
 
@@ -1681,6 +1684,14 @@ void AppController::setPushSettings(bool enabled, const QString &baseUrl)
                        : QStringLiteral("Notifications push désactivées"));
 }
 
+void AppController::resumeSync()
+{
+    if (m_relayPool)
+        m_relayPool->connectAll();
+    if (m_projectSync)
+        m_projectSync->catchUpOnForeground();
+}
+
 void AppController::refreshPushTopics()
 {
     if (!m_db || !m_projectSync)
@@ -1722,7 +1733,7 @@ void AppController::onApplicationStateChanged(Qt::ApplicationState state)
     if (active) {
         m_pushLifecycleReady = true;
         platformConfigurePush(QString(), {}, QString());
-        m_projectSync->catchUpOnForeground();
+        resumeSync();
         reloadProjects();
     } else if (m_pushLifecycleReady) {
         refreshPushTopics();
@@ -1841,7 +1852,10 @@ void AppController::announceWinners(const QVariantList& newWinners,
     if (msg.isEmpty())
         return;
     emit toast(msg);
-    platformNotify(QStringLiteral("Open Bingo"), msg);
+    if (!(pushEnabled()
+          && QGuiApplication::applicationState() != Qt::ApplicationActive)) {
+        platformNotify(QStringLiteral("Open Bingo"), msg);
+    }
     emit playWinnersTriggered(newWinners, scoreboard);
 }
 

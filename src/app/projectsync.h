@@ -7,6 +7,7 @@
 #include <QHash>
 #include <QObject>
 #include <QTimer>
+#include <QHash>
 #include <QSet>
 #include <QString>
 #include <QVariantList>
@@ -48,6 +49,7 @@ public:
     Q_INVOKABLE void subscribeAll(int64_t since = 0);
     // Flush outbox + resubscribe (retour au premier plan / changement de relais).
     Q_INVOKABLE void catchUpOnForeground();
+    Q_INVOKABLE void reconcileOutbox();
     // Arrête la sync locale (clé + abonnement) sans toucher les autres appareils.
     Q_INVOKABLE void leaveSharing(const QString& projectId);
 
@@ -78,7 +80,10 @@ private:
     std::optional<std::string> channelTagFor(const std::string& projectId);
     std::optional<std::vector<uint8_t>> keyFor(const std::string& projectId);
     void flushOutbox();
+    void reconcileStuckOutbox();
+    void startOutboxReconcileTimer();
     void armAckWatchdog();
+    void schedulePushWake(const std::string& projectId);
     void maybeSendPushWake(const std::string& projectId);
 
     store::Database* m_db   = nullptr;
@@ -87,6 +92,9 @@ private:
 
     QTimer           m_debounce;
     QTimer           m_ackWatchdog;
+    QTimer           m_outboxReconcileTimer;
+    QHash<QString, QTimer*> m_pushWakeTimers;
+    QHash<QString, qint64>  m_outboxAddedMs;
     QSet<QString>    m_pendingProjects;
     QSet<QString>    m_subscribed;
     std::map<QString, std::string> m_pendingAcks;

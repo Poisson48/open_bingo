@@ -71,11 +71,17 @@ public class PushService extends Service {
         }
 
         Platform.createChannel(this);
+        final CharSequence label = getApplicationInfo().loadLabel(getPackageManager());
+        final String appName = label != null ? label.toString() : "Open Bingo";
         Notification.Builder builder = new Notification.Builder(this, Platform.CHANNEL_VEILLE_ID)
                 .setSmallIcon(smallIcon())
-                .setContentTitle("Open Bingo")
-                .setContentText("Synchronisation en arrière-plan")
-                .setOngoing(true);
+                .setContentTitle(appName)
+                .setContentText("")
+                .setOngoing(true)
+                .setShowWhen(false)
+                .setVisibility(Notification.VISIBILITY_SECRET);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         startForeground(FG_ID, builder.build());
 
         if (worker != null && worker.isAlive()) {

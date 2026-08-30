@@ -42,7 +42,7 @@ import java.io.OutputStream;
 public class Platform {
 
     public static final String CHANNEL_ID = "openbingo.sync";
-    public static final String CHANNEL_VEILLE_ID = "openbingo.veille";
+    public static final String CHANNEL_VEILLE_ID = "openbingo.veille.v2";
     private static final int    NOTIFICATION_ID = 4545;
     private static final int    PERMISSION_REQUEST = 4545;
 
@@ -62,10 +62,13 @@ public class Platform {
 
         if (nm.getNotificationChannel(CHANNEL_VEILLE_ID) == null) {
             NotificationChannel veille = new NotificationChannel(
-                    CHANNEL_VEILLE_ID, "Veille en arrière-plan",
+                    CHANNEL_VEILLE_ID, "Open Bingo",
                     NotificationManager.IMPORTANCE_MIN);
-            veille.setDescription("Service discret quand l'app est en arrière-plan");
+            veille.setDescription("");
             veille.setShowBadge(false);
+            veille.enableLights(false);
+            veille.enableVibration(false);
+            veille.setSound(null, null);
             nm.createNotificationChannel(veille);
         }
     }

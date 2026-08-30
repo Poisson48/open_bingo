@@ -268,6 +268,7 @@ private:
     QVariantList gridsToVariant() const;
     QImage renderScoreboardImage();
     void refreshPushTopics();
+    void resumeSync();
 
     std::unique_ptr<store::Database> m_db;
     std::unique_ptr<ProjectModel>    m_projectModel;
