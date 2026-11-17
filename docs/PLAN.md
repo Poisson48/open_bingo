@@ -1,11 +1,12 @@
 # Open Bingo — Plan d'action
 
-> Référence agents : lire ce fichier + `docs/SPEC.md`.
+> Référence agents : lire ce fichier + [`PROTOCOL.md`](../PROTOCOL.md).
 
 ## Architecture
 
 - Qt 6.8 / QML + C++20
-- Stack réseau Colo Tâches : Nostr, crypto, pairing, ProjectSync, Updater
+- Stack réseau Colo v1 : relais Nostr chiffré colo-apps, crypto, pairing, ProjectSync, Updater
+- Sans notifications push (app ouverte / premier plan)
 - SQLite locale + export JSON
 - v1 : Linux AppImage + Android APK ; Windows phase 2
 
@@ -22,6 +23,7 @@
 | 6 CSV + MCP desktop | ✅ `feat/csv-mcp` — [`PLAN-csv-mcp.md`](PLAN-csv-mcp.md) |
 | 7 OpenSubtitles / Bingo film | ✅ — [`PLAN-opensubtitles.md`](PLAN-opensubtitles.md) |
 | 8 Refactor cleanup | ✅ warnings + découpe AppController/MCP/OpenSubtitles |
+| 9 Réseau protocole v1 | ✅ multi-souscriptions, outbox/ACK, dédup, catch-up, rehost, sans push — voir [`PROTOCOL.md`](../PROTOCOL.md) |
 
 ## Release
 

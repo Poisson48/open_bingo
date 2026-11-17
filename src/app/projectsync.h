@@ -29,11 +29,6 @@ public:
 
     void init(store::Database* db, net::RelayPool* pool, const QString& deviceId);
 
-    void setAppInForeground(bool foreground) { m_appInForeground = foreground; }
-    void setDeferBackgroundNotificationsToPush(bool defer) {
-        m_deferBackgroundNotifs = defer;
-    }
-
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
 
@@ -83,8 +78,9 @@ private:
     void reconcileStuckOutbox();
     void startOutboxReconcileTimer();
     void armAckWatchdog();
-    void schedulePushWake(const std::string& projectId);
-    void maybeSendPushWake(const std::string& projectId);
+    // Re-sème une fois chaque projet partagé sur les relais configurés
+    // (migration vers colo-apps / relais vidé). Idempotent par projet.
+    void rehostSharedOnce();
 
     store::Database* m_db   = nullptr;
     net::RelayPool*  m_pool = nullptr;
@@ -93,7 +89,6 @@ private:
     QTimer           m_debounce;
     QTimer           m_ackWatchdog;
     QTimer           m_outboxReconcileTimer;
-    QHash<QString, QTimer*> m_pushWakeTimers;
     QHash<QString, qint64>  m_outboxAddedMs;
     QSet<QString>    m_pendingProjects;
     QSet<QString>    m_subscribed;
@@ -104,8 +99,6 @@ private:
     std::map<std::string, std::string> m_outboundPlayOverlays;
     std::map<std::string, std::string> m_inboundPlayOverlays;
     QSet<QString> m_skipOverlayRecompute;
-    bool m_deferBackgroundNotifs = false;
-    bool m_appInForeground       = true;
 };
 
 } // namespace app

@@ -423,29 +423,15 @@ Item {
             wrapMode: Text.WordWrap
             color: Theme.textDim
             font.pixelSize: 13
-            text: "Notifications push (Android, app fermée)"
-        }
-
-        Switch {
-            id: pushEnabledSwitch
-            text: "Activer la veille push"
-        }
-
-        ColoTextField {
-            id: pushUrlField
-            Layout.fillWidth: true
-            placeholderText: AppController.defaultPushBaseUrl()
-            enabled: pushEnabledSwitch.checked
+            text: "Les changements se synchronisent chiffrés via ce relais, "
+                  + "app ouverte ou au retour au premier plan."
         }
 
         onOpened: {
             relaysField.text = AppController.relayUrls
-            pushEnabledSwitch.checked = AppController.pushEnabled
-            pushUrlField.text = AppController.pushBaseUrl
         }
         onAccepted: {
             AppController.setRelayUrls(relaysField.text)
-            AppController.setPushSettings(pushEnabledSwitch.checked, pushUrlField.text)
         }
     }
 }

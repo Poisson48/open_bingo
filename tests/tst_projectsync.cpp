@@ -392,11 +392,12 @@ private slots:
         QVERIFY(!tag0.at(1).toString().isEmpty());
     }
 
-    void defaultRelaysIncludePublicFallbacks()
+    void defaultRelayIsColoApps()
     {
+        // Protocole Colo v1 §4 : le relais colo-apps est le défaut. Pas de relais
+        // public par défaut (relais supplémentaires configurables dans Réglages).
         const auto relays = net::RelayPool::defaultRelays();
-        QVERIFY2(relays.size() >= 2,
-                 "Au moins colo-apps + un relais public de secours");
+        QCOMPARE(relays.size(), 1);
         QCOMPARE(relays.front().toString(),
                  QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr"));
     }

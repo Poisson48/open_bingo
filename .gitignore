@@ -15,3 +15,17 @@ CMakeUserPresets.json
 opensubtitles.key
 *.opensubtitles.key
 .openbingo_os_api_key
+
+# Ancienne app web/Tauri v1 (artefacts locaux, supprimés du suivi)
+/bingo-app/
+/node_modules/
+/src-tauri/
+
+# Artefacts de build / releases locaux
+/releases/
+/build-*/
+*.keystore
+
+# Divers
+__pycache__/
+*.pyc

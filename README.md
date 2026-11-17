@@ -14,7 +14,7 @@
   <a href="https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml"><img src="https://github.com/Poisson48/open_bingo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez sans papier sur téléphone. Partagez un projet entre plusieurs appareils par QR code : les modifications se synchronisent via relais Nostr chiffrés. Données locales en SQLite, export/import JSON. Open source, GPLv3.
+Créez des projets bingo, des grilles uniques par joueur, imprimez-les ou jouez sans papier sur téléphone. Partagez un projet entre plusieurs appareils par QR code : les modifications se synchronisent via un relais Nostr chiffré de bout en bout. Données locales en SQLite, export/import JSON. Open source, GPLv3.
 
 > **v2 stable** — application **Qt 6 / QML** native (Linux AppImage + Android APK), utilisable en soirée dès maintenant.  
 > Les anciennes releases **v1.2.x** (app web/Tauri) ne sont **pas** compatibles (package Android différent).
@@ -61,7 +61,7 @@ Sur Android, l'app vérifie les mises à jour sur GitHub au lancement. Les relea
 - **Impression** — A4, 1 ou 2 grilles/page selon la taille (découpe si 2), feuille gages paginée ; tableaux combos lisibles (textes longs, pas de chevauchement)
 - **Sans papier** — coches par joueur, overlay gage groupé (« Léa, Max… doivent : … »), sync du même texte entre grilles, notifs gage alignées entre appareils, annonce gagnant pour tout le monde
 - **Classement PNG** — aperçu puis partage (Android) / enregistrement (desktop) ; titre + description du projet
-- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout, sync Nostr (projet + coches Play) ; relais colo-apps + secours publics si un relais refuse l'envoi
+- **Partage & sync** — QR / lien `openbingo://join/…`, chiffrement bout en bout (XChaCha20-Poly1305), sync du projet + des coches Play via le relais **colo-apps** (configurable). File d'attente hors ligne, accusés de réception et reprise automatique ; **pas de notifications push** : la sync se fait app ouverte / au premier plan.
 - **Import/export JSON** — projet seul ou tous les projets ; compatible exports web v1.2.x
 - **Import/export CSV** — phrases et gages depuis un tableur (desktop + Android)
 - **MCP IA (desktop)** — Cursor / Claude Desktop pilotent le projet ouvert via HTTP localhost
@@ -114,12 +114,28 @@ Détail : [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md).
 
 ## Comment ça marche (sync)
 
+- **Relais Nostr chiffré uniquement** : `wss://colo-apps.les-crevettes-cevenoles.fr`
+  (configurable dans Réglages). Pas de P2P, pas de TURN, pas de WebRTC.
+- **Chiffrement E2E** : une clé de 32 octets par projet, XChaCha20-Poly1305 ;
+  le relais ne voit que des blobs et des métadonnées de canal.
+- **Sans conflit** : LWW sur le document projet (`updatedAt`) ; le snapshot le
+  plus récent gagne, sur tous les appareils.
+- **Hors ligne d'abord** : chaque modification part dans une file d'attente locale
+  et n'est retirée qu'après **accusé durable du relais**. Au retour du réseau, la
+  file est vidée puis les canaux sont re-souscrits.
+- **Multi-projets / multi-appareils** : une seule socket suffit, avec une
+  souscription par projet partagé ; un client qui revient récupère l'état et
+  re-sème son projet une fois si le relais a été remplacé/vidé.
+- **Pas de notifications push** (ni FCM, ni UnifiedPush, ni ntfy) : la
+  synchronisation a lieu quand l'app est ouverte ou au retour au premier plan.
+
 1. Créez ou ouvrez un projet sur un appareil.
 2. Menu **Partager** → QR code ou lien d'invitation (contient la clé de chiffrement).
 3. L'autre appareil scanne le QR ou ouvre le lien → rejoint le canal.
-4. Chaque modification est publiée chiffrée sur les relais Nostr (colo-apps + relais publics de secours) ; l'autre appareil fusionne au retour en ligne (dernier `updatedAt` gagne). Un rejet ponctuel d'un relais n'empêche plus la publication si un autre relais accepte.
+4. Chaque modification est publiée chiffrée sur le relais ; l'autre appareil
+   fusionne au retour en ligne (dernier `updatedAt` gagne).
 
-Hors ligne : les changements partent dans une file d'attente locale et sont envoyés au retour du réseau.
+Détail du protocole : [`PROTOCOL.md`](PROTOCOL.md).
 
 ## Développement
 
@@ -163,8 +179,8 @@ bash scripts/build-appimage.sh
 Chaque tag `v*` déclenche GitHub Actions (`release.yml`) : build APK arm64 + AppImage, publication sur GitHub Releases.
 
 ```bash
-git tag -a v2.0.5 -m "Description des nouveautés (affichée dans l'app avant mise à jour)"
-git push origin v2.0.5
+git tag -a v2.1.0 -m "Description des nouveautés (affichée dans l'app avant mise à jour)"
+git push origin v2.1.0
 ```
 
 **Secrets GitHub** (optionnels mais recommandés pour Android) :
@@ -188,7 +204,7 @@ src/
   qml/      Interface Material (pages, composants Bingo*)
 ```
 
-Documentation : [`docs/PLAN.md`](docs/PLAN.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/PLAN-csv-mcp.md`](docs/PLAN-csv-mcp.md), [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md), [`CLAUDE.md`](CLAUDE.md).
+Documentation : [`PROTOCOL.md`](PROTOCOL.md) (protocole de sync), [`docs/PLAN.md`](docs/PLAN.md), [`docs/SYNC-SERVER.md`](docs/SYNC-SERVER.md), [`docs/PLAN-csv-mcp.md`](docs/PLAN-csv-mcp.md), [`docs/PLAN-opensubtitles.md`](docs/PLAN-opensubtitles.md), [`CLAUDE.md`](CLAUDE.md).
 
 ## Plateformes
 

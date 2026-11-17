@@ -14,7 +14,6 @@ add_library(net STATIC
     net/nostr.cpp
     net/relayclient.cpp
     net/relaypool.cpp
-    net/pushclient.cpp
     net/opensubtitles_com.cpp
     net/opensubtitles_org.cpp
     net/opensubtitlesclient.cpp
@@ -90,8 +89,8 @@ if(BINGO_HAS_CAMERA)
     target_compile_definitions(applib PUBLIC BINGO_HAS_CAMERA)
 endif()
 
-set(BINGO_VERSION_NAME "2.0.28" CACHE STRING "android:versionName")
-set(BINGO_VERSION_CODE "1" CACHE STRING "android:versionCode")
+set(BINGO_VERSION_NAME "2.1.0" CACHE STRING "android:versionName")
+set(BINGO_VERSION_CODE "210" CACHE STRING "android:versionCode")
 # User-Agent OpenSubtitles (net) + applib
 target_compile_definitions(net PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")
 target_compile_definitions(applib PUBLIC BINGO_APP_VERSION="${BINGO_VERSION_NAME}")

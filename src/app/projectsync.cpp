@@ -5,7 +5,6 @@
 #include "../core/sharecodec.h"
 #include "../net/crypto.h"
 #include "../net/nostr.h"
-#include "../net/pushclient.h"
 
 #include <QHash>
 #include <QDateTime>
@@ -300,7 +299,6 @@ void ProjectSync::onLocalProjectChange(const QString& projectId)
 {
     m_pendingProjects.insert(projectId);
     m_debounce.start();
-    schedulePushWake(projectId.toStdString());
 }
 
 void ProjectSync::subscribeAll(int64_t since)
@@ -449,6 +447,8 @@ void ProjectSync::handleRelayEvent(const net::NostrEvent& ev)
             || (isContentEmpty(*local) && !isContentEmpty(remote))
             || remote.updatedAt >= local->updatedAt;
         if (accept) {
+            // Un rejet LWW n'est volontairement PAS marqué « vu » : si l'état local
+            // redevient un stub plus tard, le même snapshot pourra être réappliqué.
             m_db->markEventSeen(ev.id.toStdString());
             m_db->upsertProject(remote);
             // Ancien snapshot sans playChecks : ne pas écraser les coches locales.
@@ -495,6 +495,27 @@ void ProjectSync::onRelayOnline(bool online)
     flushOutbox();
     reconcileStuckOutbox();
     subscribeAll(0);
+    rehostSharedOnce();
+}
+
+void ProjectSync::rehostSharedOnce()
+{
+    if (!m_db || !m_pool || !m_pool->isOnline())
+        return;
+    // Une seule republication par projet et par installation : le relais peut
+    // avoir été remplacé/vidé, ou l'installation peut venir des anciens relais.
+    for (const auto& projectId : m_db->sharedProjectIds()) {
+        const std::string rehostKey = "rehostV2." + projectId;
+        if (m_db->getSetting(rehostKey).has_value())
+            continue;
+        const auto project = m_db->getProject(projectId);
+        if (!project || isContentEmpty(*project))
+            continue; // re-sèmera au prochain passage une fois le contenu prêt
+        publishSnapshot(projectId);
+        m_db->setSetting(rehostKey, "1");
+        qInfo() << "[ProjectSync] rehosted project"
+                << QString::fromStdString(projectId).left(12);
+    }
 }
 
 void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QString& msg)
@@ -505,11 +526,8 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
     if (relayAckMeansStored(accepted, msg)) {
         m_publishRejectCounts.remove(eventId);
         const auto it = m_pendingAcks.find(eventId);
-        std::string projectId;
-        if (it != m_pendingAcks.end()) {
-            projectId = it->second;
+        if (it != m_pendingAcks.end())
             m_pendingAcks.erase(it);
-        }
 
         m_db->outboxRemoveForEvent(eventId.toStdString());
         m_db->markEventSeen(eventId.toStdString());
@@ -518,8 +536,6 @@ void ProjectSync::onPublishAck(const QString& eventId, bool accepted, const QStr
             emit toast(QStringLiteral("Contenu publié — les invités peuvent synchroniser."));
         }
         emit pendingChangesChanged();
-        if (!projectId.empty())
-            maybeSendPushWake(projectId);
         return;
     }
 
@@ -712,54 +728,6 @@ void ProjectSync::flushOutbox()
         armAckWatchdog();
         startOutboxReconcileTimer();
     }
-}
-
-void ProjectSync::schedulePushWake(const std::string& projectId)
-{
-    const QString key = QString::fromStdString(projectId);
-    QTimer*& timer = m_pushWakeTimers[key];
-    if (!timer) {
-        timer = new QTimer(this);
-        timer->setSingleShot(true);
-        timer->setInterval(60'000);
-        connect(timer, &QTimer::timeout, this, [this, projectId]() {
-            maybeSendPushWake(projectId);
-        });
-    }
-    timer->start();
-}
-
-void ProjectSync::maybeSendPushWake(const std::string& projectId)
-{
-    if (!m_db)
-        return;
-
-    if (m_deferBackgroundNotifs && !m_appInForeground)
-        return;
-
-    const auto enabled = m_db->getSetting("pushEnabled");
-    if (enabled && *enabled == "0")
-        return;
-
-    const auto urlOpt = m_db->getSetting("pushBaseUrl");
-    const QString base =
-        urlOpt && !urlOpt->empty()
-            ? QString::fromStdString(*urlOpt)
-            : QStringLiteral("https://colo-apps.les-crevettes-cevenoles.fr/ntfy");
-
-    const auto tagOpt = channelTagFor(projectId);
-    if (!tagOpt)
-        return;
-
-    const auto projectOpt = m_db->getProject(projectId);
-    const QString title =
-        projectOpt ? QString::fromStdString(projectOpt->title)
-                   : QString::fromStdString(projectId);
-
-    net::sendPushWake(base,
-                      net::pushTopicForChannel(QString::fromStdString(*tagOpt)),
-                      title,
-                      m_deviceId);
 }
 
 } // namespace app

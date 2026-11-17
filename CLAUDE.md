@@ -5,7 +5,7 @@
 Native Qt 6 bingo card generator for tabletop game nights. Multi-project, rate-based grid
 generation, print and paperless play modes. Replaces the former web/Tauri app entirely.
 
-**Start here:** [`docs/PLAN.md`](docs/PLAN.md) + [`docs/SPEC.md`](docs/SPEC.md)
+**Start here:** [`PROTOCOL.md`](PROTOCOL.md) + [`docs/PLAN.md`](docs/PLAN.md)
 
 ## Stack
 
@@ -13,7 +13,8 @@ generation, print and paperless play modes. Replaces the former web/Tauri app en
 - **Logic**: C++20 static libs (`core`, `store`, `applib`)
 - **Build**: CMake 3.24+, Ninja
 - **Persistence**: SQLite + JSON export/import
-- **Réseau** : Nostr + chiffrement (stack Colo Tâches), `ProjectSync`, `Updater`
+- **Réseau** : relais Nostr chiffré (protocole Colo v1, relais colo-apps), `ProjectSync`, `Updater`
+- **Pas de notifications push** : sync app ouverte / premier plan uniquement
 
 ## Running the app
 
@@ -30,12 +31,12 @@ Android / AppImage: see `scripts/` and `README.md`.
 ```
 src/
   core/       bingotypes, Generator, JsonCodec, pairing, payload, crdt
-  net/        Nostr, RelayPool, crypto
+  net/        Nostr (multi-souscriptions), RelayPool, crypto
   store/      Database (SQLite + sync outbox)
   app/        AppController, ProjectSync, Updater, Theme, Platform
   qml/        Main.qml, pages, Colo* components
   main.cpp
-tests/        generator, json, database, smoke
+tests/        generator, json, database, projectsync, smoke
 ```
 
 ## Key behaviors
@@ -43,7 +44,7 @@ tests/        generator, json, database, smoke
 - **Rate-based generation**: each case has `rate` (0–100%). `rate=0` never included.
 - **Config save resets grids**: explicit save on config tab clears `grids`.
 - **Play checks** stored separately from project JSON.
-- **Sync projets partagés** : snapshots JSON chiffrés via relais Nostr ; merge LWW sur `updatedAt`.
+- **Sync projets partagés** : snapshots JSON chiffrés (XChaCha20-Poly1305) via le relais colo-apps ; merge LWW sur `updatedAt`, outbox durable + ACK, dédup, catch-up, rehost one-shot. Voir `PROTOCOL.md`.
 - **Mises à jour** : GitHub Releases → APK (Android) / AppImage (Linux).
 
 ## Dev conventions

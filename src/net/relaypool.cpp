@@ -9,28 +9,34 @@ RelayPool::RelayPool(QObject* parent)
     : QObject(parent)
 {}
 
+RelayPool::~RelayPool()
+{
+    shutdown();
+}
+
 // static
 QList<QUrl> RelayPool::defaultRelays()
 {
-    // colo-apps en premier (push ntfy + faible latence) ; relais publics en secours
-    // pour que le publish survive à un rejet ponctuel d'un relais (cf. Colo Course).
+    // Protocole Colo v1 §4 : le relais colo-apps est le défaut.
+    // Relais supplémentaires configurables dans Réglages (une URL par ligne).
     return {
         QUrl(QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr")),
-        QUrl(QStringLiteral("wss://nos.lol")),
-        QUrl(QStringLiteral("wss://relay.nostr.band")),
-        QUrl(QStringLiteral("wss://offchain.pub")),
     };
 }
 
 void RelayPool::setRelays(const QList<QUrl>& urls)
 {
+    if (m_shuttingDown)
+        return;
+
     // Disconnect old clients.
     for (auto& c : m_clients)
         c->disconnectFromRelay();
     m_clients.clear();
 
     for (const QUrl& url : urls) {
-        auto client = std::make_unique<RelayClient>(url, nullptr); // unique_ptr owns
+        // Pas de parent QObject : propriété exclusive via unique_ptr.
+        auto client = std::make_unique<RelayClient>(url);
 
         connect(client.get(), &RelayClient::connected,
                 this, &RelayPool::onClientConnected);
@@ -46,15 +52,17 @@ void RelayPool::setRelays(const QList<QUrl>& urls)
         m_clients.push_back(std::move(client));
     }
 
-    // Re-apply subscription if one is already active.
-    if (!m_channelTags.isEmpty()) {
+    // Ré-appliquer toutes les souscriptions actives (multi-listes).
+    for (auto it = m_subscriptions.constBegin(); it != m_subscriptions.constEnd(); ++it) {
         for (auto& c : m_clients)
-            c->subscribe(m_channelTags, m_since);
+            c->subscribe(it.key(), it.value());
     }
 }
 
 void RelayPool::connectAll()
 {
+    if (m_shuttingDown)
+        return;
     for (auto& c : m_clients)
         c->connectToRelay();
 }
@@ -65,8 +73,29 @@ void RelayPool::disconnectAll()
         c->disconnectFromRelay();
 }
 
+void RelayPool::shutdown()
+{
+    if (m_shuttingDown)
+        return;
+    m_shuttingDown = true;
+    qDebug() << "[shutdown] RelayPool::shutdown";
+
+    disconnect();
+
+    for (auto& c : m_clients) {
+        c->disconnect(this);
+        c->shutdown();
+    }
+    m_clients.clear();
+    m_subscriptions.clear();
+    m_seenIds.clear();
+    m_online = false;
+}
+
 int RelayPool::publishToAll(const NostrEvent& ev)
 {
+    if (m_shuttingDown)
+        return 0;
     int sent = 0;
     for (auto& c : m_clients) {
         if (c->isConnected()) {
@@ -97,6 +126,8 @@ bool RelayPool::forceReconnectAllowed() const
 
 void RelayPool::forceReconnect()
 {
+    if (m_shuttingDown)
+        return;
     if (!forceReconnectAllowed()) {
         qDebug() << "[RelayPool] forceReconnect skipped (cooldown)";
         return;
@@ -110,42 +141,43 @@ void RelayPool::forceReconnect()
 
 void RelayPool::subscribeAll(const QString& channelTag, int64_t since)
 {
-    if (channelTag.isEmpty())
+    if (m_shuttingDown || channelTag.isEmpty())
         return;
-    if (!m_channelTags.contains(channelTag))
-        m_channelTags.append(channelTag);
-    m_since = since;
+    m_subscriptions[channelTag] = since;
     for (auto& c : m_clients)
-        c->subscribe(m_channelTags, since);
+        c->subscribe(channelTag, since);
 }
 
 void RelayPool::unsubscribe(const QString& channelTag)
 {
-    if (!m_channelTags.contains(channelTag))
+    if (m_shuttingDown || channelTag.isEmpty())
         return;
-    m_channelTags.removeAll(channelTag);
-    for (auto& c : m_clients) {
-        if (m_channelTags.isEmpty())
-            c->closeSubscription();
-        else
-            c->subscribe(m_channelTags, m_since);
-    }
+    m_subscriptions.remove(channelTag);
+    for (auto& c : m_clients)
+        c->unsubscribe(channelTag);
 }
 
 // ── Private slots ──────────────────────────────────────────────────────────
 
 void RelayPool::onClientConnected()
 {
+    if (m_shuttingDown)
+        return;
     updateOnlineState();
 }
 
 void RelayPool::onClientDisconnected()
 {
+    if (m_shuttingDown)
+        return;
     updateOnlineState();
 }
 
 void RelayPool::onClientEvent(const NostrEvent& ev)
 {
+    if (m_shuttingDown)
+        return;
+
     // Dedup: skip events we've already forwarded.
     if (ev.id.isEmpty() || m_seenIds.contains(ev.id))
         return;
@@ -156,11 +188,15 @@ void RelayPool::onClientEvent(const NostrEvent& ev)
 
 void RelayPool::onClientEose()
 {
+    if (m_shuttingDown)
+        return;
     emit eose();
 }
 
 void RelayPool::onClientAck(const QString& eventId, bool accepted, const QString& msg)
 {
+    if (m_shuttingDown)
+        return;
     emit publishAck(eventId, accepted, msg);
 }
 
@@ -168,8 +204,13 @@ void RelayPool::onClientAck(const QString& eventId, bool accepted, const QString
 
 void RelayPool::updateOnlineState()
 {
+    if (m_shuttingDown)
+        return;
+
     bool anyConnected = false;
     for (const auto& c : m_clients) {
+        if (c->isShuttingDown())
+            continue;
         if (c->isConnected()) {
             anyConnected = true;
             break;

@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QUrl>
 #include <QSet>
+#include <QHash>
 #include <QStringList>
 #include <vector>
 #include <memory>
@@ -16,8 +17,9 @@ namespace net {
 // Manages a pool of RelayClient connections (one per relay URL).
 //
 // - publishToAll: sends to every connected relay.
-// - subscribeAll: subscribes all relays (and re-subscribes on reconnect via
-//   RelayClient's built-in mechanism).
+// - subscribeAll: souscrit un canal (#t) sur tous les relais ; les
+//   souscriptions de plusieurs canaux/listes coexistent sur une même socket
+//   et sont ré-appliquées après reconnexion (contrat réseau Colo v1).
 // - Deduplication: each event id is tracked; eventReceived is emitted at most once.
 // - online property: true iff at least one relay is connected; emits onlineChanged.
 class RelayPool : public QObject
@@ -27,12 +29,12 @@ class RelayPool : public QObject
 
 public:
     explicit RelayPool(QObject* parent = nullptr);
-    ~RelayPool() override = default;
+    ~RelayPool() override;
 
     // Replace the relay list and reconnect everything.
     void setRelays(const QList<QUrl>& urls);
 
-    // Default relay set from SPEC §3.1.
+    // Default relay set (protocole Colo v1 §4 : relais colo-apps).
     static QList<QUrl> defaultRelays();
 
     // Connect all relays.
@@ -40,6 +42,9 @@ public:
 
     // Disconnect all relays.
     void disconnectAll();
+
+    // Arrêt définitif (destruction) : coupe signaux + sockets avant de libérer.
+    void shutdown();
 
     // Publish to every connected relay. Returns how many sockets accepted the send.
     int publishToAll(const NostrEvent& ev);
@@ -52,7 +57,7 @@ public:
     void forceReconnect();
     bool forceReconnectAllowed() const;
 
-    // Subscribe on every relay (accumulates channel tags — un filtre #t multi-valeurs).
+    // Souscrit un canal sur tous les relais (une souscription par canal).
     void subscribeAll(const QString& channelTag, int64_t since);
     void unsubscribe(const QString& channelTag);
 
@@ -78,11 +83,11 @@ private:
     std::vector<std::unique_ptr<RelayClient>> m_clients;
     QSet<QString> m_seenIds;   // in-memory dedup by event id
 
-    // Active subscription tags (OR on #t) — re-applied for new relays / reconnect.
-    QStringList m_channelTags;
-    int64_t     m_since = 0;
+    // Souscriptions actives par canal (#t) — une entrée par liste partagée.
+    QHash<QString, int64_t> m_subscriptions;
 
     bool m_online = false;
+    bool m_shuttingDown = false;
     qint64 m_lastForceReconnectMs = 0;
 };
 

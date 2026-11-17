@@ -36,7 +36,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 // Services natifs appelés depuis C++ via JNI (src/app/platform.cpp) : notification
-// locale après un merge distant (SPEC §8) et feuille de partage du lien d'appairage.
+// locale (gagnant) et feuille de partage du lien d'appairage.
 // Aucune référence à la classe R générée : les ressources sont résolues par nom,
 // pour ne dépendre d'aucun namespace Gradle.
 public class Platform {
@@ -89,12 +89,6 @@ public class Platform {
 
     public static void showNotification(Context ctx, String title, String body) {
         showNotification(ctx, title, body, 0L);
-    }
-
-    // ntfy : démarre ou arrête la veille push (topics = bingo-{channelTag}).
-    public static void configurePush(Context ctx, String baseUrl, String[] topics,
-                                     String deviceId) {
-        PushService.configure(ctx, baseUrl, topics, deviceId);
     }
 
     // whenMs > 0 : horodatage de la notification = heure de la modification

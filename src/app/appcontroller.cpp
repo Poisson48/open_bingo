@@ -7,7 +7,6 @@
 #include "../core/projectcsv.h"
 #include "../core/sharecodec.h"
 #include "../net/crypto.h"
-#include "../net/pushclient.h"
 #include "../net/relaypool.h"
 #include "platform.h"
 
@@ -123,11 +122,15 @@ bool AppController::init()
                            "wss://offchain.pub,wss://relay.primal.net");
         static const QString kColoOnlyRelays =
             QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr");
+        static const QString kOldBingoDefault =
+            QStringLiteral("wss://colo-apps.les-crevettes-cevenoles.fr,wss://nos.lol,"
+                           "wss://relay.nostr.band,wss://offchain.pub");
         auto relaysSetting = m_db->getSetting("relays");
         QList<QUrl> relayUrls;
         if (relaysSetting && !relaysSetting->empty()) {
             QString relaysStr = QString::fromStdString(*relaysSetting);
-            if (relaysStr == kLegacyRelays || relaysStr == kColoOnlyRelays)
+            if (relaysStr == kLegacyRelays || relaysStr == kColoOnlyRelays
+                || relaysStr == kOldBingoDefault)
                 relaysStr.clear();
             for (const QString &u : relaysStr.split(QLatin1Char(','), Qt::SkipEmptyParts))
                 relayUrls.append(QUrl(u.trimmed()));
@@ -215,11 +218,7 @@ bool AppController::init()
         m_updater->check();
 
         const bool active = QGuiApplication::applicationState() == Qt::ApplicationActive;
-        m_projectSync->setAppInForeground(active);
-        m_projectSync->setDeferBackgroundNotificationsToPush(pushEnabled());
         if (active) {
-            m_pushLifecycleReady = true;
-            platformConfigurePush(QString(), {}, QString());
             resumeSync();
         } else if (m_projectSync->pendingChanges() == 0) {
             m_projectSync->reconcileOutbox();
@@ -1637,53 +1636,6 @@ void AppController::resetRelayUrls()
     setRelayUrls(defaultRelayUrls());
 }
 
-bool AppController::pushEnabled() const
-{
-    if (!m_db)
-        return true;
-    const auto v = m_db->getSetting("pushEnabled");
-    return !v || *v != "0";
-}
-
-QString AppController::pushBaseUrl() const
-{
-    if (!m_db)
-        return defaultPushBaseUrl();
-    const auto v = m_db->getSetting("pushBaseUrl");
-    if (v && !v->empty())
-        return QString::fromStdString(*v);
-    return defaultPushBaseUrl();
-}
-
-QString AppController::defaultPushBaseUrl() const
-{
-    return QStringLiteral("https://colo-apps.les-crevettes-cevenoles.fr/ntfy");
-}
-
-void AppController::setPushSettings(bool enabled, const QString &baseUrl)
-{
-    if (!m_db)
-        return;
-
-    const QString trimmed = baseUrl.trimmed();
-    if (enabled && !trimmed.isEmpty()) {
-        const QUrl u(trimmed);
-        if (!u.isValid() || u.scheme().isEmpty()) {
-            emit toast(QStringLiteral("URL push invalide"));
-            return;
-        }
-    }
-
-    m_db->setSetting("pushEnabled", enabled ? "1" : "0");
-    if (!trimmed.isEmpty())
-        m_db->setSetting("pushBaseUrl", trimmed.toStdString());
-
-    refreshPushTopics();
-    emit pushSettingsChanged();
-    emit toast(enabled ? QStringLiteral("Notifications push activées")
-                       : QStringLiteral("Notifications push désactivées"));
-}
-
 void AppController::resumeSync()
 {
     if (m_relayPool)
@@ -1692,51 +1644,16 @@ void AppController::resumeSync()
         m_projectSync->catchUpOnForeground();
 }
 
-void AppController::refreshPushTopics()
-{
-    if (!m_db || !m_projectSync)
-        return;
-
-    const bool pushOn = pushEnabled();
-    m_projectSync->setDeferBackgroundNotificationsToPush(pushOn);
-
-    if (!pushOn) {
-        platformConfigurePush(QString(), {}, QString());
-        return;
-    }
-
-    if (QGuiApplication::applicationState() == Qt::ApplicationActive) {
-        platformConfigurePush(QString(), {}, QString());
-        return;
-    }
-
-    QStringList topics;
-    for (const auto &projectId : m_db->sharedProjectIds()) {
-        const auto key = m_db->getSyncKey(projectId);
-        if (!key)
-            continue;
-        topics.append(net::pushTopicForChannel(
-            QString::fromStdString(net::deriveChannelTag(*key))));
-    }
-    platformConfigurePush(pushBaseUrl(), topics, m_deviceId);
-}
-
 void AppController::onApplicationStateChanged(Qt::ApplicationState state)
 {
     if (!m_projectSync)
         return;
 
-    const bool active = (state == Qt::ApplicationActive);
-    m_projectSync->setAppInForeground(active);
-    m_projectSync->setDeferBackgroundNotificationsToPush(pushEnabled());
-
-    if (active) {
-        m_pushLifecycleReady = true;
-        platformConfigurePush(QString(), {}, QString());
+    if (state == Qt::ApplicationActive) {
         resumeSync();
         reloadProjects();
-    } else if (m_pushLifecycleReady) {
-        refreshPushTopics();
+    } else if (m_projectSync->pendingChanges() == 0) {
+        m_projectSync->reconcileOutbox();
     }
 }
 
@@ -1744,7 +1661,6 @@ void AppController::enableProjectSharing()
 {
     if (m_hasCurrent && m_projectSync)
         m_projectSync->enableSharing(currentProjectId());
-    refreshPushTopics();
 }
 
 bool AppController::joinProjectUri(const QString& uri)
@@ -1756,7 +1672,6 @@ bool AppController::joinProjectUri(const QString& uri)
         return false;
     reloadProjects();
     openProject(id);
-    refreshPushTopics();
     return true;
 }
 
@@ -1779,7 +1694,6 @@ void AppController::leaveProject(const QString& projectId)
     }
     reloadProjects();
     emit toast(QStringLiteral("Projet retiré de cet appareil"));
-    refreshPushTopics();
 }
 
 bool AppController::isProjectShared(const QString& projectId) const
@@ -1852,10 +1766,8 @@ void AppController::announceWinners(const QVariantList& newWinners,
     if (msg.isEmpty())
         return;
     emit toast(msg);
-    if (!(pushEnabled()
-          && QGuiApplication::applicationState() != Qt::ApplicationActive)) {
+    if (QGuiApplication::applicationState() != Qt::ApplicationActive)
         platformNotify(QStringLiteral("Open Bingo"), msg);
-    }
     emit playWinnersTriggered(newWinners, scoreboard);
 }
 

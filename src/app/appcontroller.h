@@ -47,8 +47,6 @@ class AppController : public QObject
     Q_PROPERTY(bool online READ online NOTIFY onlineChanged)
     Q_PROPERTY(int pendingChanges READ pendingChanges NOTIFY pendingChangesChanged)
     Q_PROPERTY(QString relayUrls READ relayUrls NOTIFY relayUrlsChanged)
-    Q_PROPERTY(bool pushEnabled READ pushEnabled NOTIFY pushSettingsChanged)
-    Q_PROPERTY(QString pushBaseUrl READ pushBaseUrl NOTIFY pushSettingsChanged)
     Q_PROPERTY(app::Updater* updater READ updater CONSTANT)
     Q_PROPERTY(app::McpServer* mcp READ mcp CONSTANT)
     Q_PROPERTY(app::FilmAssistant* film READ film CONSTANT)
@@ -89,8 +87,6 @@ public:
     bool online() const;
     int pendingChanges() const;
     QString relayUrls() const;
-    bool pushEnabled() const;
-    QString pushBaseUrl() const;
     Updater* updater() const { return m_updater.get(); }
     McpServer* mcp() const { return m_mcp.get(); }
     FilmAssistant* film() const { return m_film.get(); }
@@ -182,8 +178,6 @@ public:
     Q_INVOKABLE void setRelayUrls(const QString& text);
     Q_INVOKABLE void resetRelayUrls();
     Q_INVOKABLE QString defaultRelayUrls() const;
-    Q_INVOKABLE void setPushSettings(bool enabled, const QString& baseUrl);
-    Q_INVOKABLE QString defaultPushBaseUrl() const;
     Q_INVOKABLE void onApplicationStateChanged(Qt::ApplicationState state);
 
     Q_INVOKABLE QVariantList loadPlayChecks(const QString& playerName);
@@ -244,7 +238,6 @@ signals:
     void onlineChanged();
     void pendingChangesChanged();
     void relayUrlsChanged();
-    void pushSettingsChanged();
     void editorOpened(const QString& projectId);
     void toast(const QString& message);
     void playChecksChanged();
@@ -267,7 +260,6 @@ private:
     const core::Project* current() const;
     QVariantList gridsToVariant() const;
     QImage renderScoreboardImage();
-    void refreshPushTopics();
     void resumeSync();
 
     std::unique_ptr<store::Database> m_db;
@@ -284,7 +276,6 @@ private:
     int                              m_lastTab     = 0;
     QTimer                           m_autoSaveTimer;
     QString                          m_deviceId;
-    bool                             m_pushLifecycleReady = false;
     // Coches connues avant le dernier merge distant — pour déclencher les gages.
     std::map<std::string, std::string> m_playChecksSnapshot;
     QString                          m_scoreboardPreviewPath;

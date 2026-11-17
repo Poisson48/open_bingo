@@ -2,14 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.openbingo.app"
     android:installLocation="auto"
-    android:versionCode="51"
-    android:versionName="2.0.51">
+    android:versionCode="210"
+    android:versionName="2.1.0">
 
     <!-- Relais Nostr en wss:// : réseau obligatoire. -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Savoir si on est hors ligne (bandeau + file d'attente outbox, SPEC §3.5). -->
+    <!-- Savoir si on est hors ligne (bandeau + file d'attente outbox, PROTOCOL.md §5). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <!-- Notification locale après un merge distant (SPEC §8). Runtime sur Android 13+. -->
+    <!-- Notification locale (gagnant annoncé app en arrière-plan). Runtime Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Scan du QR d'appairage. Runtime, et l'app reste utilisable sans (lien collé). -->
     <uses-permission android:name="android.permission.CAMERA"/>
@@ -19,9 +19,6 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- Retour haptique au cochage en mode Courses. Pas de permission runtime. -->
     <uses-permission android:name="android.permission.VIBRATE"/>
-    <!-- Veille push ntfy (app fermée / écran éteint). -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <supports-screens
@@ -79,10 +76,5 @@
                 <action android:name="org.openbingo.app.INSTALL_STATUS"/>
             </intent-filter>
         </receiver>
-
-        <service
-            android:name="org.openbingo.app.PushService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync"/>
     </application>
 </manifest>

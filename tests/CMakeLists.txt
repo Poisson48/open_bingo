@@ -59,6 +59,17 @@ target_link_libraries(tst_projectsync PRIVATE
 target_compile_options(tst_projectsync PRIVATE ${BINGO_WARN_FLAGS})
 add_test(NAME projectsync COMMAND tst_projectsync)
 
+# Test réseau réel (relais colo-apps) — SKIP sauf OPENBINGO_LIVE_SYNC=1.
+qt_add_executable(tst_live_sync tst_live_sync.cpp)
+target_link_libraries(tst_live_sync PRIVATE
+    applib cryptolayer net store
+    Qt6::Core Qt6::Gui Qt6::Sql Qt6::WebSockets Qt6::Test
+    PkgConfig::SODIUM PkgConfig::SECP256K1
+)
+target_compile_options(tst_live_sync PRIVATE ${BINGO_WARN_FLAGS})
+add_test(NAME live_sync COMMAND tst_live_sync)
+set_tests_properties(live_sync PROPERTIES LABELS "live")
+
 add_test(NAME qml_smoke COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/smoke-ui.sh)
 add_test(NAME live_xvfb COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/run-live-test.sh)
 add_test(NAME resolutions COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test-resolutions.sh)
